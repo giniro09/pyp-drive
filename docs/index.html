@@ -1141,15 +1141,6 @@ function drawJunction(decision) {
       opacity="${sel?1:0.5}" ${gl}
       data-branch="${b.id}" class="br" style="cursor:pointer"/>`;
 
-    const aD=roadLen-8;
-    const tipX=Math.sin(rad)*(aD+16), tipY=-Math.cos(rad)*(aD+16);
-    const pR=rad+Math.PI/2;
-    const lX=Math.sin(rad)*aD+Math.sin(pR)*9, lY=-Math.cos(rad)*aD-Math.cos(pR)*9;
-    const rX=Math.sin(rad)*aD-Math.sin(pR)*9, rY=-Math.cos(rad)*aD+Math.cos(pR)*9;
-    html += `<polygon points="${tipX},${tipY} ${lX},${lY} ${rX},${rY}"
-      fill="${rc}" opacity="${sel?1:0.6}"
-      data-branch="${b.id}" class="br" style="cursor:pointer"/>`;
-
     const labelD=125;
     const lx=Math.sin(rad)*labelD, ly=-Math.cos(rad)*labelD;
     const anchor=Math.abs(b.angleDeg)<30?"middle":b.angleDeg>0?"start":"end";

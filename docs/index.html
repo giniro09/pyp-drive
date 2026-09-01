@@ -87,6 +87,12 @@
   }
   .gear-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
 
+  .demo-banner {
+    display: none; background: #e74c3c; color: #fff; text-align: center;
+    padding: 6px; font-size: 14px; font-weight: 700; letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+
   .dist-bar-wrap {
     height: 6px; background: #0a0a14; flex-shrink: 0;
   }
@@ -199,6 +205,7 @@
 
 <!-- ===== Drive Screen ===== -->
 <div id="driveScreen">
+  <div id="demoBanner" class="demo-banner">OFFLINE DEMO</div>
   <div class="header">
     <div class="distance-block">
       <span id="distance" class="distance">---</span>
@@ -428,6 +435,7 @@ let demoSpeedMps = 11; // ~40km/h
 
 function startDemoSim() {
   stopDemoSim();
+  document.getElementById("demoBanner").style.display = "block";
   gpsActive = true;
   if (!demoEdgeId) {
     const edgeIds = Array.from(graph.edges.keys());
@@ -441,6 +449,7 @@ function startDemoSim() {
 
 function stopDemoSim() {
   if (demoInterval) { clearInterval(demoInterval); demoInterval = null; }
+  document.getElementById("demoBanner").style.display = "none";
 }
 
 function demoTick() {

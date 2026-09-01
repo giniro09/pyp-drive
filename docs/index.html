@@ -524,6 +524,62 @@ function buildGraph(data) {
 }
 
 // ============================================================
+//  Spatial Grid Index (100m cells)
+// ============================================================
+const GRID_CELL_M = 100;
+const GRID_DEG_LAT = GRID_CELL_M / 111320;
+let gridIndex = null;
+
+function gridKey(lat, lon) {
+  const GRID_DEG_LON = GRID_CELL_M / (111320 * Math.cos(lat * DEG2RAD));
+  return Math.floor(lat / GRID_DEG_LAT) + "," + Math.floor(lon / GRID_DEG_LON);
+}
+
+function buildSpatialIndex(graph) {
+  const grid = new Map();
+  for (const edge of graph.edges.values()) {
+    const [lon1,lat1] = edge.geometry[0];
+    const [lon2,lat2] = edge.geometry[edge.geometry.length-1];
+    const mLat = (lat1+lat2)/2, mLon = (lon1+lon2)/2;
+    const GRID_DEG_LON = GRID_CELL_M / (111320 * Math.cos(mLat * DEG2RAD));
+    const halfEdgeCells = Math.ceil(edge.lengthM / GRID_CELL_M / 2) + 1;
+    const cLat = Math.floor(mLat / GRID_DEG_LAT);
+    const cLon = Math.floor(mLon / GRID_DEG_LON);
+    for (let dLat = -halfEdgeCells; dLat <= halfEdgeCells; dLat++) {
+      for (let dLon = -halfEdgeCells; dLon <= halfEdgeCells; dLon++) {
+        const key = (cLat+dLat) + "," + (cLon+dLon);
+        if (!grid.has(key)) grid.set(key, []);
+        grid.get(key).push(edge.id);
+      }
+    }
+  }
+  gridIndex = grid;
+  return grid;
+}
+
+function getNearbyEdgeIds(lat, lon, radiusM) {
+  if (!gridIndex) return Array.from(graph.edges.keys());
+  const GRID_DEG_LON = GRID_CELL_M / (111320 * Math.cos(lat * DEG2RAD));
+  const cellsLat = Math.ceil(radiusM / GRID_CELL_M) + 1;
+  const cellsLon = Math.ceil(radiusM / GRID_CELL_M) + 1;
+  const cLat = Math.floor(lat / GRID_DEG_LAT);
+  const cLon = Math.floor(lon / GRID_DEG_LON);
+  const seen = new Set();
+  const result = [];
+  for (let dLat = -cellsLat; dLat <= cellsLat; dLat++) {
+    for (let dLon = -cellsLon; dLon <= cellsLon; dLon++) {
+      const key = (cLat+dLat) + "," + (cLon+dLon);
+      const ids = gridIndex.get(key);
+      if (!ids) continue;
+      for (const id of ids) {
+        if (!seen.has(id)) { seen.add(id); result.push(id); }
+      }
+    }
+  }
+  return result;
+}
+
+// ============================================================
 //  Matcher
 // ============================================================
 function perpendicularDistance(lat,lon,edge){
@@ -540,10 +596,10 @@ function perpendicularDistance(lat,lon,edge){
 function matchPosition(graph,lat,lon,heading,speedMps,previousEdgeId){
   const searchR=Math.min(70,Math.max(25,20+(speedMps||0)*0.8));
   const candidates=[];
-  for(const edge of graph.edges.values()){
-    const mLat=(edge.geometry[0][1]+edge.geometry[edge.geometry.length-1][1])/2;
-    const mLon=(edge.geometry[0][0]+edge.geometry[edge.geometry.length-1][0])/2;
-    if(haversineM(lat,lon,mLat,mLon)>searchR+edge.lengthM/2+50) continue;
+  const nearbyIds = getNearbyEdgeIds(lat, lon, searchR + 50);
+  for(const eid of nearbyIds){
+    const edge = graph.edges.get(eid);
+    if (!edge) continue;
     const {distM,fraction}=perpendicularDistance(lat,lon,edge);
     if(distM>searchR) continue;
     const distTerm=distM/searchR;
@@ -761,7 +817,13 @@ async function startApp() {
     graph = buildGraph(data);
     const sigCount = Array.from(graph.nodes.values()).filter(n => n.hasSignal).length;
     prog.textContent = `${graph.nodes.size} ノード, ${graph.edges.size} エッジ, ${sigCount} 信号`;
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 50));
+
+    prog.textContent = "空間インデックス構築中...";
+    await new Promise(r => setTimeout(r, 10));
+    buildSpatialIndex(graph);
+    prog.textContent = `グリッドセル: ${gridIndex.size}`;
+    await new Promise(r => setTimeout(r, 200));
   } catch(e) {
     prog.textContent = "読み込み失敗: " + e.message;
     return;

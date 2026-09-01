@@ -17,9 +17,7 @@
   }
 
   /* ===== PIN screen ===== */
-  #pinScreen {
-    flex: 1; display: flex; align-items: center; justify-content: center;
-  }
+  #pinScreen { flex: 1; display: flex; align-items: center; justify-content: center; }
   .pin-card {
     background: #16213e; border-radius: 16px; padding: 48px 40px;
     text-align: center; max-width: 360px; width: 90%;
@@ -69,6 +67,7 @@
   .distance.near { color: #e74c3c; }
   .distance-unit { font-size: 24px; color: #6ac5e0; }
   .speed { font-size: 18px; color: #888; margin-left: 16px; }
+  .header-right { display: flex; align-items: center; gap: 16px; }
   .status { text-align: right; }
   .status-text { font-size: 16px; color: #aaa; }
   .status-badge {
@@ -79,6 +78,14 @@
   .badge-gps { background: #2980b9; color: #fff; }
   .badge-ok { background: #27ae60; color: #fff; }
   .badge-lost { background: #e74c3c; color: #fff; }
+
+  .gear-btn {
+    width: 44px; height: 44px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,0.08); color: #aaa; font-size: 22px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .gear-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
 
   .junction-view {
     flex: 1; display: flex; align-items: center; justify-content: center;
@@ -99,6 +106,61 @@
     display: flex; justify-content: space-between;
     font-size: 12px; color: #555; flex-shrink: 0;
   }
+
+  /* ===== Settings overlay ===== */
+  #settingsOverlay {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.7); align-items: center; justify-content: center;
+  }
+  .settings-panel {
+    background: #16213e; border-radius: 16px; padding: 32px;
+    max-width: 420px; width: 92%; max-height: 85vh; overflow-y: auto;
+  }
+  .settings-panel h2 { font-size: 20px; margin-bottom: 24px; }
+  .s-section { margin-bottom: 24px; }
+  .s-section-title { font-size: 14px; color: #6ac5e0; font-weight: 700; margin-bottom: 12px; }
+  .s-radio-group { display: flex; flex-direction: column; gap: 8px; }
+  .s-radio-label {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 8px; cursor: pointer;
+    background: rgba(255,255,255,0.04); font-size: 14px;
+  }
+  .s-radio-label:hover { background: rgba(255,255,255,0.08); }
+  .s-radio-label input { accent-color: #00d4ff; }
+  .s-radio-desc { font-size: 12px; color: #777; margin-left: 26px; margin-top: -4px; }
+  .s-slider-row {
+    display: flex; align-items: center; gap: 12px; margin-top: 8px; margin-left: 26px;
+  }
+  .s-slider-row input[type=range] { flex: 1; accent-color: #00d4ff; }
+  .s-slider-val { font-size: 14px; color: #00d4ff; font-weight: 700; min-width: 50px; }
+  .s-toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border-radius: 8px;
+    background: rgba(255,255,255,0.04); font-size: 14px;
+  }
+  .s-toggle {
+    width: 48px; height: 26px; border-radius: 13px; border: none;
+    background: #444; position: relative; cursor: pointer; flex-shrink: 0;
+  }
+  .s-toggle::after {
+    content: ""; position: absolute; width: 20px; height: 20px;
+    border-radius: 50%; background: #aaa; top: 3px; left: 3px;
+    transition: all 0.2s;
+  }
+  .s-toggle.on { background: #00d4ff; }
+  .s-toggle.on::after { left: 25px; background: #fff; }
+  .s-input-row { margin-top: 10px; }
+  .s-input {
+    width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #333;
+    background: #0f0f1a; color: #eee; font-size: 13px; font-family: monospace;
+  }
+  .s-input::placeholder { color: #555; }
+  .s-close-btn {
+    display: block; width: 100%; margin-top: 20px; padding: 14px;
+    background: #00d4ff; color: #0f0f1a; border: none; border-radius: 10px;
+    font-size: 16px; font-weight: 700; cursor: pointer;
+  }
+  .s-close-btn:hover { background: #33dfff; }
 </style>
 </head>
 <body>
@@ -134,9 +196,12 @@
       <span class="distance-unit">m</span>
       <span id="speed" class="speed"></span>
     </div>
-    <div class="status">
-      <div id="stateLabel" class="status-text">GPS待機中</div>
-      <span id="badge" class="status-badge badge-wait">待機</span>
+    <div class="header-right">
+      <div class="status">
+        <div id="stateLabel" class="status-text">GPS待機中</div>
+        <span id="badge" class="status-badge badge-wait">待機</span>
+      </div>
+      <button class="gear-btn" onclick="toggleSettings()">&#9881;</button>
     </div>
   </div>
 
@@ -145,7 +210,7 @@
   </div>
 
   <div id="noticeArea" class="notice">
-    <div class="notice-icon">📡</div>
+    <div class="notice-icon">&#128225;</div>
     <div id="noticeText" class="notice-text">GPS信号を待っています</div>
     <div id="noticeSub" class="notice-sub">ブラウザの位置情報を許可してください</div>
   </div>
@@ -156,9 +221,59 @@
   </div>
 </div>
 
+<!-- ===== Settings Overlay ===== -->
+<div id="settingsOverlay" onclick="if(event.target===this)toggleSettings()">
+  <div class="settings-panel">
+    <h2>&#9881; 設定</h2>
+
+    <div class="s-section">
+      <div class="s-section-title">対象交差点フィルタ</div>
+      <div class="s-radio-group">
+        <label class="s-radio-label">
+          <input type="radio" name="jFilter" value="all" checked onchange="onFilterChange()"> すべての交差点
+        </label>
+        <label class="s-radio-label">
+          <input type="radio" name="jFilter" value="signal" onchange="onFilterChange()"> 信号のある交差点のみ
+        </label>
+        <label class="s-radio-label">
+          <input type="radio" name="jFilter" value="signal_or_dist" onchange="onFilterChange()"> 信号あり＋一定距離以上離れた交差点
+        </label>
+        <div id="distSliderArea" style="display:none;">
+          <div class="s-slider-row">
+            <input type="range" id="minDistSlider" min="50" max="500" step="10" value="150" oninput="onDistSliderChange()">
+            <span id="minDistVal" class="s-slider-val">150m</span>
+          </div>
+          <div class="s-radio-desc">前回の対象交差点からの最低距離</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="s-section">
+      <div class="s-section-title">テスラナビ連携</div>
+      <div class="s-toggle-row">
+        <span>選択経路をテスラナビに送信</span>
+        <div id="teslaToggle" class="s-toggle" onclick="toggleTesla()"></div>
+      </div>
+      <div class="s-radio-desc" style="margin-top:6px;">
+        ONにすると、分岐選択時にTesla APIで経由地を設定します。APIトークンが必要です。
+      </div>
+      <div id="teslaTokenArea" class="s-input-row" style="display:none;">
+        <input id="teslaToken" class="s-input" type="password" placeholder="Teslaアクセストークン"
+          oninput="saveTeslaToken()" value="">
+        <div id="teslaVin" class="s-input-row">
+          <input id="teslaVinInput" class="s-input" type="text" placeholder="車両VIN (例: 5YJ...)"
+            oninput="saveTeslaVin()" value="">
+        </div>
+      </div>
+    </div>
+
+    <button class="s-close-btn" onclick="toggleSettings()">閉じる</button>
+  </div>
+</div>
+
 <script>
 // ============================================================
-//  PIN Auth (client-side, hash-based)
+//  PIN Auth
 // ============================================================
 const PIN_HASH = "81d566fb189d531865580ffde45ceb613b07dcf1c7e45a68729ab7928a5af2b5";
 
@@ -198,9 +313,77 @@ async function submitPin() {
   }
 }
 pinSubmit.addEventListener("click", submitPin);
+if (sessionStorage.getItem("pyp_auth") === "1") startApp();
 
-if (sessionStorage.getItem("pyp_auth") === "1") {
-  startApp();
+// ============================================================
+//  Settings state
+// ============================================================
+let settings = {
+  junctionFilter: "all",
+  minDistM: 150,
+  teslaNav: false,
+  teslaToken: "",
+  teslaVin: "",
+};
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem("pyp_settings") || "{}");
+    Object.assign(settings, s);
+  } catch(e) {}
+  applySettingsToUI();
+}
+
+function saveSettings() {
+  localStorage.setItem("pyp_settings", JSON.stringify(settings));
+}
+
+function applySettingsToUI() {
+  document.querySelector(`input[name=jFilter][value=${settings.junctionFilter}]`).checked = true;
+  document.getElementById("minDistSlider").value = settings.minDistM;
+  document.getElementById("minDistVal").textContent = settings.minDistM + "m";
+  document.getElementById("distSliderArea").style.display =
+    settings.junctionFilter === "signal_or_dist" ? "block" : "none";
+  const tt = document.getElementById("teslaToggle");
+  tt.classList.toggle("on", settings.teslaNav);
+  document.getElementById("teslaTokenArea").style.display = settings.teslaNav ? "block" : "none";
+  document.getElementById("teslaToken").value = settings.teslaToken;
+  document.getElementById("teslaVinInput").value = settings.teslaVin;
+}
+
+function toggleSettings() {
+  const el = document.getElementById("settingsOverlay");
+  el.style.display = el.style.display === "flex" ? "none" : "flex";
+}
+
+function onFilterChange() {
+  settings.junctionFilter = document.querySelector('input[name=jFilter]:checked').value;
+  document.getElementById("distSliderArea").style.display =
+    settings.junctionFilter === "signal_or_dist" ? "block" : "none";
+  saveSettings();
+}
+
+function onDistSliderChange() {
+  settings.minDistM = parseInt(document.getElementById("minDistSlider").value);
+  document.getElementById("minDistVal").textContent = settings.minDistM + "m";
+  saveSettings();
+}
+
+function toggleTesla() {
+  settings.teslaNav = !settings.teslaNav;
+  document.getElementById("teslaToggle").classList.toggle("on", settings.teslaNav);
+  document.getElementById("teslaTokenArea").style.display = settings.teslaNav ? "block" : "none";
+  saveSettings();
+}
+
+function saveTeslaToken() {
+  settings.teslaToken = document.getElementById("teslaToken").value;
+  saveSettings();
+}
+
+function saveTeslaVin() {
+  settings.teslaVin = document.getElementById("teslaVinInput").value;
+  saveSettings();
 }
 
 // ============================================================
@@ -211,8 +394,7 @@ const DEG2RAD = Math.PI / 180;
 const RAD2DEG = 180 / Math.PI;
 
 function haversineM(lat1, lon1, lat2, lon2) {
-  const dLat = (lat2 - lat1) * DEG2RAD;
-  const dLon = (lon2 - lon1) * DEG2RAD;
+  const dLat = (lat2-lat1)*DEG2RAD, dLon = (lon2-lon1)*DEG2RAD;
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*DEG2RAD)*Math.cos(lat2*DEG2RAD)*Math.sin(dLon/2)**2;
   return R_EARTH * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
@@ -243,7 +425,7 @@ function classifyTurn(a) {
 }
 
 // ============================================================
-//  OSM Graph Builder (browser version)
+//  OSM Graph Builder
 // ============================================================
 const EXCLUDED_HW = new Set(["footway","path","cycleway","steps","pedestrian","bridleway","corridor","construction","proposed","raceway","bus_guideway"]);
 const EXCLUDED_SVC = new Set(["driveway","parking_aisle","emergency_access"]);
@@ -275,9 +457,16 @@ function isOneway(tags) {
 
 function buildGraph(data) {
   const osmNodes = new Map();
+  const signalNodeIds = new Set();
   const ways = [];
+
   for (const el of data.elements) {
-    if (el.type==="node" && el.lat!=null) osmNodes.set(el.id, {lat:el.lat,lon:el.lon,tags:el.tags||{}});
+    if (el.type==="node" && el.lat!=null) {
+      osmNodes.set(el.id, {lat:el.lat, lon:el.lon, tags:el.tags||{}});
+      if (el.tags && el.tags.highway === "traffic_signals") {
+        signalNodeIds.add(el.id);
+      }
+    }
     else if (el.type==="way" && el.tags?.highway) ways.push(el);
   }
 
@@ -298,8 +487,10 @@ function buildGraph(data) {
       if (!f||!t) continue;
       const fId="n_"+nids[i], tId="n_"+nids[i+1];
 
-      if (!nodes.has(fId)) nodes.set(fId,{id:fId,lat:f.lat,lon:f.lon});
-      if (!nodes.has(tId)) nodes.set(tId,{id:tId,lat:t.lat,lon:t.lon});
+      if (!nodes.has(fId)) nodes.set(fId,{id:fId,lat:f.lat,lon:f.lon,
+        hasSignal: signalNodeIds.has(nids[i])});
+      if (!nodes.has(tId)) nodes.set(tId,{id:tId,lat:t.lat,lon:t.lon,
+        hasSignal: signalNodeIds.has(nids[i+1])});
 
       const len=haversineM(f.lat,f.lon,t.lat,t.lon);
       const fwd=bearingDeg(f.lat,f.lon,t.lat,t.lon);
@@ -333,34 +524,28 @@ function buildGraph(data) {
 }
 
 // ============================================================
-//  Matcher (browser version)
+//  Matcher
 // ============================================================
 function perpendicularDistance(lat,lon,edge){
   const [lon1,lat1]=edge.geometry[0];
   const [lon2,lat2]=edge.geometry[edge.geometry.length-1];
-  const A=haversineM(lat1,lon1,lat,lon);
-  const B=haversineM(lat2,lon2,lat,lon);
-  const C=edge.lengthM;
+  const A=haversineM(lat1,lon1,lat,lon), B=haversineM(lat2,lon2,lat,lon), C=edge.lengthM;
   if(C<0.1) return {distM:A,fraction:0};
   let fraction=(A*A-B*B+C*C)/(2*C*C);
   fraction=Math.max(0,Math.min(1,fraction));
-  const pLat=lat1+fraction*(lat2-lat1);
-  const pLon=lon1+fraction*(lon2-lon1);
+  const pLat=lat1+fraction*(lat2-lat1), pLon=lon1+fraction*(lon2-lon1);
   return {distM:haversineM(lat,lon,pLat,pLon),fraction};
 }
 
 function matchPosition(graph,lat,lon,heading,speedMps,previousEdgeId){
   const searchR=Math.min(70,Math.max(25,20+(speedMps||0)*0.8));
   const candidates=[];
-
   for(const edge of graph.edges.values()){
     const mLat=(edge.geometry[0][1]+edge.geometry[edge.geometry.length-1][1])/2;
     const mLon=(edge.geometry[0][0]+edge.geometry[edge.geometry.length-1][0])/2;
     if(haversineM(lat,lon,mLat,mLon)>searchR+edge.lengthM/2+50) continue;
-
     const {distM,fraction}=perpendicularDistance(lat,lon,edge);
     if(distM>searchR) continue;
-
     const distTerm=distM/searchR;
     let headingTerm=0;
     if(heading!=null){
@@ -377,46 +562,169 @@ function matchPosition(graph,lat,lon,heading,speedMps,previousEdgeId){
     }
     candidates.push({edge,distM,fraction,score:0.45*distTerm+0.25*headingTerm+0.20*contTerm});
   }
-
   if(!candidates.length) return null;
   candidates.sort((a,b)=>a.score-b.score);
   return {edge:candidates[0].edge, fraction:candidates[0].fraction};
 }
 
-function findNextDecision(graph,startEdge,startFraction){
-  let curId=startEdge.id;
-  let accM=startEdge.lengthM*(1-startFraction);
-  const visited=new Set([startEdge.id]);
+// ============================================================
+//  道なり (default branch) selection
+// ============================================================
+function pickDefaultBranch(branches) {
+  const straight = branches.find(b => b.label === "straight");
+  if (straight) return straight.id;
 
-  for(let s=0;s<200;s++){
-    const edge=graph.edges.get(curId);
-    const nodeId=edge.toNodeId;
-    if(accM>2000) return null;
+  const hasStraight = branches.some(b => Math.abs(b.angleDeg) <= 25);
+  if (!hasStraight) {
+    const left = branches.find(b => b.label === "left" || b.label === "slight_left");
+    if (left) return left.id;
+  }
 
-    const outIds=(graph.outgoing.get(nodeId)||[]).filter(eid=>{
-      const e=graph.edges.get(eid);
-      return e.toNodeId!==edge.fromNodeId||e.osmWayId!==edge.osmWayId;
+  let best = null, bestAbs = 999;
+  for (const b of branches) {
+    const abs = Math.abs(b.angleDeg);
+    if (abs < bestAbs) { bestAbs = abs; best = b; }
+  }
+  return best ? best.id : null;
+}
+
+// ============================================================
+//  Junction filter + findNextDecision
+// ============================================================
+let lastAcceptedDecisionNodeId = null;
+let lastAcceptedDecisionDistAcc = 0;
+
+function shouldAcceptJunction(nodeId, accDistFromLastAccepted, hasSignal) {
+  const f = settings.junctionFilter;
+  if (f === "all") return true;
+  if (f === "signal") return hasSignal;
+  if (f === "signal_or_dist") {
+    if (hasSignal) return true;
+    return accDistFromLastAccepted >= settings.minDistM;
+  }
+  return true;
+}
+
+function findNextDecision(graph, startEdge, startFraction) {
+  let curId = startEdge.id;
+  let accM = startEdge.lengthM * (1 - startFraction);
+  const visited = new Set([startEdge.id]);
+
+  for (let s=0; s<200; s++) {
+    const edge = graph.edges.get(curId);
+    const nodeId = edge.toNodeId;
+    if (accM > 2000) return null;
+
+    const outIds = (graph.outgoing.get(nodeId)||[]).filter(eid => {
+      const e = graph.edges.get(eid);
+      return e.toNodeId !== edge.fromNodeId || e.osmWayId !== edge.osmWayId;
     });
 
-    if(!outIds.length) return null;
+    if (!outIds.length) return null;
 
-    if(outIds.length>=2){
-      const inBearing=edge.endBearingDeg;
-      const branches=outIds.map(eid=>{
-        const oe=graph.edges.get(eid);
-        const rel=normalize180(oe.startBearingDeg-inBearing);
-        return {id:"br_"+eid,label:classifyTurn(rel),angleDeg:rel,
-          roadName:oe.name,roadRef:oe.ref,selected:false};
-      }).sort((a,b)=>a.angleDeg-b.angleDeg);
-      const node=graph.nodes.get(nodeId);
-      return {nodeId,distanceM:accM,branches,lat:node?.lat,lon:node?.lon};
+    if (outIds.length >= 2) {
+      const node = graph.nodes.get(nodeId);
+      const hasSignal = node?.hasSignal || false;
+
+      let distFromLast = accM;
+      if (lastAcceptedDecisionNodeId && lastAcceptedDecisionNodeId !== nodeId) {
+        distFromLast = accM + lastAcceptedDecisionDistAcc;
+      }
+
+      if (shouldAcceptJunction(nodeId, distFromLast, hasSignal)) {
+        const inBearing = edge.endBearingDeg;
+        const branches = outIds.map(eid => {
+          const oe = graph.edges.get(eid);
+          const rel = normalize180(oe.startBearingDeg - inBearing);
+          return { id:"br_"+eid, label:classifyTurn(rel), angleDeg:rel,
+            roadName:oe.name, roadRef:oe.ref, selected:false };
+        }).sort((a,b) => a.angleDeg - b.angleDeg);
+
+        return { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal };
+      }
     }
 
-    const nid=outIds[0];
-    if(visited.has(nid)) return null;
+    const nid = outIds.length >= 2 ? pickStraightest(outIds, graph, edge) : outIds[0];
+    if (!nid || visited.has(nid)) return null;
     visited.add(nid);
-    accM+=graph.edges.get(nid).lengthM;
-    curId=nid;
+    accM += graph.edges.get(nid).lengthM;
+    curId = nid;
+  }
+  return null;
+}
+
+function pickStraightest(outIds, graph, inEdge) {
+  let best = null, bestAbs = 999;
+  for (const eid of outIds) {
+    const oe = graph.edges.get(eid);
+    const rel = Math.abs(normalize180(oe.startBearingDeg - inEdge.endBearingDeg));
+    if (rel < bestAbs) { bestAbs = rel; best = eid; }
+  }
+  return best;
+}
+
+// ============================================================
+//  Tesla Nav integration
+// ============================================================
+async function sendToTeslaNav(lat, lon) {
+  if (!settings.teslaNav || !settings.teslaToken || !settings.teslaVin) return;
+  try {
+    const resp = await fetch(
+      `https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/vehicles/${settings.teslaVin}/command/navigation_request`, {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + settings.teslaToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        type: "share_ext_content_raw",
+        locale: "ja-JP",
+        timestamp_ms: String(Date.now()),
+        value: { "android.intent.extra.TEXT": `${lat},${lon}` },
+      }),
+    });
+    const data = await resp.json();
+    console.log("Tesla nav response:", data);
+  } catch(e) {
+    console.error("Tesla nav error:", e);
+  }
+}
+
+function computeNavTarget(graph, decision) {
+  const sel = decision.branches.find(b => b.selected);
+  if (!sel) return null;
+  const edgeId = sel.id.replace("br_", "");
+  let curId = edgeId;
+  let accM = 0;
+  const visited = new Set();
+
+  for (let i = 0; i < 100; i++) {
+    const edge = graph.edges.get(curId);
+    if (!edge) break;
+    accM += edge.lengthM;
+    visited.add(curId);
+    if (accM > 500) {
+      const node = graph.nodes.get(edge.toNodeId);
+      return node ? { lat: node.lat, lon: node.lon } : null;
+    }
+    const outIds = (graph.outgoing.get(edge.toNodeId)||[]).filter(eid => {
+      const e = graph.edges.get(eid);
+      return e.toNodeId !== edge.fromNodeId;
+    });
+    if (!outIds.length) break;
+    let best = null, bestAbs = 999;
+    for (const eid of outIds) {
+      if (visited.has(eid)) continue;
+      const rel = Math.abs(normalize180(graph.edges.get(eid).startBearingDeg - edge.endBearingDeg));
+      if (rel < bestAbs) { bestAbs = rel; best = eid; }
+    }
+    if (!best) break;
+    curId = best;
+  }
+  const edge = graph.edges.get(curId);
+  if (edge) {
+    const node = graph.nodes.get(edge.toNodeId);
+    return node ? { lat: node.lat, lon: node.lon } : null;
   }
   return null;
 }
@@ -437,6 +745,7 @@ let currentDecision = null;
 //  App startup
 // ============================================================
 async function startApp() {
+  loadSettings();
   document.getElementById("pinScreen").style.display = "none";
   document.getElementById("loadScreen").style.display = "flex";
 
@@ -450,8 +759,9 @@ async function startApp() {
     await new Promise(r => setTimeout(r, 50));
 
     graph = buildGraph(data);
-    prog.textContent = `${graph.nodes.size} ノード, ${graph.edges.size} エッジ`;
-    await new Promise(r => setTimeout(r, 200));
+    const sigCount = Array.from(graph.nodes.values()).filter(n => n.hasSignal).length;
+    prog.textContent = `${graph.nodes.size} ノード, ${graph.edges.size} エッジ, ${sigCount} 信号`;
+    await new Promise(r => setTimeout(r, 300));
   } catch(e) {
     prog.textContent = "読み込み失敗: " + e.message;
     return;
@@ -471,20 +781,16 @@ function startGps() {
     showNotice("GPS非対応", "このブラウザでは位置情報を取得できません");
     return;
   }
-
   navigator.geolocation.watchPosition(
     (pos) => {
       const {latitude,longitude,heading,speed} = pos.coords;
       gpsActive = true;
       lastSpeedMps = speed || 0;
-
       document.getElementById("gpsStatus").textContent =
         `GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
       setBadge("gps","GPS");
-
       const kph = Math.round(lastSpeedMps*3.6);
       document.getElementById("speed").textContent = kph>0 ? `${kph} km/h` : "";
-
       processPosition(latitude, longitude, heading, speed);
     },
     (err) => {
@@ -512,16 +818,18 @@ function processPosition(lat, lon, heading, speed) {
   if (decision && decision.distanceM <= 800) {
     if (lastDecisionNodeId && lastDecisionNodeId !== decision.nodeId) {
       selectedBranchId = null;
+      lastAcceptedDecisionDistAcc = 0;
     }
     lastDecisionNodeId = decision.nodeId;
+    lastAcceptedDecisionNodeId = decision.nodeId;
 
-    if (selectedBranchId && decision.branches.some(b => b.id === selectedBranchId)) {
-      decision.branches = decision.branches.map(b => ({
-        ...b, selected: b.id === selectedBranchId
-      }));
-    } else if (selectedBranchId) {
-      selectedBranchId = null;
+    if (!selectedBranchId || !decision.branches.some(b => b.id === selectedBranchId)) {
+      selectedBranchId = pickDefaultBranch(decision.branches);
     }
+
+    decision.branches = decision.branches.map(b => ({
+      ...b, selected: b.id === selectedBranchId
+    }));
 
     currentDecision = decision;
     displayDistanceM = Math.round(decision.distanceM);
@@ -529,7 +837,7 @@ function processPosition(lat, lon, heading, speed) {
     document.getElementById("junctionArea").style.display = "flex";
     document.getElementById("noticeArea").style.display = "none";
     document.getElementById("stateLabel").textContent =
-      selectedBranchId ? "選択済み" : "方向を選んでください";
+      selectedBranchId ? "道なり選択中" : "方向を選んでください";
     setBadge("ok","検出中");
     drawJunction(decision);
   } else {
@@ -555,6 +863,11 @@ function chooseBranch(branchId) {
   }));
   document.getElementById("stateLabel").textContent = "選択済み";
   drawJunction(currentDecision);
+
+  if (settings.teslaNav) {
+    const target = computeNavTarget(graph, currentDecision);
+    if (target) sendToTeslaNav(target.lat, target.lon);
+  }
 }
 
 // ============================================================
@@ -615,7 +928,20 @@ function drawJunction(decision) {
   </defs>`;
 
   html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#1a1a2e" stroke-width="2"/>`;
-  html += `<circle cx="0" cy="0" r="14" fill="#1e2a45" stroke="#3a5070" stroke-width="2"/>`;
+
+  // 信号アイコン（交差点中心上部）
+  if (decision.hasSignal) {
+    html += `<g transform="translate(0,-28)">
+      <rect x="-14" y="-22" width="28" height="44" rx="5" fill="#222" stroke="#555" stroke-width="1.5"/>
+      <circle cx="0" cy="-12" r="6" fill="#e74c3c" opacity="0.9"/>
+      <circle cx="0" cy="0" r="6" fill="#f39c12" opacity="0.9"/>
+      <circle cx="0" cy="12" r="6" fill="#27ae60" opacity="0.9"/>
+    </g>`;
+    html += `<circle cx="0" cy="0" r="14" fill="#1e2a45" stroke="#f39c12" stroke-width="2.5"/>`;
+  } else {
+    html += `<circle cx="0" cy="0" r="14" fill="#1e2a45" stroke="#3a5070" stroke-width="2"/>`;
+  }
+
   html += `<line x1="0" y1="185" x2="0" y2="14" stroke="#3a3a50" stroke-width="20" stroke-linecap="round"/>`;
 
   const maxD = 500;
@@ -627,8 +953,7 @@ function drawJunction(decision) {
   for (const b of branches) {
     const rad = b.angleDeg*Math.PI/180;
     const roadLen = 165;
-    const ex = Math.sin(rad)*roadLen;
-    const ey = -Math.cos(rad)*roadLen;
+    const ex = Math.sin(rad)*roadLen, ey = -Math.cos(rad)*roadLen;
     const sel = b.selected;
     const rc = sel?"#00d4ff":"#666";
     const rw = sel?24:18;

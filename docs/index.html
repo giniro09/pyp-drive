@@ -278,6 +278,17 @@
       </div>
     </div>
 
+    <div class="s-section">
+      <div class="s-section-title">デモモード</div>
+      <div class="s-toggle-row">
+        <span>オフラインデモ（仮想走行）</span>
+        <div id="demoToggle" class="s-toggle" onclick="toggleDemo()"></div>
+      </div>
+      <div class="s-radio-desc" style="margin-top:6px;">
+        GPS不要。地図上をランダムに走行して動作を確認できます。
+      </div>
+    </div>
+
     <button class="s-close-btn" onclick="toggleSettings()">閉じる</button>
   </div>
 </div>
@@ -335,6 +346,7 @@ let settings = {
   teslaNav: false,
   teslaToken: "",
   teslaVin: "",
+  demoMode: false,
 };
 
 function loadSettings() {
@@ -360,6 +372,7 @@ function applySettingsToUI() {
   document.getElementById("teslaTokenArea").style.display = settings.teslaNav ? "block" : "none";
   document.getElementById("teslaToken").value = settings.teslaToken;
   document.getElementById("teslaVinInput").value = settings.teslaVin;
+  document.getElementById("demoToggle").classList.toggle("on", settings.demoMode);
 }
 
 function toggleSettings() {
@@ -395,6 +408,90 @@ function saveTeslaToken() {
 function saveTeslaVin() {
   settings.teslaVin = document.getElementById("teslaVinInput").value;
   saveSettings();
+}
+
+function toggleDemo() {
+  settings.demoMode = !settings.demoMode;
+  document.getElementById("demoToggle").classList.toggle("on", settings.demoMode);
+  saveSettings();
+  if (settings.demoMode && graph) startDemoSim();
+  else stopDemoSim();
+}
+
+// ============================================================
+//  Demo simulator
+// ============================================================
+let demoInterval = null;
+let demoEdgeId = null;
+let demoFraction = 0;
+let demoSpeedMps = 11; // ~40km/h
+
+function startDemoSim() {
+  stopDemoSim();
+  gpsActive = true;
+  if (!demoEdgeId) {
+    const edgeIds = Array.from(graph.edges.keys());
+    demoEdgeId = edgeIds[Math.floor(Math.random() * edgeIds.length)];
+    demoFraction = 0;
+  }
+  document.getElementById("gpsStatus").textContent = "DEMO";
+  setBadge("ok","DEMO");
+  demoInterval = setInterval(demoTick, 1000);
+}
+
+function stopDemoSim() {
+  if (demoInterval) { clearInterval(demoInterval); demoInterval = null; }
+}
+
+function demoTick() {
+  if (!graph || !demoEdgeId) return;
+  const edge = graph.edges.get(demoEdgeId);
+  if (!edge) return;
+
+  demoFraction += demoSpeedMps / Math.max(edge.lengthM, 1);
+
+  if (demoFraction >= 1) {
+    const nodeId = edge.toNodeId;
+    const outIds = (graph.outgoing.get(nodeId) || []).filter(eid => {
+      const e = graph.edges.get(eid);
+      return e.toNodeId !== edge.fromNodeId;
+    });
+
+    if (!outIds.length) {
+      const allOut = graph.outgoing.get(nodeId) || [];
+      if (allOut.length) {
+        demoEdgeId = allOut[Math.floor(Math.random() * allOut.length)];
+      } else {
+        const edgeIds = Array.from(graph.edges.keys());
+        demoEdgeId = edgeIds[Math.floor(Math.random() * edgeIds.length)];
+      }
+    } else if (selectedBranchId) {
+      const selEdgeId = selectedBranchId.replace("br_", "");
+      if (outIds.includes(selEdgeId)) {
+        demoEdgeId = selEdgeId;
+      } else {
+        demoEdgeId = pickStraightest(outIds, graph, edge) || outIds[0];
+      }
+    } else {
+      demoEdgeId = pickStraightest(outIds, graph, edge) || outIds[0];
+    }
+    demoFraction = 0;
+  }
+
+  const curEdge = graph.edges.get(demoEdgeId);
+  if (!curEdge) return;
+  const [lon1,lat1] = curEdge.geometry[0];
+  const [lon2,lat2] = curEdge.geometry[curEdge.geometry.length - 1];
+  const lat = lat1 + demoFraction * (lat2 - lat1);
+  const lon = lon1 + demoFraction * (lon2 - lon1);
+  const heading = curEdge.startBearingDeg;
+
+  lastSpeedMps = demoSpeedMps;
+  const kph = Math.round(demoSpeedMps * 3.6);
+  document.getElementById("speed").textContent = `${kph} km/h`;
+  document.getElementById("gpsStatus").textContent = `DEMO: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+
+  processPosition(lat, lon, heading, demoSpeedMps);
 }
 
 // ============================================================
@@ -1091,6 +1188,84 @@ function drawJunction(decision) {
     });
   });
 }
+
+// ============================================================
+//  Arc swipe selection
+// ============================================================
+let swipeActive = false;
+
+function getSvgAngle(ev) {
+  const svg = document.getElementById("junctionSvg");
+  if (!svg) return null;
+  const rect = svg.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX;
+  const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY;
+  const dx = clientX - cx;
+  const dy = -(clientY - cy);
+  const angleDeg = Math.atan2(dx, dy) * RAD2DEG;
+  return angleDeg;
+}
+
+function findClosestBranch(angleDeg) {
+  if (!currentDecision) return null;
+  let best = null, bestDiff = 999;
+  for (const b of currentDecision.branches) {
+    const diff = Math.abs(normalize180(angleDeg - b.angleDeg));
+    if (diff < bestDiff) { bestDiff = diff; best = b; }
+  }
+  return best;
+}
+
+function onSwipeMove(ev) {
+  if (!swipeActive || !currentDecision) return;
+  const angle = getSvgAngle(ev);
+  if (angle === null) return;
+  const closest = findClosestBranch(angle);
+  if (closest && closest.id !== selectedBranchId) {
+    selectedBranchId = closest.id;
+    currentDecision.branches = currentDecision.branches.map(b => ({
+      ...b, selected: b.id === selectedBranchId
+    }));
+    drawJunction(currentDecision);
+  }
+}
+
+function onSwipeEnd() {
+  if (!swipeActive) return;
+  swipeActive = false;
+  if (selectedBranchId && currentDecision) {
+    document.getElementById("stateLabel").textContent = "選択済み";
+    if (settings.teslaNav) {
+      const target = computeNavTarget(graph, currentDecision);
+      if (target) sendToTeslaNav(target.lat, target.lon);
+    }
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const area = document.getElementById("junctionArea");
+  area.addEventListener("touchstart", (ev) => {
+    if (!currentDecision) return;
+    swipeActive = true;
+    onSwipeMove(ev);
+  }, {passive: true});
+  area.addEventListener("touchmove", (ev) => {
+    onSwipeMove(ev);
+  }, {passive: true});
+  area.addEventListener("touchend", onSwipeEnd);
+  area.addEventListener("touchcancel", onSwipeEnd);
+
+  area.addEventListener("mousedown", (ev) => {
+    if (!currentDecision) return;
+    swipeActive = true;
+    onSwipeMove(ev);
+  });
+  area.addEventListener("mousemove", onSwipeMove);
+  area.addEventListener("mouseup", onSwipeEnd);
+  area.addEventListener("mouseleave", onSwipeEnd);
+});
 </script>
 </body>
 </html>

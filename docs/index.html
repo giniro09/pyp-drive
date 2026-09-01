@@ -1140,16 +1140,10 @@ function drawJunction(decision) {
     const rad = b.angleDeg*Math.PI/180;
     const roadLen = 165;
     const ex = Math.sin(rad)*roadLen, ey = -Math.cos(rad)*roadLen;
-    const sel = b.selected;
-    const rc = sel?"#00d4ff":"#666";
-    const rw = sel?24:18;
-    const tc = sel?"#00d4ff":"#ccc";
-    const gl = sel?' filter="url(#glow)"':"";
 
-    html += `<line x1="0" y1="0" x2="${ex}" y2="${ey}"
-      stroke="${rc}" stroke-width="${rw}" stroke-linecap="round"
-      opacity="${sel?1:0.5}" ${gl}
-      data-branch="${b.id}" class="br" style="cursor:pointer"/>`;
+    html += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
+      stroke="#666" stroke-width="18" stroke-linecap="round" opacity="0.5"
+      style="cursor:pointer"/>`;
 
     const labelD=125;
     const lx=Math.sin(rad)*labelD, ly=-Math.cos(rad)*labelD;
@@ -1158,42 +1152,62 @@ function drawJunction(decision) {
     const label=LABEL_JA[b.label]||b.label;
     const road=b.roadName||b.roadRef||"";
 
-    html += `<text x="${lx+tx}" y="${ly-6}" text-anchor="${anchor}"
-      fill="${tc}" font-size="20" font-weight="800"
-      data-branch="${b.id}" class="br"
+    html += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-6}" text-anchor="${anchor}"
+      fill="#ccc" font-size="20" font-weight="800"
       style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8)"
       >${label}</text>`;
 
     if(road){
-      html += `<text x="${lx+tx}" y="${ly+14}" text-anchor="${anchor}"
-        fill="${sel?'#6ac5e0':'#777'}" font-size="13"
-        data-branch="${b.id}" class="br"
+      html += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+14}" text-anchor="${anchor}"
+        fill="#777" font-size="13"
         style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8)"
         >${road}</text>`;
-    }
-
-    if(sel){
-      html += `<circle cx="${lx+tx}" cy="${ly+28}" r="4" fill="#00d4ff" opacity="0.8"/>`;
-      html += `<text x="${lx+tx}" y="${ly+44}" text-anchor="${anchor}"
-        fill="#00d4ff" font-size="11" font-weight="600"
-        style="user-select:none">選択中</text>`;
     }
   }
 
   svg.innerHTML = html;
+  applyBranchHighlight(decision.branches);
+}
 
-  svg.querySelectorAll(".br").forEach(el => {
-    el.addEventListener("click", () => {
-      const bid = el.getAttribute("data-branch");
-      if (bid) chooseBranch(bid);
-    });
-  });
+function applyBranchHighlight(branches) {
+  for (const b of branches) {
+    const sel = b.selected;
+    const preview = b.preview;
+    const road = document.getElementById("road_" + b.id);
+    const label = document.getElementById("label_" + b.id);
+    const roadname = document.getElementById("roadname_" + b.id);
+    if (!road) continue;
+
+    if (sel && !preview) {
+      road.setAttribute("stroke", "#00d4ff");
+      road.setAttribute("stroke-width", "24");
+      road.setAttribute("opacity", "1");
+      road.setAttribute("filter", "url(#glow)");
+      if (label) label.setAttribute("fill", "#00d4ff");
+      if (roadname) roadname.setAttribute("fill", "#6ac5e0");
+    } else if (preview) {
+      road.setAttribute("stroke", "#00d4ff");
+      road.setAttribute("stroke-width", "22");
+      road.setAttribute("opacity", "0.6");
+      road.removeAttribute("filter");
+      if (label) label.setAttribute("fill", "#5bb8d0");
+      if (roadname) roadname.setAttribute("fill", "#5bb8d0");
+    } else {
+      road.setAttribute("stroke", "#666");
+      road.setAttribute("stroke-width", "18");
+      road.setAttribute("opacity", "0.5");
+      road.removeAttribute("filter");
+      if (label) label.setAttribute("fill", "#ccc");
+      if (roadname) roadname.setAttribute("fill", "#777");
+    }
+  }
 }
 
 // ============================================================
 //  Arc swipe selection
 // ============================================================
 let swipeActive = false;
+let previewBranchId = null;
 
 function getSvgAngle(ev) {
   const svg = document.getElementById("junctionSvg");
@@ -1205,8 +1219,7 @@ function getSvgAngle(ev) {
   const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY;
   const dx = clientX - cx;
   const dy = -(clientY - cy);
-  const angleDeg = Math.atan2(dx, dy) * RAD2DEG;
-  return angleDeg;
+  return Math.atan2(dx, dy) * RAD2DEG;
 }
 
 function findClosestBranch(angleDeg) {
@@ -1224,25 +1237,23 @@ function onSwipeMove(ev) {
   const angle = getSvgAngle(ev);
   if (angle === null) return;
   const closest = findClosestBranch(angle);
-  if (closest && closest.id !== selectedBranchId) {
-    selectedBranchId = closest.id;
-    currentDecision.branches = currentDecision.branches.map(b => ({
-      ...b, selected: b.id === selectedBranchId
-    }));
-    drawJunction(currentDecision);
-  }
+  if (!closest || closest.id === previewBranchId) return;
+  previewBranchId = closest.id;
+  const updated = currentDecision.branches.map(b => ({
+    ...b,
+    selected: b.id === selectedBranchId && b.id !== previewBranchId,
+    preview: b.id === previewBranchId,
+  }));
+  applyBranchHighlight(updated);
 }
 
 function onSwipeEnd() {
   if (!swipeActive) return;
   swipeActive = false;
-  if (selectedBranchId && currentDecision) {
-    document.getElementById("stateLabel").textContent = "選択済み";
-    if (settings.teslaNav) {
-      const target = computeNavTarget(graph, currentDecision);
-      if (target) sendToTeslaNav(target.lat, target.lon);
-    }
+  if (previewBranchId && currentDecision) {
+    chooseBranch(previewBranchId);
   }
+  previewBranchId = null;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1250,17 +1261,16 @@ document.addEventListener("DOMContentLoaded", () => {
   area.addEventListener("touchstart", (ev) => {
     if (!currentDecision) return;
     swipeActive = true;
+    previewBranchId = null;
     onSwipeMove(ev);
   }, {passive: true});
-  area.addEventListener("touchmove", (ev) => {
-    onSwipeMove(ev);
-  }, {passive: true});
+  area.addEventListener("touchmove", (ev) => { onSwipeMove(ev); }, {passive: true});
   area.addEventListener("touchend", onSwipeEnd);
   area.addEventListener("touchcancel", onSwipeEnd);
-
   area.addEventListener("mousedown", (ev) => {
     if (!currentDecision) return;
     swipeActive = true;
+    previewBranchId = null;
     onSwipeMove(ev);
   });
   area.addEventListener("mousemove", onSwipeMove);

@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Junction Nav</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; overflow: hidden; }
@@ -176,6 +178,14 @@
     font-size: 16px; font-weight: 700; cursor: pointer;
   }
   .s-close-btn:hover { background: #33dfff; }
+
+  /* ===== Debug minimap ===== */
+  #minimap {
+    display: none; position: fixed; bottom: 40px; right: 8px;
+    width: 220px; height: 220px; z-index: 50;
+    border: 2px solid #00d4ff; border-radius: 10px; overflow: hidden;
+    opacity: 0.9;
+  }
 </style>
 </head>
 <body>
@@ -237,6 +247,7 @@
     <span id="gpsStatus">GPS: 待機中</span>
     <span>Map data &copy; OpenStreetMap contributors</span>
   </div>
+  <div id="minimap"></div>
 </div>
 
 <!-- ===== Settings Overlay ===== -->
@@ -432,6 +443,45 @@ let demoInterval = null;
 let demoEdgeId = null;
 let demoFraction = 0;
 let demoSpeedMps = 11; // ~40km/h
+let miniMap = null;
+let miniMarker = null;
+let miniTrail = [];
+
+function initMinimap(lat, lon) {
+  const el = document.getElementById("minimap");
+  el.style.display = "block";
+  if (miniMap) { miniMap.remove(); miniMap = null; }
+  miniMap = L.map(el, {
+    center: [lat, lon], zoom: 15,
+    zoomControl: false, attributionControl: false,
+    dragging: true, scrollWheelZoom: true,
+  });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+  }).addTo(miniMap);
+  miniMarker = L.circleMarker([lat, lon], {
+    radius: 7, color: "#00d4ff", fillColor: "#00d4ff", fillOpacity: 1, weight: 2,
+  }).addTo(miniMap);
+  miniTrail = [];
+}
+
+function updateMinimap(lat, lon) {
+  if (!miniMap) return;
+  miniMarker.setLatLng([lat, lon]);
+  miniMap.panTo([lat, lon]);
+  miniTrail.push([lat, lon]);
+  if (miniTrail.length > 200) miniTrail.shift();
+  if (miniTrail.length >= 2) {
+    if (window._miniTrailLine) miniMap.removeLayer(window._miniTrailLine);
+    window._miniTrailLine = L.polyline(miniTrail, {color:"#00d4ff", weight:3, opacity:0.5}).addTo(miniMap);
+  }
+}
+
+function hideMinimap() {
+  document.getElementById("minimap").style.display = "none";
+  if (miniMap) { miniMap.remove(); miniMap = null; }
+  miniTrail = [];
+}
 
 function startDemoSim() {
   stopDemoSim();
@@ -442,6 +492,11 @@ function startDemoSim() {
     demoEdgeId = edgeIds[Math.floor(Math.random() * edgeIds.length)];
     demoFraction = 0;
   }
+  const edge = graph.edges.get(demoEdgeId);
+  if (edge) {
+    const [lon, lat] = edge.geometry[0];
+    initMinimap(lat, lon);
+  }
   document.getElementById("gpsStatus").textContent = "DEMO";
   setBadge("ok","DEMO");
   demoInterval = setInterval(demoTick, 1000);
@@ -450,6 +505,7 @@ function startDemoSim() {
 function stopDemoSim() {
   if (demoInterval) { clearInterval(demoInterval); demoInterval = null; }
   document.getElementById("demoBanner").style.display = "none";
+  hideMinimap();
 }
 
 function demoTick() {
@@ -500,6 +556,7 @@ function demoTick() {
   document.getElementById("speed").textContent = `${kph} km/h`;
   document.getElementById("gpsStatus").textContent = `DEMO: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
 
+  updateMinimap(lat, lon);
   processPosition(lat, lon, heading, demoSpeedMps);
 }
 
@@ -802,21 +859,30 @@ function shouldAcceptJunction(nodeId, accDistFromLastAccepted, hasSignal) {
 }
 
 function findNextDecision(graph, startEdge, startFraction) {
+  const maxSearchM = settings.junctionFilter === "all" ? 2000 : 5000;
   let curId = startEdge.id;
   let accM = startEdge.lengthM * (1 - startFraction);
   const visited = new Set([startEdge.id]);
+  let skippedJunctions = 0;
+  let lastSkipReason = "";
 
-  for (let s=0; s<200; s++) {
+  for (let s=0; s<500; s++) {
     const edge = graph.edges.get(curId);
     const nodeId = edge.toNodeId;
-    if (accM > 2000) return null;
+    if (accM > maxSearchM) {
+      console.log(`[findNext] STOP: distance ${Math.round(accM)}m > ${maxSearchM}m limit. skipped=${skippedJunctions} junctions. last=${lastSkipReason}`);
+      return null;
+    }
 
     const outIds = (graph.outgoing.get(nodeId)||[]).filter(eid => {
       const e = graph.edges.get(eid);
       return e.toNodeId !== edge.fromNodeId || e.osmWayId !== edge.osmWayId;
     });
 
-    if (!outIds.length) return null;
+    if (!outIds.length) {
+      console.log(`[findNext] STOP: dead end at ${nodeId}, ${Math.round(accM)}m. skipped=${skippedJunctions}`);
+      return null;
+    }
 
     if (outIds.length >= 2) {
       const node = graph.nodes.get(nodeId);
@@ -828,6 +894,9 @@ function findNextDecision(graph, startEdge, startFraction) {
       }
 
       if (shouldAcceptJunction(nodeId, distFromLast, hasSignal)) {
+        if (skippedJunctions > 0) {
+          console.log(`[findNext] FOUND signal junction at ${Math.round(accM)}m after skipping ${skippedJunctions}`);
+        }
         const inBearing = edge.endBearingDeg;
         const branches = outIds.map(eid => {
           const oe = graph.edges.get(eid);
@@ -837,15 +906,22 @@ function findNextDecision(graph, startEdge, startFraction) {
         }).sort((a,b) => a.angleDeg - b.angleDeg);
 
         return { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal };
+      } else {
+        skippedJunctions++;
+        lastSkipReason = `${nodeId} sig=${hasSignal} dist=${Math.round(accM)}m`;
       }
     }
 
     const nid = outIds.length >= 2 ? pickStraightest(outIds, graph, edge) : outIds[0];
-    if (!nid || visited.has(nid)) return null;
+    if (!nid || visited.has(nid)) {
+      console.log(`[findNext] STOP: ${!nid ? "no next edge" : "loop detected"} at ${nodeId}, ${Math.round(accM)}m. skipped=${skippedJunctions}`);
+      return null;
+    }
     visited.add(nid);
     accM += graph.edges.get(nid).lengthM;
     curId = nid;
   }
+  console.log(`[findNext] STOP: 500 steps exhausted at ${Math.round(accM)}m. skipped=${skippedJunctions}`);
   return null;
 }
 
@@ -1018,8 +1094,10 @@ function processPosition(lat, lon, heading, speed) {
   lastMatchEdgeId = match.edge.id;
   const decision = findNextDecision(graph, match.edge, match.fraction);
 
-  if (decision && decision.distanceM <= 800) {
-    if (lastDecisionNodeId && lastDecisionNodeId !== decision.nodeId) {
+  const maxShowM = settings.junctionFilter === "all" ? 800 : 5000;
+  if (decision && decision.distanceM <= maxShowM) {
+    const junctionChanged = lastDecisionNodeId && lastDecisionNodeId !== decision.nodeId;
+    if (junctionChanged) {
       selectedBranchId = null;
       lastAcceptedDecisionDistAcc = 0;
     }
@@ -1042,7 +1120,11 @@ function processPosition(lat, lon, heading, speed) {
     document.getElementById("stateLabel").textContent =
       selectedBranchId ? "道なり選択中" : "方向を選んでください";
     setBadge("ok","検出中");
-    drawJunction(decision);
+    if (swipeActive && !junctionChanged) {
+      updateCarPosition(decision);
+    } else {
+      drawJunction(decision);
+    }
   } else {
     currentDecision = null;
     selectedBranchId = null;
@@ -1138,19 +1220,6 @@ function drawJunction(decision) {
 
   html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#1a1a2e" stroke-width="2"/>`;
 
-  // 信号アイコン（交差点中心上部）
-  if (decision.hasSignal) {
-    html += `<g transform="translate(0,-28)">
-      <rect x="-14" y="-22" width="28" height="44" rx="5" fill="#222" stroke="#555" stroke-width="1.5"/>
-      <circle cx="0" cy="-12" r="6" fill="#e74c3c" opacity="0.9"/>
-      <circle cx="0" cy="0" r="6" fill="#f39c12" opacity="0.9"/>
-      <circle cx="0" cy="12" r="6" fill="#27ae60" opacity="0.9"/>
-    </g>`;
-    html += `<circle cx="0" cy="0" r="14" fill="#1e2a45" stroke="#f39c12" stroke-width="2.5"/>`;
-  } else {
-    html += `<circle cx="0" cy="0" r="14" fill="#1e2a45" stroke="#3a5070" stroke-width="2"/>`;
-  }
-
   html += `<line x1="0" y1="185" x2="0" y2="14" stroke="#3a3a50" stroke-width="20" stroke-linecap="round"/>`;
 
   const maxD = 500;
@@ -1188,8 +1257,41 @@ function drawJunction(decision) {
     }
   }
 
+  // 中心ノード＋信号アイコン（最前面）
+  if (decision.hasSignal) {
+    html += `<circle cx="0" cy="-20" r="38" fill="#0f0f1a" opacity="0.95"/>`;
+    html += `<g transform="translate(0,-20)">
+      <rect x="-16" y="-26" width="32" height="52" rx="6" fill="#222" stroke="#f39c12" stroke-width="2"/>
+      <circle cx="0" cy="-14" r="7" fill="#e74c3c"/>
+      <circle cx="0" cy="0" r="7" fill="#f39c12"/>
+      <circle cx="0" cy="14" r="7" fill="#27ae60"/>
+    </g>`;
+    html += `<circle cx="0" cy="0" r="16" fill="#1e2a45" stroke="#f39c12" stroke-width="2.5"/>`;
+  } else {
+    html += `<circle cx="0" cy="0" r="16" fill="#1e2a45" stroke="#3a5070" stroke-width="2"/>`;
+  }
+
   svg.innerHTML = html;
-  applyBranchHighlight(decision.branches);
+
+  if (swipeActive && previewBranchId) {
+    const updated = decision.branches.map(b => ({
+      ...b,
+      selected: b.id === selectedBranchId && b.id !== previewBranchId,
+      preview: b.id === previewBranchId,
+    }));
+    applyBranchHighlight(updated);
+  } else {
+    applyBranchHighlight(decision.branches);
+  }
+}
+
+function updateCarPosition(decision) {
+  const car = document.getElementById("junctionSvg").querySelector("polygon[fill='#00d4ff']");
+  if (!car) return;
+  const maxD = 500;
+  const ratio = Math.min((displayDistanceM||decision.distanceM)/maxD, 1);
+  const carY = 30 + ratio*140;
+  car.setAttribute("points", `0,${carY-14} -11,${carY+8} 11,${carY+8}`);
 }
 
 function applyBranchHighlight(branches) {

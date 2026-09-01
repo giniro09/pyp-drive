@@ -574,14 +574,14 @@ function isOneway(tags) {
 
 function buildGraph(data) {
   const osmNodes = new Map();
-  const signalNodeIds = new Set();
+  const signalPositions = [];
   const ways = [];
 
   for (const el of data.elements) {
     if (el.type==="node" && el.lat!=null) {
       osmNodes.set(el.id, {lat:el.lat, lon:el.lon, tags:el.tags||{}});
       if (el.tags && el.tags.highway === "traffic_signals") {
-        signalNodeIds.add(el.id);
+        signalPositions.push({lat:el.lat, lon:el.lon});
       }
     }
     else if (el.type==="way" && el.tags?.highway) ways.push(el);
@@ -604,10 +604,8 @@ function buildGraph(data) {
       if (!f||!t) continue;
       const fId="n_"+nids[i], tId="n_"+nids[i+1];
 
-      if (!nodes.has(fId)) nodes.set(fId,{id:fId,lat:f.lat,lon:f.lon,
-        hasSignal: signalNodeIds.has(nids[i])});
-      if (!nodes.has(tId)) nodes.set(tId,{id:tId,lat:t.lat,lon:t.lon,
-        hasSignal: signalNodeIds.has(nids[i+1])});
+      if (!nodes.has(fId)) nodes.set(fId,{id:fId,lat:f.lat,lon:f.lon, hasSignal:false});
+      if (!nodes.has(tId)) nodes.set(tId,{id:tId,lat:t.lat,lon:t.lon, hasSignal:false});
 
       const len=haversineM(f.lat,f.lon,t.lat,t.lon);
       const fwd=bearingDeg(f.lat,f.lon,t.lat,t.lon);
@@ -637,6 +635,31 @@ function buildGraph(data) {
       }
     }
   }
+  const SIG_RANGE_M = 30;
+  const sigGrid = new Map();
+  const SIG_CELL = 0.0005;
+  for (const sp of signalPositions) {
+    const key = Math.floor(sp.lat/SIG_CELL)+","+Math.floor(sp.lon/SIG_CELL);
+    if (!sigGrid.has(key)) sigGrid.set(key, []);
+    sigGrid.get(key).push(sp);
+  }
+  for (const node of nodes.values()) {
+    const cLat = Math.floor(node.lat/SIG_CELL);
+    const cLon = Math.floor(node.lon/SIG_CELL);
+    outer: for (let dLat=-1; dLat<=1; dLat++) {
+      for (let dLon=-1; dLon<=1; dLon++) {
+        const sigs = sigGrid.get((cLat+dLat)+","+(cLon+dLon));
+        if (!sigs) continue;
+        for (const sp of sigs) {
+          if (haversineM(node.lat, node.lon, sp.lat, sp.lon) <= SIG_RANGE_M) {
+            node.hasSignal = true;
+            break outer;
+          }
+        }
+      }
+    }
+  }
+
   return {nodes,edges,outgoing,incoming};
 }
 

@@ -87,6 +87,15 @@
   }
   .gear-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
 
+  .dist-bar-wrap {
+    height: 6px; background: #0a0a14; flex-shrink: 0;
+  }
+  .dist-bar {
+    height: 100%; width: 0%; border-radius: 0 3px 3px 0;
+    background: #00d4ff; transition: width 0.15s linear, background 0.3s;
+  }
+  .dist-bar.near { background: #e74c3c; }
+
   .junction-view {
     flex: 1; display: flex; align-items: center; justify-content: center;
     min-height: 0; position: relative;
@@ -204,6 +213,8 @@
       <button class="gear-btn" onclick="toggleSettings()">&#9881;</button>
     </div>
   </div>
+
+  <div class="dist-bar-wrap"><div id="distBar" class="dist-bar"></div></div>
 
   <div id="junctionArea" class="junction-view" style="display:none;">
     <svg id="junctionSvg" class="junction-svg" viewBox="-200 -200 400 400"></svg>
@@ -908,6 +919,8 @@ function processPosition(lat, lon, heading, speed) {
     displayDistanceM = null;
     document.getElementById("distance").textContent = "---";
     document.getElementById("distance").classList.remove("near");
+    document.getElementById("distBar").style.width = "0%";
+    document.getElementById("distBar").classList.remove("near");
     document.getElementById("junctionArea").style.display = "none";
     document.getElementById("noticeArea").style.display = "flex";
     document.getElementById("noticeText").textContent = "次の分岐を探しています";
@@ -954,6 +967,10 @@ function updateDistanceDisplay(m) {
   const el = document.getElementById("distance");
   el.textContent = m;
   el.classList.toggle("near", m<80);
+  const bar = document.getElementById("distBar");
+  const pct = Math.max(0, Math.min(100, (1 - m/800) * 100));
+  bar.style.width = pct + "%";
+  bar.classList.toggle("near", m<80);
 }
 
 function showNotice(text, sub) {

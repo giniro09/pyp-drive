@@ -939,7 +939,8 @@ async function startApp() {
 
   document.getElementById("loadScreen").style.display = "none";
   document.getElementById("driveScreen").style.display = "flex";
-  startGps();
+  if (settings.demoMode) startDemoSim();
+  else startGps();
   requestAnimationFrame(interpolationLoop);
 }
 

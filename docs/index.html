@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>PYP Drive</title>
+<title>Junction Nav</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; overflow: hidden; }
@@ -168,7 +168,7 @@
 <!-- ===== PIN Screen ===== -->
 <div id="pinScreen">
   <div class="pin-card">
-    <h1>PYP Drive</h1>
+    <h1>Junction Nav</h1>
     <div class="pin-sub">PINを入力してください</div>
     <div class="pin-row">
       <input class="pin-digit" type="tel" maxlength="1" inputmode="numeric" autofocus>
@@ -303,7 +303,7 @@ function getPin() { return Array.from(digits).map(d => d.value).join(""); }
 async function submitPin() {
   const hash = await sha256(getPin());
   if (hash === PIN_HASH) {
-    sessionStorage.setItem("pyp_auth", "1");
+    sessionStorage.setItem("jnav_auth", "1");
     startApp();
   } else {
     pinError.textContent = "PINが違います";
@@ -313,7 +313,7 @@ async function submitPin() {
   }
 }
 pinSubmit.addEventListener("click", submitPin);
-if (sessionStorage.getItem("pyp_auth") === "1") startApp();
+if (sessionStorage.getItem("jnav_auth") === "1") startApp();
 
 // ============================================================
 //  Settings state
@@ -328,14 +328,14 @@ let settings = {
 
 function loadSettings() {
   try {
-    const s = JSON.parse(localStorage.getItem("pyp_settings") || "{}");
+    const s = JSON.parse(localStorage.getItem("jnav_settings") || "{}");
     Object.assign(settings, s);
   } catch(e) {}
   applySettingsToUI();
 }
 
 function saveSettings() {
-  localStorage.setItem("pyp_settings", JSON.stringify(settings));
+  localStorage.setItem("jnav_settings", JSON.stringify(settings));
 }
 
 function applySettingsToUI() {

@@ -1308,12 +1308,9 @@ function drawJunction(decision) {
         stroke="${major ? '#8290A5' : medium ? '#536076' : '#30394B'}"
         stroke-width="${major ? 2.2 : medium ? 1.5 : 1}" stroke-linecap="round"/>`;
     }
-    if (swipeActive && lastNotchAngle !== null) {
-      const rad = lastNotchAngle * Math.PI / 180;
-      html += `<line x1="${Math.sin(rad)*164}" y1="${-Math.cos(rad)*164}"
-        x2="${Math.sin(rad)*185}" y2="${-Math.cos(rad)*185}"
-        stroke="#67E8F9" stroke-width="5" stroke-linecap="round" filter="url(#notchGlow)"/>`;
-    }
+    html += `<line id="dialIndicator" x1="0" y1="-164" x2="0" y2="-185"
+      stroke="#67E8F9" stroke-width="5" stroke-linecap="round" filter="url(#notchGlow)"
+      visibility="hidden"/>`;
   }
 
   html += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171E2B" stroke-width="26" stroke-linecap="round"/>`;
@@ -1534,6 +1531,18 @@ function onSwipeMove(ev) {
     lastNotchAngle = angle;
   }
 
+  if (settings.dialTicks) {
+    const ind = document.getElementById("dialIndicator");
+    if (ind) {
+      const rad = angle * Math.PI / 180;
+      ind.setAttribute("x1", Math.sin(rad)*164);
+      ind.setAttribute("y1", -Math.cos(rad)*164);
+      ind.setAttribute("x2", Math.sin(rad)*185);
+      ind.setAttribute("y2", -Math.cos(rad)*185);
+      ind.setAttribute("visibility", "visible");
+    }
+  }
+
   const closest = findClosestBranch(angle);
   if (!closest) return;
   if (closest.id !== previewBranchId) {
@@ -1552,6 +1561,8 @@ function onSwipeEnd() {
   if (!swipeActive) return;
   swipeActive = false;
   lastNotchAngle = null;
+  const ind = document.getElementById("dialIndicator");
+  if (ind) ind.setAttribute("visibility", "hidden");
   if (previewBranchId && currentDecision) {
     if (settings.soundConfirm) playConfirm();
     chooseBranch(previewBranchId);

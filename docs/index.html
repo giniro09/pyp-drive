@@ -1186,7 +1186,7 @@ function processPosition(lat, lon, heading, speed) {
     document.getElementById("stateLabel").textContent =
       selectedBranchId ? "道なり選択中" : "方向を選んでください";
     setBadge("ok","検出中");
-    if (swipeActive && !junctionChanged) {
+    if (!junctionChanged && document.getElementById("junctionSvg").children.length > 0) {
       updateCarPosition(decision);
     } else {
       drawJunction(decision);
@@ -1278,12 +1278,6 @@ function drawJunction(decision) {
   const branches = decision.branches;
 
   let html = `<defs>
-    <filter id="routeGlow" x="-35%" y="-35%" width="170%" height="170%">
-      <feGaussianBlur stdDeviation="2.8" result="blur"/>
-      <feColorMatrix in="blur" type="matrix"
-        values="0 0 0 0 0  0 0 0 0 .78  0 0 0 0 .91  0 0 0 .55 0"/>
-      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
     <filter id="notchGlow" x="-100%" y="-50%" width="300%" height="200%">
       <feGaussianBlur stdDeviation="2" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
@@ -1349,10 +1343,10 @@ function drawJunction(decision) {
       const rStroke = sel ? "#00C8E8" : "#55D9EC";
       const rWidth = sel ? 22 : 18;
       const rOpacity = sel ? 1 : .82;
-      const rFilter = sel ? ' filter="url(#routeGlow)"' : "";
+      const rStyle = sel ? "cursor:pointer;filter:drop-shadow(0 0 6px rgba(0,200,232,0.5))" : "cursor:pointer";
       selectedHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-        stroke="${rStroke}" stroke-width="${rWidth}" stroke-linecap="round" opacity="${rOpacity}"${rFilter}
-        style="cursor:pointer"/>`;
+        stroke="${rStroke}" stroke-width="${rWidth}" stroke-linecap="round" opacity="${rOpacity}"
+        style="${rStyle}"/>`;
     } else {
       html += `<line id="casing_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
         stroke="#171E2B" stroke-width="24" stroke-linecap="round"/>`;
@@ -1425,7 +1419,7 @@ function applyBranchHighlight(branches) {
       road.setAttribute("stroke", "#00C8E8");
       road.setAttribute("stroke-width", "22");
       road.setAttribute("opacity", "1");
-      road.setAttribute("filter", "url(#routeGlow)");
+      road.style.filter = "drop-shadow(0 0 6px rgba(0,200,232,0.5))";
       if (casing) casing.setAttribute("opacity", "0");
       if (label) label.setAttribute("fill", "#F4FCFF");
       if (roadname) roadname.setAttribute("fill", "#8FE9F5");
@@ -1433,7 +1427,7 @@ function applyBranchHighlight(branches) {
       road.setAttribute("stroke", "#55D9EC");
       road.setAttribute("stroke-width", "18");
       road.setAttribute("opacity", ".82");
-      road.removeAttribute("filter");
+      road.style.filter = "";
       if (casing) casing.setAttribute("opacity", "1");
       if (label) label.setAttribute("fill", "#BCEFF5");
       if (roadname) roadname.setAttribute("fill", "#7FB7C2");
@@ -1441,7 +1435,7 @@ function applyBranchHighlight(branches) {
       road.setAttribute("stroke", "#465166");
       road.setAttribute("stroke-width", "15");
       road.setAttribute("opacity", ".82");
-      road.removeAttribute("filter");
+      road.style.filter = "";
       if (casing) casing.setAttribute("opacity", "1");
       if (label) label.setAttribute("fill", "#D7DEE8");
       if (roadname) roadname.setAttribute("fill", "#8390A3");

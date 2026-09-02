@@ -1438,7 +1438,12 @@ function drawJunction(decision) {
     ? branches.map(b => ({...b, selected: b.id === selectedBranchId && b.id !== previewBranchId, preview: b.id === previewBranchId}))
     : branches;
 
-  // Pass 1: non-selected roads (casing + surface)
+  // Layer 1: all casings (bottom)
+  // Layer 2: all road surfaces
+  // Layer 3: selected/preview roads (on top)
+  // Layer 4: labels (topmost)
+  let casingHtml = "";
+  let surfaceHtml = "";
   let selectedHtml = "";
   let labelsHtml = "";
   for (const b of resolvedBranches) {
@@ -1460,9 +1465,9 @@ function drawJunction(decision) {
         stroke="${rStroke}" stroke-width="${rWidth}" stroke-linecap="round" opacity="${rOpacity}"
         style="${rStyle}"/>`;
     } else {
-      html += `<line id="casing_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
+      casingHtml += `<line id="casing_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
         stroke="#171E2B" stroke-width="24" stroke-linecap="round"/>`;
-      html += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
+      surfaceHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
         stroke="#465166" stroke-width="15" stroke-linecap="round" opacity=".82"
         style="cursor:pointer"/>`;
     }
@@ -1488,7 +1493,8 @@ function drawJunction(decision) {
         >${road}</text>`;
     }
   }
-  // Pass 2: selected/preview roads on top, then labels on top of everything
+  html += casingHtml;
+  html += surfaceHtml;
   html += selectedHtml;
   html += labelsHtml;
 

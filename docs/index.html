@@ -1319,11 +1319,8 @@ function drawJunction(decision) {
   const ratio = Math.min((displayDistanceM||decision.distanceM)/maxD, 1);
   const carY = 30 + ratio*140;
   html += `<g id="egoCar" transform="translate(0,${carY})">
-    <ellipse cx="0" cy="3" rx="14" ry="21" fill="#05070C" opacity=".72"/>
-    <path d="M0-18 C7-16 10-9 10 7 Q10 15 4 17 H-4 Q-10 15-10 7 C-10-9-7-16 0-18Z"
-      fill="#EAF6FF" stroke="#00C8E8" stroke-width="2"/>
-    <path d="M-6-7 Q0-12 6-7 L5 1 H-5Z" fill="#17283A"/>
-    <path d="M-6 10H-3 M3 10H6" stroke="#FF6257" stroke-width="2.4" stroke-linecap="round"/>
+    <polygon points="0,-14 10,10 -10,10" fill="#00C8E8" opacity=".9"
+      stroke="#67E8F9" stroke-width="1.5" stroke-linejoin="round"/>
   </g>`;
 
   const resolvedBranches = swipeActive && previewBranchId

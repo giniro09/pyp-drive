@@ -2069,7 +2069,11 @@ function onSwipeEnd() {
   lastNotchAngle = null;
   lastSwipeVelocity = 0;
 
-  if (previewBranchId && currentDecision) {
+  if (settings.roulette && Math.abs(swipeVelocity) > 150 && currentDecision) {
+    // Roulette: strong flick triggers spin — check first before normal confirm
+    previewBranchId = null;
+    startRoulette(swipeVelocity);
+  } else if (previewBranchId && currentDecision) {
     const branch = currentDecision.branches.find(b => b.id === previewBranchId);
     if (branch) {
       dialFixedAngle = branch.angleDeg;
@@ -2079,9 +2083,6 @@ function onSwipeEnd() {
     if (settings.soundConfirm) playConfirm();
     flashConfirmRoad(previewBranchId);
     chooseBranch(previewBranchId);
-  } else if (settings.roulette && Math.abs(swipeVelocity) > 150 && currentDecision) {
-    // Roulette: strong flick triggers spin
-    startRoulette(swipeVelocity);
   } else if (Math.abs(swipeVelocity) > 80 && currentDecision) {
     // Inertia: fast flick overshoots then snaps to nearest branch
     const inertiaAngle = dialFixedAngle + swipeVelocity * 0.15;

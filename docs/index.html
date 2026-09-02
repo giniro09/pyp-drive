@@ -248,6 +248,27 @@
     animation: confirmPulse 0.45s ease-out forwards;
   }
 
+  /* Side bar control */
+  #sideBarControl {
+    display: none; position: fixed; top: 0; bottom: 0; width: 48px;
+    z-index: 40; touch-action: none;
+  }
+  .sidebar-track {
+    position: absolute; top: 15%; bottom: 15%; width: 6px;
+    left: 50%; transform: translateX(-50%);
+    background: rgba(255,255,255,0.08); border-radius: 3px;
+  }
+  .sidebar-thumb {
+    position: absolute; width: 32px; height: 48px; left: 50%;
+    transform: translateX(-50%); top: 50%;
+    background: rgba(0,200,232,0.5); border: 2px solid rgba(0,200,232,0.8);
+    border-radius: 8px; cursor: grab;
+    transition: background 0.15s;
+  }
+  .sidebar-thumb:active, .sidebar-thumb.active {
+    background: rgba(0,200,232,0.8); cursor: grabbing;
+  }
+
   /* Ego car driving micro-tremor */
   @keyframes egoTremor {
     0%, 100% { transform: translate(0px, var(--car-y)) rotate(0deg); }
@@ -317,6 +338,10 @@
     <span>Map data &copy; OpenStreetMap contributors</span>
   </div>
   <div id="minimap"></div>
+  <div id="sideBarControl">
+    <div class="sidebar-track"></div>
+    <div id="sideBarThumb" class="sidebar-thumb"></div>
+  </div>
 </div>
 
 <!-- ===== Settings Overlay ===== -->
@@ -363,6 +388,28 @@
             oninput="saveTeslaVin()" value="">
         </div>
       </div>
+    </div>
+
+    <div class="s-section">
+      <div class="s-section-title">操作方式</div>
+      <div class="s-toggle-row" style="margin-bottom:6px;">
+        <span>ダイヤル相対モード</span>
+        <div id="toggleDialRelative" class="s-toggle" onclick="toggleSetting('dialRelative','toggleDialRelative')"></div>
+      </div>
+      <div class="s-radio-desc" style="margin-top:2px;">
+        OFF: タッチ位置の角度にダイヤルが合う（絶対）<br>
+        ON: タッチ後の指の動き量だけ回転する（相対）
+      </div>
+      <div class="s-toggle-row" style="margin-top:10px;margin-bottom:6px;">
+        <span>サイドバー操作</span>
+        <div id="toggleSideBar" class="s-toggle" onclick="toggleSetting('sideBar','toggleSideBar')"></div>
+      </div>
+      <div class="s-radio-desc" style="margin-top:2px;">画面端の縦スライドでもダイヤルを回転</div>
+      <div class="s-toggle-row" style="margin-top:6px;margin-bottom:0;">
+        <span>サイドバー位置: 右</span>
+        <div id="toggleSideBarLeft" class="s-toggle" onclick="toggleSideBarSide()"></div>
+      </div>
+      <div class="s-radio-desc" style="margin-top:2px;">ON: 左端 / OFF: 右端</div>
     </div>
 
     <div class="s-section">
@@ -472,6 +519,9 @@ let settings = {
   soundSwitch: true,
   soundConfirm: true,
   dialTicks: true,
+  dialRelative: false,
+  sideBar: false,
+  sideBarLeft: false,
   floatAmp: 30,
   floatSpeed: 40,
 };
@@ -504,6 +554,10 @@ function applySettingsToUI() {
   document.getElementById("toggleSoundSwitch").classList.toggle("on", settings.soundSwitch);
   document.getElementById("toggleSoundConfirm").classList.toggle("on", settings.soundConfirm);
   document.getElementById("toggleDialTicks").classList.toggle("on", settings.dialTicks);
+  document.getElementById("toggleDialRelative").classList.toggle("on", settings.dialRelative);
+  document.getElementById("toggleSideBar").classList.toggle("on", settings.sideBar);
+  document.getElementById("toggleSideBarLeft").classList.toggle("on", settings.sideBarLeft);
+  updateSideBar();
   document.getElementById("floatAmpSlider").value = settings.floatAmp;
   document.getElementById("floatAmpVal").textContent = settings.floatAmp + "%";
   document.getElementById("floatSpeedSlider").value = settings.floatSpeed;
@@ -557,6 +611,25 @@ function toggleSetting(key, elId) {
   settings[key] = !settings[key];
   document.getElementById(elId).classList.toggle("on", settings[key]);
   saveSettings();
+}
+
+function toggleSideBarSide() {
+  settings.sideBarLeft = !settings.sideBarLeft;
+  document.getElementById("toggleSideBarLeft").classList.toggle("on", settings.sideBarLeft);
+  saveSettings();
+  updateSideBar();
+}
+
+function updateSideBar() {
+  const el = document.getElementById("sideBarControl");
+  if (!el) return;
+  if (settings.sideBar) {
+    el.style.display = "block";
+    el.style.left = settings.sideBarLeft ? "0" : "";
+    el.style.right = settings.sideBarLeft ? "" : "0";
+  } else {
+    el.style.display = "none";
+  }
 }
 
 function onFloatParamChange() {
@@ -1754,6 +1827,8 @@ let dialFixedAngle = 0;
 let lastSwipeVelocity = 0;
 let lastSwipeAngle = null;
 let lastSwipeTime = 0;
+let relativeStartAngle = null;
+let relativeBaseAngle = 0;
 const NOTCH_DEG = 5;
 
 function getSvgAngle(ev) {
@@ -1779,10 +1854,20 @@ function findClosestBranch(angleDeg) {
   return best;
 }
 
+function resolveDialAngle(rawAngle) {
+  if (!settings.dialRelative) return rawAngle;
+  if (relativeStartAngle === null) {
+    relativeStartAngle = rawAngle;
+    relativeBaseAngle = dialFixedAngle;
+  }
+  return relativeBaseAngle + normalize180(rawAngle - relativeStartAngle);
+}
+
 function onSwipeMove(ev) {
   if (!swipeActive || !currentDecision) return;
-  const angle = getSvgAngle(ev);
-  if (angle === null) return;
+  const rawAngle = getSvgAngle(ev);
+  if (rawAngle === null) return;
+  const angle = resolveDialAngle(rawAngle);
 
   // Track swipe velocity for inertia
   const now = performance.now();
@@ -1904,6 +1989,7 @@ document.addEventListener("DOMContentLoaded", () => {
     lastNotchAngle = null;
     lastSwipeAngle = null;
     lastSwipeVelocity = 0;
+    relativeStartAngle = null;
     spawnRipple(ev.touches[0].clientX, ev.touches[0].clientY);
     onSwipeMove(ev);
   }, {passive: true});
@@ -1918,12 +2004,108 @@ document.addEventListener("DOMContentLoaded", () => {
     lastNotchAngle = null;
     lastSwipeAngle = null;
     lastSwipeVelocity = 0;
+    relativeStartAngle = null;
     spawnRipple(ev.clientX, ev.clientY);
     onSwipeMove(ev);
   });
   area.addEventListener("mousemove", onSwipeMove);
   area.addEventListener("mouseup", onSwipeEnd);
   area.addEventListener("mouseleave", onSwipeEnd);
+
+  // Side bar control
+  const sidebar = document.getElementById("sideBarControl");
+  const thumb = document.getElementById("sideBarThumb");
+  let sidebarActive = false;
+  let sidebarStartY = 0;
+  let sidebarBaseAngle = 0;
+  const SIDEBAR_DEG_PER_PX = 0.7;
+
+  function sidebarStart(clientY) {
+    if (!currentDecision) return;
+    ensureAudioCtx();
+    sidebarActive = true;
+    sidebarStartY = clientY;
+    sidebarBaseAngle = dialFixedAngle;
+    swipeActive = true;
+    previewBranchId = null;
+    lastNotchAngle = null;
+    lastSwipeAngle = null;
+    lastSwipeVelocity = 0;
+    relativeStartAngle = null;
+    thumb.classList.add("active");
+  }
+
+  function sidebarMove(clientY) {
+    if (!sidebarActive || !currentDecision) return;
+    const dy = sidebarStartY - clientY;
+    const angle = sidebarBaseAngle + dy * SIDEBAR_DEG_PER_PX;
+
+    // Feed into the same dial logic
+    const now = performance.now();
+    if (lastSwipeAngle !== null && now - lastSwipeTime > 0) {
+      const dt = (now - lastSwipeTime) / 1000;
+      lastSwipeVelocity = normalize180(angle - lastSwipeAngle) / dt;
+    }
+    lastSwipeAngle = angle;
+    lastSwipeTime = now;
+
+    if (lastNotchAngle !== null) {
+      const delta = Math.abs(normalize180(angle - lastNotchAngle));
+      if (delta >= NOTCH_DEG) {
+        const notches = Math.floor(delta / NOTCH_DEG);
+        if (settings.soundNotch) playNotchClick(Math.min(0.06, 0.03 * notches));
+        lastNotchAngle = angle;
+      }
+    } else {
+      lastNotchAngle = angle;
+    }
+
+    if (settings.dialTicks) {
+      const ring = document.getElementById("dialRing");
+      if (ring) ring.setAttribute("transform", `rotate(${angle})`);
+    }
+
+    const closest = findClosestBranch(angle);
+    if (!closest) return;
+    if (closest.id !== previewBranchId) {
+      previewBranchId = closest.id;
+      if (settings.soundSwitch) playBranchSwitch();
+    }
+    const updated = currentDecision.branches.map(b => ({
+      ...b,
+      selected: b.id === selectedBranchId && b.id !== previewBranchId,
+      preview: b.id === previewBranchId,
+    }));
+    applyBranchHighlight(updated);
+
+    // Move thumb visually
+    const trackEl = sidebar.querySelector(".sidebar-track");
+    const trackRect = trackEl.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientY - trackRect.top) / trackRect.height));
+    thumb.style.top = (15 + pct * 70) + "%";
+  }
+
+  function sidebarEnd() {
+    if (!sidebarActive) return;
+    sidebarActive = false;
+    thumb.classList.remove("active");
+    thumb.style.top = "50%";
+    onSwipeEnd();
+  }
+
+  sidebar.addEventListener("touchstart", (ev) => {
+    ev.preventDefault();
+    sidebarStart(ev.touches[0].clientY);
+  }, {passive: false});
+  sidebar.addEventListener("touchmove", (ev) => {
+    ev.preventDefault();
+    sidebarMove(ev.touches[0].clientY);
+  }, {passive: false});
+  sidebar.addEventListener("touchend", sidebarEnd);
+  sidebar.addEventListener("touchcancel", sidebarEnd);
+  sidebar.addEventListener("mousedown", (ev) => { sidebarStart(ev.clientY); });
+  document.addEventListener("mousemove", (ev) => { if (sidebarActive) sidebarMove(ev.clientY); });
+  document.addEventListener("mouseup", () => { if (sidebarActive) sidebarEnd(); });
 });
 </script>
 </body>

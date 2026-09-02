@@ -1278,12 +1278,6 @@ function drawJunction(decision) {
   const branches = decision.branches;
 
   let html = `<defs>
-    <linearGradient id="selectedRoad" gradientUnits="userSpaceOnUse"
-      x1="0" y1="0" x2="0" y2="-165">
-      <stop offset="0" stop-color="#009DBB"/>
-      <stop offset=".55" stop-color="#00C8E8"/>
-      <stop offset="1" stop-color="#67E8F9"/>
-    </linearGradient>
     <filter id="routeGlow" x="-35%" y="-35%" width="170%" height="170%">
       <feGaussianBlur stdDeviation="2.8" result="blur"/>
       <feColorMatrix in="blur" type="matrix"
@@ -1345,15 +1339,15 @@ function drawJunction(decision) {
 
     const sel = b.selected && !b.preview;
     const pre = b.preview;
-    const rStroke = sel ? "url(#selectedRoad)" : pre ? "#55D9EC" : "#465166";
-    const rWidth = sel ? 20 : pre ? 18 : 15;
+    const rStroke = sel ? "#00C8E8" : pre ? "#55D9EC" : "#465166";
+    const rWidth = sel ? 22 : pre ? 18 : 15;
     const rOpacity = sel ? 1 : .82;
     const rFilter = sel ? ' filter="url(#routeGlow)"' : "";
     const lFill = sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
     const rnFill = sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
 
-    html += `<line x1="0" y1="0" x2="${ex}" y2="${ey}"
-      stroke="#171E2B" stroke-width="24" stroke-linecap="round"/>`;
+    html += `<line id="casing_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
+      stroke="#171E2B" stroke-width="24" stroke-linecap="round"${sel ? ' opacity="0"' : ''}/>`;
     html += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
       stroke="${rStroke}" stroke-width="${rWidth}" stroke-linecap="round" opacity="${rOpacity}"${rFilter}
       style="cursor:pointer"/>`;
@@ -1410,15 +1404,17 @@ function applyBranchHighlight(branches) {
     const sel = b.selected;
     const preview = b.preview;
     const road = document.getElementById("road_" + b.id);
+    const casing = document.getElementById("casing_" + b.id);
     const label = document.getElementById("label_" + b.id);
     const roadname = document.getElementById("roadname_" + b.id);
     if (!road) continue;
 
     if (sel && !preview) {
-      road.setAttribute("stroke", "url(#selectedRoad)");
-      road.setAttribute("stroke-width", "20");
+      road.setAttribute("stroke", "#00C8E8");
+      road.setAttribute("stroke-width", "22");
       road.setAttribute("opacity", "1");
       road.setAttribute("filter", "url(#routeGlow)");
+      if (casing) casing.setAttribute("opacity", "0");
       if (label) label.setAttribute("fill", "#F4FCFF");
       if (roadname) roadname.setAttribute("fill", "#8FE9F5");
     } else if (preview) {
@@ -1426,6 +1422,7 @@ function applyBranchHighlight(branches) {
       road.setAttribute("stroke-width", "18");
       road.setAttribute("opacity", ".82");
       road.removeAttribute("filter");
+      if (casing) casing.setAttribute("opacity", "1");
       if (label) label.setAttribute("fill", "#BCEFF5");
       if (roadname) roadname.setAttribute("fill", "#7FB7C2");
     } else {
@@ -1433,6 +1430,7 @@ function applyBranchHighlight(branches) {
       road.setAttribute("stroke-width", "15");
       road.setAttribute("opacity", ".82");
       road.removeAttribute("filter");
+      if (casing) casing.setAttribute("opacity", "1");
       if (label) label.setAttribute("fill", "#D7DEE8");
       if (roadname) roadname.setAttribute("fill", "#8390A3");
     }

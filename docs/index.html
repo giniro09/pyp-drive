@@ -1070,6 +1070,7 @@ function computeNavTarget(graph, decision) {
 let graph = null;
 let lastMatchEdgeId = null;
 let selectedBranchId = null;
+let manuallySelected = false;
 let lastDecisionNodeId = null;
 let lastSpeedMps = 0;
 let displayDistanceM = null;
@@ -1162,6 +1163,7 @@ function processPosition(lat, lon, heading, speed) {
     const junctionChanged = lastDecisionNodeId && lastDecisionNodeId !== decision.nodeId;
     if (junctionChanged) {
       selectedBranchId = null;
+      manuallySelected = false;
       lastAcceptedDecisionDistAcc = 0;
       dialFixedAngle = 0;
     }
@@ -1184,7 +1186,7 @@ function processPosition(lat, lon, heading, speed) {
     document.getElementById("junctionArea").style.display = "flex";
     document.getElementById("noticeArea").style.display = "none";
     document.getElementById("stateLabel").textContent =
-      selectedBranchId ? "道なり選択中" : "方向を選んでください";
+      manuallySelected ? "選択済み" : selectedBranchId ? "道なり選択中" : "方向を選んでください";
     setBadge("ok","検出中");
     if (!junctionChanged && document.getElementById("junctionSvg").children.length > 0) {
       updateCarPosition(decision);
@@ -1194,6 +1196,7 @@ function processPosition(lat, lon, heading, speed) {
   } else {
     currentDecision = null;
     selectedBranchId = null;
+    manuallySelected = false;
     displayDistanceM = null;
     document.getElementById("distance").textContent = "---";
     document.getElementById("distance").classList.remove("near");
@@ -1211,6 +1214,7 @@ function processPosition(lat, lon, heading, speed) {
 function chooseBranch(branchId) {
   if (!currentDecision) return;
   selectedBranchId = branchId;
+  manuallySelected = true;
   currentDecision.branches = currentDecision.branches.map(b => ({
     ...b, selected: b.id === branchId
   }));

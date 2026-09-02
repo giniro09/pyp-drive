@@ -297,6 +297,26 @@
     </div>
 
     <div class="s-section">
+      <div class="s-section-title">ダイヤル演出</div>
+      <div class="s-toggle-row" style="margin-bottom:6px;">
+        <span>回転ノッチ音</span>
+        <div id="toggleSoundNotch" class="s-toggle on" onclick="toggleSetting('soundNotch','toggleSoundNotch')"></div>
+      </div>
+      <div class="s-toggle-row" style="margin-bottom:6px;">
+        <span>切り替え音</span>
+        <div id="toggleSoundSwitch" class="s-toggle on" onclick="toggleSetting('soundSwitch','toggleSoundSwitch')"></div>
+      </div>
+      <div class="s-toggle-row" style="margin-bottom:6px;">
+        <span>確定音</span>
+        <div id="toggleSoundConfirm" class="s-toggle on" onclick="toggleSetting('soundConfirm','toggleSoundConfirm')"></div>
+      </div>
+      <div class="s-toggle-row">
+        <span>ダイヤル目盛り表示</span>
+        <div id="toggleDialTicks" class="s-toggle on" onclick="toggleSetting('dialTicks','toggleDialTicks')"></div>
+      </div>
+    </div>
+
+    <div class="s-section">
       <div class="s-section-title">デモモード</div>
       <div class="s-toggle-row">
         <span>オフラインデモ（仮想走行）</span>
@@ -365,6 +385,10 @@ let settings = {
   teslaToken: "",
   teslaVin: "",
   demoMode: false,
+  soundNotch: true,
+  soundSwitch: true,
+  soundConfirm: true,
+  dialTicks: true,
 };
 
 function loadSettings() {
@@ -391,6 +415,10 @@ function applySettingsToUI() {
   document.getElementById("teslaToken").value = settings.teslaToken;
   document.getElementById("teslaVinInput").value = settings.teslaVin;
   document.getElementById("demoToggle").classList.toggle("on", settings.demoMode);
+  document.getElementById("toggleSoundNotch").classList.toggle("on", settings.soundNotch);
+  document.getElementById("toggleSoundSwitch").classList.toggle("on", settings.soundSwitch);
+  document.getElementById("toggleSoundConfirm").classList.toggle("on", settings.soundConfirm);
+  document.getElementById("toggleDialTicks").classList.toggle("on", settings.dialTicks);
 }
 
 function toggleSettings() {
@@ -434,6 +462,12 @@ function toggleDemo() {
   saveSettings();
   if (settings.demoMode && graph) startDemoSim();
   else stopDemoSim();
+}
+
+function toggleSetting(key, elId) {
+  settings[key] = !settings[key];
+  document.getElementById(elId).classList.toggle("on", settings[key]);
+  saveSettings();
 }
 
 // ============================================================
@@ -1220,6 +1254,24 @@ function drawJunction(decision) {
 
   html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#1a1a2e" stroke-width="2"/>`;
 
+  if (settings.dialTicks) {
+    for (let deg = -180; deg < 180; deg += NOTCH_DEG) {
+      const r1 = 178, r2 = (deg % 15 === 0) ? 168 : 173;
+      const rad = deg * Math.PI / 180;
+      const x1 = Math.sin(rad)*r1, y1 = -Math.cos(rad)*r1;
+      const x2 = Math.sin(rad)*r2, y2 = -Math.cos(rad)*r2;
+      html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+        stroke="#2a2a40" stroke-width="${deg % 15 === 0 ? 1.5 : 0.8}"/>`;
+    }
+    if (swipeActive && lastNotchAngle !== null) {
+      const iRad = lastNotchAngle * Math.PI / 180;
+      const ix1 = Math.sin(iRad)*165, iy1 = -Math.cos(iRad)*165;
+      const ix2 = Math.sin(iRad)*185, iy2 = -Math.cos(iRad)*185;
+      html += `<line x1="${ix1}" y1="${iy1}" x2="${ix2}" y2="${iy2}"
+        stroke="#00d4ff" stroke-width="3" opacity="0.7" stroke-linecap="round"/>`;
+    }
+  }
+
   html += `<line x1="0" y1="185" x2="0" y2="14" stroke="#3a3a50" stroke-width="20" stroke-linecap="round"/>`;
 
   const maxD = 500;
@@ -1422,7 +1474,7 @@ function onSwipeMove(ev) {
     const delta = Math.abs(normalize180(angle - lastNotchAngle));
     if (delta >= NOTCH_DEG) {
       const notches = Math.floor(delta / NOTCH_DEG);
-      playNotchClick(Math.min(0.06, 0.03 * notches));
+      if (settings.soundNotch) playNotchClick(Math.min(0.06, 0.03 * notches));
       lastNotchAngle = angle;
     }
   } else {
@@ -1433,7 +1485,7 @@ function onSwipeMove(ev) {
   if (!closest) return;
   if (closest.id !== previewBranchId) {
     previewBranchId = closest.id;
-    playBranchSwitch();
+    if (settings.soundSwitch) playBranchSwitch();
   }
   const updated = currentDecision.branches.map(b => ({
     ...b,
@@ -1448,7 +1500,7 @@ function onSwipeEnd() {
   swipeActive = false;
   lastNotchAngle = null;
   if (previewBranchId && currentDecision) {
-    playConfirm();
+    if (settings.soundConfirm) playConfirm();
     chooseBranch(previewBranchId);
   }
   previewBranchId = null;

@@ -1241,6 +1241,11 @@ function interpolationLoop(now) {
   if (dt>0 && dt<0.5 && displayDistanceM!==null && lastSpeedMps>0.5) {
     displayDistanceM = Math.max(0, displayDistanceM - lastSpeedMps*dt);
     updateDistanceDisplay(Math.round(displayDistanceM));
+    const car = document.getElementById("egoCar");
+    if (car) {
+      const ratio = Math.min(displayDistanceM / carMaxDistM, 1);
+      car.style.transform = `translate(0px,${25 + ratio*140}px)`;
+    }
   }
 }
 
@@ -1319,7 +1324,7 @@ function drawJunction(decision) {
 
   const ratio = Math.min((displayDistanceM||decision.distanceM)/carMaxDistM, 1);
   const carY = 25 + ratio*140;
-  html += `<g id="egoCar" style="transform:translate(0px,${carY}px);transition:transform .8s ease-out">
+  html += `<g id="egoCar" style="transform:translate(0px,${carY}px)">
     <polygon points="0,-14 10,10 -10,10" fill="#00C8E8" opacity=".9"
       stroke="#67E8F9" stroke-width="1.5" stroke-linejoin="round"/>
   </g>`;

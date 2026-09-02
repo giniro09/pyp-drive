@@ -1317,7 +1317,7 @@ function drawJunction(decision) {
 
   const maxD = 500;
   const ratio = Math.min((displayDistanceM||decision.distanceM)/maxD, 1);
-  const carY = 30 + ratio*140;
+  const carY = 25 + ratio*350;
   html += `<g id="egoCar" transform="translate(0,${carY})">
     <polygon points="0,-14 10,10 -10,10" fill="#00C8E8" opacity=".9"
       stroke="#67E8F9" stroke-width="1.5" stroke-linejoin="round"/>
@@ -1402,7 +1402,7 @@ function updateCarPosition(decision) {
   if (!car) return;
   const maxD = 500;
   const ratio = Math.min((displayDistanceM||decision.distanceM)/maxD, 1);
-  const carY = 30 + ratio*140;
+  const carY = 25 + ratio*350;
   car.setAttribute("transform", `translate(0,${carY})`);
 }
 

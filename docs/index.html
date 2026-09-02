@@ -1329,10 +1329,66 @@ function applyBranchHighlight(branches) {
 }
 
 // ============================================================
+//  Haptic audio (dial notch feel)
+// ============================================================
+let audioCtx = null;
+function ensureAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+
+function playNotchClick(volume) {
+  const ctx = ensureAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "square";
+  osc.frequency.value = 1800;
+  gain.gain.setValueAtTime(volume, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.025);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.025);
+}
+
+function playBranchSwitch() {
+  const ctx = ensureAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "square";
+  osc.frequency.value = 1200;
+  gain.gain.setValueAtTime(0.15, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.05);
+}
+
+function playConfirm() {
+  const ctx = ensureAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = 880;
+  osc.frequency.setValueAtTime(880, ctx.currentTime);
+  osc.frequency.linearRampToValueAtTime(1320, ctx.currentTime + 0.08);
+  gain.gain.setValueAtTime(0.12, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.12);
+}
+
+// ============================================================
 //  Arc swipe selection
 // ============================================================
 let swipeActive = false;
 let previewBranchId = null;
+let lastNotchAngle = null;
+const NOTCH_DEG = 5;
 
 function getSvgAngle(ev) {
   const svg = document.getElementById("junctionSvg");
@@ -1361,9 +1417,24 @@ function onSwipeMove(ev) {
   if (!swipeActive || !currentDecision) return;
   const angle = getSvgAngle(ev);
   if (angle === null) return;
+
+  if (lastNotchAngle !== null) {
+    const delta = Math.abs(normalize180(angle - lastNotchAngle));
+    if (delta >= NOTCH_DEG) {
+      const notches = Math.floor(delta / NOTCH_DEG);
+      playNotchClick(Math.min(0.06, 0.03 * notches));
+      lastNotchAngle = angle;
+    }
+  } else {
+    lastNotchAngle = angle;
+  }
+
   const closest = findClosestBranch(angle);
-  if (!closest || closest.id === previewBranchId) return;
-  previewBranchId = closest.id;
+  if (!closest) return;
+  if (closest.id !== previewBranchId) {
+    previewBranchId = closest.id;
+    playBranchSwitch();
+  }
   const updated = currentDecision.branches.map(b => ({
     ...b,
     selected: b.id === selectedBranchId && b.id !== previewBranchId,
@@ -1375,7 +1446,9 @@ function onSwipeMove(ev) {
 function onSwipeEnd() {
   if (!swipeActive) return;
   swipeActive = false;
+  lastNotchAngle = null;
   if (previewBranchId && currentDecision) {
+    playConfirm();
     chooseBranch(previewBranchId);
   }
   previewBranchId = null;
@@ -1385,8 +1458,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const area = document.getElementById("junctionArea");
   area.addEventListener("touchstart", (ev) => {
     if (!currentDecision) return;
+    ensureAudioCtx();
     swipeActive = true;
     previewBranchId = null;
+    lastNotchAngle = null;
     onSwipeMove(ev);
   }, {passive: true});
   area.addEventListener("touchmove", (ev) => { onSwipeMove(ev); }, {passive: true});
@@ -1394,8 +1469,10 @@ document.addEventListener("DOMContentLoaded", () => {
   area.addEventListener("touchcancel", onSwipeEnd);
   area.addEventListener("mousedown", (ev) => {
     if (!currentDecision) return;
+    ensureAudioCtx();
     swipeActive = true;
     previewBranchId = null;
+    lastNotchAngle = null;
     onSwipeMove(ev);
   });
   area.addEventListener("mousemove", onSwipeMove);

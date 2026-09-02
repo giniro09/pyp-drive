@@ -1422,28 +1422,25 @@ function drawJunction(decision) {
     html += `</g>`;
   }
 
-  html += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171E2B" stroke-width="26" stroke-linecap="round"/>`;
-  html += `<line x1="0" y1="185" x2="0" y2="12" stroke="#465166" stroke-width="17" stroke-linecap="round"/>`;
-
   const ratio = Math.min((displayDistanceM||decision.distanceM)/carMaxDistM, 1);
   const carY = 25 + ratio*140;
-  html += `<g id="egoCar" style="transform:translate(0px,${carY}px)">
-    <ellipse id="egoShadow" cx="0" cy="4" rx="9" ry="5" fill="rgba(0,0,0,0.25)" filter="url(#shadowBlur)"/>
-    <polygon id="egoBody" points="0,-14 10,10 -10,10" fill="#00C8E8" opacity=".9"
-      stroke="#67E8F9" stroke-width="1.5" stroke-linejoin="round"
-      style="transform-origin:0 0"/>
-  </g>`;
 
   const resolvedBranches = swipeActive && previewBranchId
     ? branches.map(b => ({...b, selected: b.id === selectedBranchId && b.id !== previewBranchId, preview: b.id === previewBranchId}))
     : branches;
 
-  // Layer 1: all casings (bottom)
-  // Layer 2: all road surfaces
-  // Layer 3: selected/preview roads (on top)
-  // Layer 4: labels (topmost)
+  // Layer 1: all casings (bottom) — including approach road
+  // Layer 2: all road surfaces — including approach road
+  // Layer 3: ego car
+  // Layer 4: selected/preview roads (on top)
+  // Layer 5: labels (topmost)
   let casingHtml = "";
   let surfaceHtml = "";
+
+  // Approach road (from bottom)
+  casingHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171E2B" stroke-width="26" stroke-linecap="round"/>`;
+  surfaceHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#465166" stroke-width="17" stroke-linecap="round"/>`;
+
   let selectedHtml = "";
   let labelsHtml = "";
   for (const b of resolvedBranches) {
@@ -1495,6 +1492,12 @@ function drawJunction(decision) {
   }
   html += casingHtml;
   html += surfaceHtml;
+  html += `<g id="egoCar" style="transform:translate(0px,${carY}px)">
+    <ellipse id="egoShadow" cx="0" cy="4" rx="9" ry="5" fill="rgba(0,0,0,0.25)" filter="url(#shadowBlur)"/>
+    <polygon id="egoBody" points="0,-14 10,10 -10,10" fill="#00C8E8" opacity=".9"
+      stroke="#67E8F9" stroke-width="1.5" stroke-linejoin="round"
+      style="transform-origin:0 0"/>
+  </g>`;
   html += selectedHtml;
   html += labelsHtml;
 

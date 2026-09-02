@@ -1334,15 +1334,28 @@ function drawJunction(decision) {
     <path d="M-6 10H-3 M3 10H6" stroke="#FF6257" stroke-width="2.4" stroke-linecap="round"/>
   </g>`;
 
-  for (const b of branches) {
+  const resolvedBranches = swipeActive && previewBranchId
+    ? branches.map(b => ({...b, selected: b.id === selectedBranchId && b.id !== previewBranchId, preview: b.id === previewBranchId}))
+    : branches;
+
+  for (const b of resolvedBranches) {
     const rad = b.angleDeg*Math.PI/180;
     const roadLen = 165;
     const ex = Math.sin(rad)*roadLen, ey = -Math.cos(rad)*roadLen;
 
+    const sel = b.selected && !b.preview;
+    const pre = b.preview;
+    const rStroke = sel ? "url(#selectedRoad)" : pre ? "#55D9EC" : "#465166";
+    const rWidth = sel ? 20 : pre ? 18 : 15;
+    const rOpacity = sel ? 1 : .82;
+    const rFilter = sel ? ' filter="url(#routeGlow)"' : "";
+    const lFill = sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
+    const rnFill = sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
+
     html += `<line x1="0" y1="0" x2="${ex}" y2="${ey}"
       stroke="#171E2B" stroke-width="24" stroke-linecap="round"/>`;
     html += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-      stroke="#465166" stroke-width="15" stroke-linecap="round" opacity=".82"
+      stroke="${rStroke}" stroke-width="${rWidth}" stroke-linecap="round" opacity="${rOpacity}"${rFilter}
       style="cursor:pointer"/>`;
 
     const labelD=125;
@@ -1353,13 +1366,13 @@ function drawJunction(decision) {
     const road=b.roadName||b.roadRef||"";
 
     html += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-6}" text-anchor="${anchor}"
-      fill="#D7DEE8" font-size="20" font-weight="800"
+      fill="${lFill}" font-size="20" font-weight="800"
       style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8)"
       >${label}</text>`;
 
     if(road){
       html += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+14}" text-anchor="${anchor}"
-        fill="#8390A3" font-size="13"
+        fill="${rnFill}" font-size="13"
         style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8)"
         >${road}</text>`;
     }
@@ -1381,17 +1394,6 @@ function drawJunction(decision) {
   }
 
   svg.innerHTML = html;
-
-  if (swipeActive && previewBranchId) {
-    const updated = decision.branches.map(b => ({
-      ...b,
-      selected: b.id === selectedBranchId && b.id !== previewBranchId,
-      preview: b.id === previewBranchId,
-    }));
-    applyBranchHighlight(updated);
-  } else {
-    applyBranchHighlight(decision.branches);
-  }
 }
 
 function updateCarPosition(decision) {
@@ -1500,31 +1502,37 @@ function playBranchSwitch() {
 
 function playConfirm() {
   const ctx = ensureAudioCtx();
+  const t = ctx.currentTime;
   const src = ctx.createBufferSource();
   src.buffer = getNoiseBuffer();
   const bp = ctx.createBiquadFilter();
   bp.type = "bandpass";
-  bp.frequency.value = 1500;
-  bp.Q.value = 1;
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.2, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+  bp.frequency.value = 1800;
+  bp.Q.value = 1.2;
+  const nGain = ctx.createGain();
+  nGain.gain.setValueAtTime(0.15, t);
+  nGain.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
   src.connect(bp);
-  bp.connect(gain);
-  gain.connect(ctx.destination);
-  src.start(ctx.currentTime);
-  src.stop(ctx.currentTime + 0.04);
-  const osc = ctx.createOscillator();
-  const oscGain = ctx.createGain();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(600, ctx.currentTime + 0.02);
-  osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.1);
-  oscGain.gain.setValueAtTime(0.08, ctx.currentTime + 0.02);
-  oscGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
-  osc.connect(oscGain);
-  oscGain.connect(ctx.destination);
-  osc.start(ctx.currentTime + 0.02);
-  osc.stop(ctx.currentTime + 0.1);
+  bp.connect(nGain);
+  nGain.connect(ctx.destination);
+  src.start(t);
+  src.stop(t + 0.025);
+  const osc1 = ctx.createOscillator();
+  const g1 = ctx.createGain();
+  osc1.type = "sine";
+  osc1.frequency.value = 440;
+  g1.gain.setValueAtTime(0.07, t + 0.01);
+  g1.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+  osc1.connect(g1); g1.connect(ctx.destination);
+  osc1.start(t + 0.01); osc1.stop(t + 0.07);
+  const osc2 = ctx.createOscillator();
+  const g2 = ctx.createGain();
+  osc2.type = "sine";
+  osc2.frequency.value = 554;
+  g2.gain.setValueAtTime(0.06, t + 0.03);
+  g2.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+  osc2.connect(g2); g2.connect(ctx.destination);
+  osc2.start(t + 0.03); osc2.stop(t + 0.09);
 }
 
 // ============================================================

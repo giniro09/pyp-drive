@@ -410,6 +410,11 @@
         <div id="toggleSideBarLeft" class="s-toggle" onclick="toggleSideBarSide()"></div>
       </div>
       <div class="s-radio-desc" style="margin-top:2px;">ON: 左端 / OFF: 右端</div>
+      <div class="s-toggle-row" style="margin-top:10px;margin-bottom:6px;">
+        <span>ルーレットモード</span>
+        <div id="toggleRoulette" class="s-toggle" onclick="toggleSetting('roulette','toggleRoulette')"></div>
+      </div>
+      <div class="s-radio-desc" style="margin-top:2px;">勢いよく回すとルーレット風にスピンしてランダムに方向決定</div>
     </div>
 
     <div class="s-section">
@@ -522,6 +527,7 @@ let settings = {
   dialRelative: false,
   sideBar: false,
   sideBarLeft: false,
+  roulette: false,
   floatAmp: 30,
   floatSpeed: 40,
 };
@@ -557,6 +563,7 @@ function applySettingsToUI() {
   document.getElementById("toggleDialRelative").classList.toggle("on", settings.dialRelative);
   document.getElementById("toggleSideBar").classList.toggle("on", settings.sideBar);
   document.getElementById("toggleSideBarLeft").classList.toggle("on", settings.sideBarLeft);
+  document.getElementById("toggleRoulette").classList.toggle("on", settings.roulette);
   updateSideBar();
   document.getElementById("floatAmpSlider").value = settings.floatAmp;
   document.getElementById("floatAmpVal").textContent = settings.floatAmp + "%";
@@ -1925,6 +1932,80 @@ function flashConfirmRoad(branchId) {
   setTimeout(() => road.classList.remove("road-confirm-flash"), 500);
 }
 
+let rouletteAnimId = null;
+function startRoulette(velocity) {
+  if (!currentDecision || currentDecision.branches.length < 2) return false;
+  const ring = document.getElementById("dialRing");
+  if (!ring) return false;
+
+  if (rouletteAnimId) cancelAnimationFrame(rouletteAnimId);
+
+  const dir = velocity > 0 ? 1 : -1;
+  const totalSpins = 2 + Math.random() * 2;
+  const totalAngle = dir * (totalSpins * 360 + Math.random() * 180);
+  const duration = 2000 + totalSpins * 400;
+  const startAngle = dialFixedAngle;
+  const startTime = performance.now();
+
+  // Pick random winner
+  const branches = currentDecision.branches;
+  const winner = branches[Math.floor(Math.random() * branches.length)];
+  const targetAngle = winner.angleDeg;
+  // Adjust total rotation to land on winner
+  const rawEnd = startAngle + totalAngle;
+  const overshoot = normalize180(rawEnd - targetAngle);
+  const finalTotalAngle = totalAngle - overshoot;
+
+  let lastTickAngle = startAngle;
+
+  function tick(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / duration, 1);
+    // Ease-out cubic for natural deceleration
+    const ease = 1 - Math.pow(1 - t, 3);
+    const angle = startAngle + finalTotalAngle * ease;
+
+    ring.setAttribute("transform", `rotate(${angle})`);
+
+    // Notch clicks during spin
+    const delta = Math.abs(normalize180(angle - lastTickAngle));
+    if (delta >= NOTCH_DEG) {
+      const vol = Math.min(0.06, 0.02 * (1 - t) + 0.01);
+      if (settings.soundNotch && vol > 0.005) playNotchClick(vol);
+      lastTickAngle = angle;
+    }
+
+    // Highlight closest branch during spin
+    const closest = findClosestBranch(normalize180(angle));
+    if (closest) {
+      if (closest.id !== previewBranchId) {
+        previewBranchId = closest.id;
+        if (settings.soundSwitch) playBranchSwitch();
+      }
+      const updated = currentDecision.branches.map(b => ({
+        ...b,
+        selected: false,
+        preview: b.id === previewBranchId,
+      }));
+      applyBranchHighlight(updated);
+    }
+
+    if (t < 1) {
+      rouletteAnimId = requestAnimationFrame(tick);
+    } else {
+      rouletteAnimId = null;
+      dialFixedAngle = targetAngle;
+      animateDialSnap(ring, targetAngle);
+      if (settings.soundConfirm) playConfirm();
+      flashConfirmRoad(winner.id);
+      chooseBranch(winner.id);
+      previewBranchId = null;
+    }
+  }
+  rouletteAnimId = requestAnimationFrame(tick);
+  return true;
+}
+
 function onSwipeEnd() {
   if (!swipeActive) return;
   swipeActive = false;
@@ -1943,6 +2024,9 @@ function onSwipeEnd() {
     if (settings.soundConfirm) playConfirm();
     flashConfirmRoad(previewBranchId);
     chooseBranch(previewBranchId);
+  } else if (settings.roulette && Math.abs(swipeVelocity) > 300 && currentDecision) {
+    // Roulette: strong flick triggers spin
+    startRoulette(swipeVelocity);
   } else if (Math.abs(swipeVelocity) > 80 && currentDecision) {
     // Inertia: fast flick overshoots then snaps to nearest branch
     const inertiaAngle = dialFixedAngle + swipeVelocity * 0.15;

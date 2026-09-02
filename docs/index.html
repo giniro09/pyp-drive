@@ -137,6 +137,17 @@
   .junction-svg {
     width: min(70vh, 720px); height: min(70vh, 720px);
     max-width: 100%; max-height: 100%; overflow: visible;
+    transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+  }
+  .junction-svg.entering {
+    opacity: 0; transform: scale(0.85);
+  }
+  .junction-svg.visible {
+    opacity: 1; transform: scale(1);
+  }
+  .junction-svg.exiting {
+    opacity: 0; transform: scale(0.9);
+    transition: opacity 0.3s ease-in, transform 0.3s ease-in;
   }
 
   .notice {
@@ -1224,6 +1235,7 @@ function processPosition(lat, lon, heading, speed) {
       manuallySelected = false;
       lastAcceptedDecisionDistAcc = 0;
       dialFixedAngle = 0;
+      lastAlertThreshold = null;
       carMaxDistM = Math.max(decision.distanceM, 50);
     }
     lastDecisionNodeId = decision.nodeId;
@@ -1253,8 +1265,18 @@ function processPosition(lat, lon, heading, speed) {
       updateCarPosition(decision);
     } else {
       drawJunction(decision);
+      if (junctionChanged) {
+        const svg = document.getElementById("junctionSvg");
+        svg.classList.remove("visible","exiting");
+        svg.classList.add("entering");
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          svg.classList.remove("entering");
+          svg.classList.add("visible");
+        }));
+      }
     }
   } else {
+    const wasShowing = currentDecision !== null;
     currentDecision = null;
     selectedBranchId = null;
     manuallySelected = false;
@@ -1263,8 +1285,19 @@ function processPosition(lat, lon, heading, speed) {
     document.getElementById("distance").classList.remove("near");
     document.getElementById("distBar").style.width = "0%";
     document.getElementById("distBar").classList.remove("near");
-    document.getElementById("junctionArea").style.display = "none";
-    document.getElementById("noticeArea").style.display = "flex";
+    if (wasShowing) {
+      const svg = document.getElementById("junctionSvg");
+      svg.classList.remove("visible","entering");
+      svg.classList.add("exiting");
+      setTimeout(() => {
+        document.getElementById("junctionArea").style.display = "none";
+        document.getElementById("noticeArea").style.display = "flex";
+        svg.classList.remove("exiting");
+      }, 300);
+    } else {
+      document.getElementById("junctionArea").style.display = "none";
+      document.getElementById("noticeArea").style.display = "flex";
+    }
     document.getElementById("noticeText").textContent = "次の分岐を探しています";
     document.getElementById("noticeSub").textContent = "";
     document.getElementById("stateLabel").textContent = "走行中";
@@ -1301,6 +1334,7 @@ function interpolationLoop(now) {
   if (dt>0 && dt<0.5 && displayDistanceM!==null && lastSpeedMps>0.5) {
     displayDistanceM = Math.max(0, displayDistanceM - lastSpeedMps*dt);
     updateDistanceDisplay(Math.round(displayDistanceM));
+    checkDistanceAlerts(displayDistanceM);
     const car = document.getElementById("egoCar");
     if (car) {
       const ratio = Math.min(displayDistanceM / carMaxDistM, 1);
@@ -1669,6 +1703,45 @@ function playConfirm() {
   g2.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
   osc2.connect(g2); g2.connect(ctx.destination);
   osc2.start(t + 0.03); osc2.stop(t + 0.09);
+}
+
+// ============================================================
+//  Distance threshold alert tones
+// ============================================================
+const DIST_THRESHOLDS = [200, 100, 50];
+let lastAlertThreshold = null;
+
+function playDistanceAlert(thresholdM) {
+  if (!settings.soundNotch) return;
+  const ctx = ensureAudioCtx();
+  const t = ctx.currentTime;
+  const urgency = thresholdM <= 50 ? 2 : thresholdM <= 100 ? 1 : 0;
+  const freq = [520, 660, 880][urgency];
+  const vol = [0.06, 0.09, 0.12][urgency];
+  const beeps = urgency + 1;
+  for (let i = 0; i < beeps; i++) {
+    const start = t + i * 0.12;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.08);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + 0.08);
+  }
+}
+
+function checkDistanceAlerts(distM) {
+  for (const th of DIST_THRESHOLDS) {
+    if (distM <= th && (lastAlertThreshold === null || lastAlertThreshold > th)) {
+      lastAlertThreshold = th;
+      playDistanceAlert(th);
+      return;
+    }
+  }
 }
 
 // ============================================================

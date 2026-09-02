@@ -1163,12 +1163,15 @@ function processPosition(lat, lon, heading, speed) {
     if (junctionChanged) {
       selectedBranchId = null;
       lastAcceptedDecisionDistAcc = 0;
+      dialFixedAngle = 0;
     }
     lastDecisionNodeId = decision.nodeId;
     lastAcceptedDecisionNodeId = decision.nodeId;
 
     if (!selectedBranchId || !decision.branches.some(b => b.id === selectedBranchId)) {
       selectedBranchId = pickDefaultBranch(decision.branches);
+      const defBranch = decision.branches.find(b => b.id === selectedBranchId);
+      if (defBranch) dialFixedAngle = defBranch.angleDeg;
     }
 
     decision.branches = decision.branches.map(b => ({
@@ -1297,7 +1300,7 @@ function drawJunction(decision) {
   html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#151C29" stroke-width="1"/>`;
 
   if (settings.dialTicks) {
-    html += `<g id="dialRing" transform="rotate(0)">`;
+    html += `<g id="dialRing" transform="rotate(${dialFixedAngle})">`;
     for (let deg = -180; deg < 180; deg += NOTCH_DEG) {
       const major = deg % 30 === 0;
       const medium = !major && deg % 15 === 0;
@@ -1494,6 +1497,7 @@ function playConfirm() {
 let swipeActive = false;
 let previewBranchId = null;
 let lastNotchAngle = null;
+let dialFixedAngle = 0;
 const NOTCH_DEG = 5;
 
 function getSvgAngle(ev) {
@@ -1558,11 +1562,18 @@ function onSwipeEnd() {
   if (!swipeActive) return;
   swipeActive = false;
   lastNotchAngle = null;
-  const ring = document.getElementById("dialRing");
-  if (ring) ring.setAttribute("transform", "rotate(0)");
   if (previewBranchId && currentDecision) {
+    const branch = currentDecision.branches.find(b => b.id === previewBranchId);
+    if (branch) {
+      dialFixedAngle = branch.angleDeg;
+      const ring = document.getElementById("dialRing");
+      if (ring) ring.setAttribute("transform", `rotate(${dialFixedAngle})`);
+    }
     if (settings.soundConfirm) playConfirm();
     chooseBranch(previewBranchId);
+  } else {
+    const ring = document.getElementById("dialRing");
+    if (ring) ring.setAttribute("transform", `rotate(${dialFixedAngle})`);
   }
   previewBranchId = null;
 }

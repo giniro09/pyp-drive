@@ -215,6 +215,35 @@
     border: 2px solid #00d4ff; border-radius: 10px; overflow: hidden;
     opacity: 0.9;
   }
+
+  /* Touch ripple */
+  .touch-ripple {
+    position: absolute; border-radius: 50%; pointer-events: none;
+    border: 2px solid rgba(0,200,232,0.6);
+    animation: rippleExpand 0.5s ease-out forwards;
+  }
+  @keyframes rippleExpand {
+    0% { width: 0; height: 0; opacity: 0.8; }
+    100% { width: 120px; height: 120px; opacity: 0; }
+  }
+
+  /* Confirm flash on selected road */
+  @keyframes confirmPulse {
+    0% { opacity: 1; }
+    30% { opacity: 1; filter: drop-shadow(0 0 18px rgba(0,200,232,0.9)) brightness(1.5); }
+    100% { opacity: 1; filter: drop-shadow(0 0 6px rgba(0,200,232,0.5)); }
+  }
+  .road-confirm-flash {
+    animation: confirmPulse 0.45s ease-out forwards;
+  }
+
+  /* Ego car driving micro-tremor */
+  @keyframes egoTremor {
+    0%, 100% { transform: translate(0px, var(--car-y)) rotate(0deg); }
+    25% { transform: translate(0.7px, var(--car-y)) rotate(0.3deg); }
+    50% { transform: translate(-0.5px, var(--car-y)) rotate(-0.2deg); }
+    75% { transform: translate(0.4px, var(--car-y)) rotate(0.15deg); }
+  }
 </style>
 </head>
 <body>
@@ -1235,6 +1264,7 @@ function chooseBranch(branchId) {
 //  Interpolation loop (60fps)
 // ============================================================
 let lastFrameTime = 0;
+let tremorPhase = 0;
 function interpolationLoop(now) {
   requestAnimationFrame(interpolationLoop);
   if (!currentDecision || !gpsActive) return;
@@ -1246,7 +1276,33 @@ function interpolationLoop(now) {
     const car = document.getElementById("egoCar");
     if (car) {
       const ratio = Math.min(displayDistanceM / carMaxDistM, 1);
-      car.style.transform = `translate(0px,${25 + ratio*140}px)`;
+      const carY = 25 + ratio*140;
+      // Micro-tremor when driving
+      tremorPhase += dt * 18;
+      const tx = Math.sin(tremorPhase * 2.3) * 0.7 + Math.sin(tremorPhase * 5.1) * 0.3;
+      const ty = Math.sin(tremorPhase * 3.7) * 0.4;
+      const tr = Math.sin(tremorPhase * 4.1) * 0.25;
+      car.style.transform = `translate(${tx}px,${carY + ty}px) rotate(${tr}deg)`;
+    }
+  }
+
+  // Distance-linked urgency glow on outer ring
+  if (displayDistanceM !== null) {
+    const urgency = Math.max(0, 1 - displayDistanceM / 300);
+    const ring = document.getElementById("urgencyRing");
+    if (ring) {
+      if (urgency > 0) {
+        const r = Math.round(32 + urgency * 223);
+        const g = Math.round(42 + urgency * (159 - 42) * (1 - urgency));
+        const b = Math.round(59 + urgency * (67 - 59));
+        ring.setAttribute("stroke", `rgb(${r},${g},${b})`);
+        ring.setAttribute("stroke-width", String(2 + urgency * 2));
+        ring.style.filter = `drop-shadow(0 0 ${4 + urgency * 10}px rgba(255,${Math.round(159*(1-urgency))},67,${urgency * 0.6}))`;
+      } else {
+        ring.setAttribute("stroke", "#202A3B");
+        ring.setAttribute("stroke-width", "2");
+        ring.style.filter = "";
+      }
     }
   }
 }
@@ -1297,7 +1353,7 @@ function drawJunction(decision) {
     </filter>
   </defs>`;
 
-  html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#202A3B" stroke-width="2"/>`;
+  html += `<circle id="urgencyRing" cx="0" cy="0" r="185" fill="none" stroke="#202A3B" stroke-width="2"/>`;
   html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#151C29" stroke-width="1"/>`;
 
   if (settings.dialTicks) {
@@ -1371,15 +1427,17 @@ function drawJunction(decision) {
     const label=LABEL_JA[b.label]||b.label;
     const road=b.roadName||b.roadRef||"";
 
+    const slideOx = Math.sin(rad) * 15;
+    const slideOy = -Math.cos(rad) * 15;
     labelsHtml += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-6}" text-anchor="${anchor}"
       fill="${lFill}" font-size="20" font-weight="800"
-      style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8)"
+      style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out,transform 0.3s ease-out"
       >${label}</text>`;
 
     if(road){
       labelsHtml += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+14}" text-anchor="${anchor}"
         fill="${rnFill}" font-size="13"
-        style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8)"
+        style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.05s,transform 0.3s ease-out 0.05s"
         >${road}</text>`;
     }
   }
@@ -1403,6 +1461,18 @@ function drawJunction(decision) {
   }
 
   svg.innerHTML = html;
+
+  // Trigger label slide-in animation after DOM paint
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      for (const b of branches) {
+        const lbl = document.getElementById("label_" + b.id);
+        if (lbl) { lbl.style.opacity = "1"; lbl.style.transform = "translate(0,0)"; }
+        const rn = document.getElementById("roadname_" + b.id);
+        if (rn) { rn.style.opacity = "1"; rn.style.transform = "translate(0,0)"; }
+      }
+    });
+  });
 }
 
 function updateCarPosition(decision) {
@@ -1554,6 +1624,9 @@ let swipeActive = false;
 let previewBranchId = null;
 let lastNotchAngle = null;
 let dialFixedAngle = 0;
+let lastSwipeVelocity = 0;
+let lastSwipeAngle = null;
+let lastSwipeTime = 0;
 const NOTCH_DEG = 5;
 
 function getSvgAngle(ev) {
@@ -1583,6 +1656,15 @@ function onSwipeMove(ev) {
   if (!swipeActive || !currentDecision) return;
   const angle = getSvgAngle(ev);
   if (angle === null) return;
+
+  // Track swipe velocity for inertia
+  const now = performance.now();
+  if (lastSwipeAngle !== null && now - lastSwipeTime > 0) {
+    const dt = (now - lastSwipeTime) / 1000;
+    lastSwipeVelocity = normalize180(angle - lastSwipeAngle) / dt;
+  }
+  lastSwipeAngle = angle;
+  lastSwipeTime = now;
 
   if (lastNotchAngle !== null) {
     const delta = Math.abs(normalize180(angle - lastNotchAngle));
@@ -1614,24 +1696,75 @@ function onSwipeMove(ev) {
   applyBranchHighlight(updated);
 }
 
+function animateDialSnap(ring, targetAngle) {
+  ring.style.transition = "transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)";
+  ring.setAttribute("transform", `rotate(${targetAngle})`);
+  ring.style.transform = `rotate(${targetAngle}deg)`;
+  setTimeout(() => {
+    ring.style.transition = "";
+    ring.style.transform = "";
+  }, 280);
+}
+
+function flashConfirmRoad(branchId) {
+  const road = document.getElementById("road_" + branchId);
+  if (!road) return;
+  road.classList.add("road-confirm-flash");
+  setTimeout(() => road.classList.remove("road-confirm-flash"), 500);
+}
+
 function onSwipeEnd() {
   if (!swipeActive) return;
   swipeActive = false;
+
+  const swipeVelocity = lastSwipeVelocity;
   lastNotchAngle = null;
+  lastSwipeVelocity = 0;
+
   if (previewBranchId && currentDecision) {
     const branch = currentDecision.branches.find(b => b.id === previewBranchId);
     if (branch) {
       dialFixedAngle = branch.angleDeg;
       const ring = document.getElementById("dialRing");
-      if (ring) ring.setAttribute("transform", `rotate(${dialFixedAngle})`);
+      if (ring) animateDialSnap(ring, dialFixedAngle);
     }
     if (settings.soundConfirm) playConfirm();
+    flashConfirmRoad(previewBranchId);
     chooseBranch(previewBranchId);
+  } else if (Math.abs(swipeVelocity) > 80 && currentDecision) {
+    // Inertia: fast flick overshoots then snaps to nearest branch
+    const inertiaAngle = dialFixedAngle + swipeVelocity * 0.15;
+    const closest = findClosestBranch(inertiaAngle);
+    if (closest) {
+      dialFixedAngle = closest.angleDeg;
+      const ring = document.getElementById("dialRing");
+      if (ring) {
+        ring.setAttribute("transform", `rotate(${inertiaAngle})`);
+        requestAnimationFrame(() => animateDialSnap(ring, dialFixedAngle));
+      }
+      if (settings.soundSwitch) playBranchSwitch();
+      setTimeout(() => {
+        if (settings.soundConfirm) playConfirm();
+        flashConfirmRoad(closest.id);
+        chooseBranch(closest.id);
+      }, 200);
+    }
   } else {
     const ring = document.getElementById("dialRing");
-    if (ring) ring.setAttribute("transform", `rotate(${dialFixedAngle})`);
+    if (ring) animateDialSnap(ring, dialFixedAngle);
   }
   previewBranchId = null;
+}
+
+function spawnRipple(clientX, clientY) {
+  const area = document.getElementById("junctionArea");
+  const rect = area.getBoundingClientRect();
+  const ripple = document.createElement("div");
+  ripple.className = "touch-ripple";
+  ripple.style.left = (clientX - rect.left - 60) + "px";
+  ripple.style.top = (clientY - rect.top - 60) + "px";
+  area.appendChild(ripple);
+  setTimeout(() => ripple.remove(), 520);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1642,6 +1775,9 @@ document.addEventListener("DOMContentLoaded", () => {
     swipeActive = true;
     previewBranchId = null;
     lastNotchAngle = null;
+    lastSwipeAngle = null;
+    lastSwipeVelocity = 0;
+    spawnRipple(ev.touches[0].clientX, ev.touches[0].clientY);
     onSwipeMove(ev);
   }, {passive: true});
   area.addEventListener("touchmove", (ev) => { onSwipeMove(ev); }, {passive: true});
@@ -1653,6 +1789,9 @@ document.addEventListener("DOMContentLoaded", () => {
     swipeActive = true;
     previewBranchId = null;
     lastNotchAngle = null;
+    lastSwipeAngle = null;
+    lastSwipeVelocity = 0;
+    spawnRipple(ev.clientX, ev.clientY);
     onSwipeMove(ev);
   });
   area.addEventListener("mousemove", onSwipeMove);

@@ -1183,7 +1183,9 @@ function processPosition(lat, lon, heading, speed) {
     }));
 
     currentDecision = decision;
-    displayDistanceM = Math.round(decision.distanceM);
+    displayDistanceM = displayDistanceM !== null
+      ? Math.min(displayDistanceM, Math.round(decision.distanceM))
+      : Math.round(decision.distanceM);
     updateDistanceDisplay(displayDistanceM);
     document.getElementById("junctionArea").style.display = "flex";
     document.getElementById("noticeArea").style.display = "none";

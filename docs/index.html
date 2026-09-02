@@ -1072,6 +1072,7 @@ let lastMatchEdgeId = null;
 let selectedBranchId = null;
 let manuallySelected = false;
 let lastDecisionNodeId = null;
+let carMaxDistM = 500;
 let lastSpeedMps = 0;
 let displayDistanceM = null;
 let gpsActive = false;
@@ -1160,12 +1161,13 @@ function processPosition(lat, lon, heading, speed) {
 
   const maxShowM = settings.junctionFilter === "all" ? 800 : 5000;
   if (decision && decision.distanceM <= maxShowM) {
-    const junctionChanged = lastDecisionNodeId && lastDecisionNodeId !== decision.nodeId;
+    const junctionChanged = !lastDecisionNodeId || lastDecisionNodeId !== decision.nodeId;
     if (junctionChanged) {
       selectedBranchId = null;
       manuallySelected = false;
       lastAcceptedDecisionDistAcc = 0;
       dialFixedAngle = 0;
+      carMaxDistM = Math.max(decision.distanceM, 50);
     }
     lastDecisionNodeId = decision.nodeId;
     lastAcceptedDecisionNodeId = decision.nodeId;
@@ -1315,8 +1317,7 @@ function drawJunction(decision) {
   html += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171E2B" stroke-width="26" stroke-linecap="round"/>`;
   html += `<line x1="0" y1="185" x2="0" y2="12" stroke="#465166" stroke-width="17" stroke-linecap="round"/>`;
 
-  const maxD = 500;
-  const ratio = Math.min((displayDistanceM||decision.distanceM)/maxD, 1);
+  const ratio = Math.min((displayDistanceM||decision.distanceM)/carMaxDistM, 1);
   const carY = 25 + ratio*350;
   html += `<g id="egoCar" transform="translate(0,${carY})">
     <polygon points="0,-14 10,10 -10,10" fill="#00C8E8" opacity=".9"
@@ -1400,8 +1401,7 @@ function drawJunction(decision) {
 function updateCarPosition(decision) {
   const car = document.getElementById("egoCar");
   if (!car) return;
-  const maxD = 500;
-  const ratio = Math.min((displayDistanceM||decision.distanceM)/maxD, 1);
+  const ratio = Math.min((displayDistanceM||decision.distanceM)/carMaxDistM, 1);
   const carY = 25 + ratio*350;
   car.setAttribute("transform", `translate(0,${carY})`);
 }

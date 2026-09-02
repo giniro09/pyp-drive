@@ -1297,6 +1297,7 @@ function drawJunction(decision) {
   html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#151C29" stroke-width="1"/>`;
 
   if (settings.dialTicks) {
+    html += `<g id="dialRing" transform="rotate(0)">`;
     for (let deg = -180; deg < 180; deg += NOTCH_DEG) {
       const major = deg % 30 === 0;
       const medium = !major && deg % 15 === 0;
@@ -1308,9 +1309,9 @@ function drawJunction(decision) {
         stroke="${major ? '#8290A5' : medium ? '#536076' : '#30394B'}"
         stroke-width="${major ? 2.2 : medium ? 1.5 : 1}" stroke-linecap="round"/>`;
     }
-    html += `<line id="dialIndicator" x1="0" y1="-164" x2="0" y2="-185"
-      stroke="#67E8F9" stroke-width="5" stroke-linecap="round" filter="url(#notchGlow)"
-      visibility="hidden"/>`;
+    html += `<line x1="0" y1="-162" x2="0" y2="-188"
+      stroke="#FF5A50" stroke-width="3.5" stroke-linecap="round" filter="url(#notchGlow)"/>`;
+    html += `</g>`;
   }
 
   html += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171E2B" stroke-width="26" stroke-linecap="round"/>`;
@@ -1532,15 +1533,8 @@ function onSwipeMove(ev) {
   }
 
   if (settings.dialTicks) {
-    const ind = document.getElementById("dialIndicator");
-    if (ind) {
-      const rad = angle * Math.PI / 180;
-      ind.setAttribute("x1", Math.sin(rad)*164);
-      ind.setAttribute("y1", -Math.cos(rad)*164);
-      ind.setAttribute("x2", Math.sin(rad)*185);
-      ind.setAttribute("y2", -Math.cos(rad)*185);
-      ind.setAttribute("visibility", "visible");
-    }
+    const ring = document.getElementById("dialRing");
+    if (ring) ring.setAttribute("transform", `rotate(${angle})`);
   }
 
   const closest = findClosestBranch(angle);
@@ -1561,8 +1555,8 @@ function onSwipeEnd() {
   if (!swipeActive) return;
   swipeActive = false;
   lastNotchAngle = null;
-  const ind = document.getElementById("dialIndicator");
-  if (ind) ind.setAttribute("visibility", "hidden");
+  const ring = document.getElementById("dialRing");
+  if (ring) ring.setAttribute("transform", "rotate(0)");
   if (previewBranchId && currentDecision) {
     if (settings.soundConfirm) playConfirm();
     chooseBranch(previewBranchId);

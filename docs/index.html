@@ -1332,6 +1332,9 @@ function drawJunction(decision) {
     ? branches.map(b => ({...b, selected: b.id === selectedBranchId && b.id !== previewBranchId, preview: b.id === previewBranchId}))
     : branches;
 
+  // Pass 1: non-selected roads (casing + surface)
+  let selectedHtml = "";
+  let labelsHtml = "";
   for (const b of resolvedBranches) {
     const rad = b.angleDeg*Math.PI/180;
     const roadLen = 165;
@@ -1339,18 +1342,24 @@ function drawJunction(decision) {
 
     const sel = b.selected && !b.preview;
     const pre = b.preview;
-    const rStroke = sel ? "#00C8E8" : pre ? "#55D9EC" : "#465166";
-    const rWidth = sel ? 22 : pre ? 18 : 15;
-    const rOpacity = sel ? 1 : .82;
-    const rFilter = sel ? ' filter="url(#routeGlow)"' : "";
     const lFill = sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
     const rnFill = sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
 
-    html += `<line id="casing_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-      stroke="#171E2B" stroke-width="24" stroke-linecap="round"${sel ? ' opacity="0"' : ''}/>`;
-    html += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-      stroke="${rStroke}" stroke-width="${rWidth}" stroke-linecap="round" opacity="${rOpacity}"${rFilter}
-      style="cursor:pointer"/>`;
+    if (sel || pre) {
+      const rStroke = sel ? "#00C8E8" : "#55D9EC";
+      const rWidth = sel ? 22 : 18;
+      const rOpacity = sel ? 1 : .82;
+      const rFilter = sel ? ' filter="url(#routeGlow)"' : "";
+      selectedHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
+        stroke="${rStroke}" stroke-width="${rWidth}" stroke-linecap="round" opacity="${rOpacity}"${rFilter}
+        style="cursor:pointer"/>`;
+    } else {
+      html += `<line id="casing_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
+        stroke="#171E2B" stroke-width="24" stroke-linecap="round"/>`;
+      html += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
+        stroke="#465166" stroke-width="15" stroke-linecap="round" opacity=".82"
+        style="cursor:pointer"/>`;
+    }
 
     const labelD=125;
     const lx=Math.sin(rad)*labelD, ly=-Math.cos(rad)*labelD;
@@ -1359,18 +1368,21 @@ function drawJunction(decision) {
     const label=LABEL_JA[b.label]||b.label;
     const road=b.roadName||b.roadRef||"";
 
-    html += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-6}" text-anchor="${anchor}"
+    labelsHtml += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-6}" text-anchor="${anchor}"
       fill="${lFill}" font-size="20" font-weight="800"
       style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8)"
       >${label}</text>`;
 
     if(road){
-      html += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+14}" text-anchor="${anchor}"
+      labelsHtml += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+14}" text-anchor="${anchor}"
         fill="${rnFill}" font-size="13"
         style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8)"
         >${road}</text>`;
     }
   }
+  // Pass 2: selected/preview roads on top, then labels on top of everything
+  html += selectedHtml;
+  html += labelsHtml;
 
   // 中心ノード＋信号アイコン（最前面）
   if (decision.hasSignal) {

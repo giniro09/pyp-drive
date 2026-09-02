@@ -373,11 +373,17 @@
         <div id="toggleDialTicks" class="s-toggle on" onclick="toggleSetting('dialTicks','toggleDialTicks')"></div>
       </div>
       <div style="margin-top:10px;">
-        <div class="s-radio-desc" style="margin-left:0;margin-bottom:6px;">自車アイコン浮遊感</div>
+        <div class="s-radio-desc" style="margin-left:0;margin-bottom:6px;">自車アイコン浮遊 — 振幅</div>
         <div class="s-slider-row" style="margin-left:0;">
           <span style="font-size:12px;color:#657186;">OFF</span>
-          <input type="range" id="floatSlider" min="0" max="100" step="5" value="30" oninput="onFloatSliderChange()">
-          <span id="floatVal" class="s-slider-val">30%</span>
+          <input type="range" id="floatAmpSlider" min="0" max="100" step="5" value="30" oninput="onFloatParamChange()">
+          <span id="floatAmpVal" class="s-slider-val">30%</span>
+        </div>
+        <div class="s-radio-desc" style="margin-left:0;margin-bottom:6px;margin-top:8px;">自車アイコン浮遊 — 周期</div>
+        <div class="s-slider-row" style="margin-left:0;">
+          <span style="font-size:12px;color:#657186;">遅い</span>
+          <input type="range" id="floatSpeedSlider" min="10" max="100" step="5" value="40" oninput="onFloatParamChange()">
+          <span id="floatSpeedVal" class="s-slider-val">40%</span>
         </div>
       </div>
     </div>
@@ -455,7 +461,8 @@ let settings = {
   soundSwitch: true,
   soundConfirm: true,
   dialTicks: true,
-  floatIntensity: 30,
+  floatAmp: 30,
+  floatSpeed: 40,
 };
 
 function loadSettings() {
@@ -486,8 +493,10 @@ function applySettingsToUI() {
   document.getElementById("toggleSoundSwitch").classList.toggle("on", settings.soundSwitch);
   document.getElementById("toggleSoundConfirm").classList.toggle("on", settings.soundConfirm);
   document.getElementById("toggleDialTicks").classList.toggle("on", settings.dialTicks);
-  document.getElementById("floatSlider").value = settings.floatIntensity;
-  document.getElementById("floatVal").textContent = settings.floatIntensity + "%";
+  document.getElementById("floatAmpSlider").value = settings.floatAmp;
+  document.getElementById("floatAmpVal").textContent = settings.floatAmp + "%";
+  document.getElementById("floatSpeedSlider").value = settings.floatSpeed;
+  document.getElementById("floatSpeedVal").textContent = settings.floatSpeed + "%";
 }
 
 function toggleSettings() {
@@ -539,9 +548,11 @@ function toggleSetting(key, elId) {
   saveSettings();
 }
 
-function onFloatSliderChange() {
-  settings.floatIntensity = parseInt(document.getElementById("floatSlider").value);
-  document.getElementById("floatVal").textContent = settings.floatIntensity + "%";
+function onFloatParamChange() {
+  settings.floatAmp = parseInt(document.getElementById("floatAmpSlider").value);
+  settings.floatSpeed = parseInt(document.getElementById("floatSpeedSlider").value);
+  document.getElementById("floatAmpVal").textContent = settings.floatAmp + "%";
+  document.getElementById("floatSpeedVal").textContent = settings.floatSpeed + "%";
   saveSettings();
 }
 
@@ -1294,13 +1305,14 @@ function interpolationLoop(now) {
     if (car) {
       const ratio = Math.min(displayDistanceM / carMaxDistM, 1);
       const carY = 25 + ratio*140;
-      // Gentle float (intensity 0-100%)
-      const fi = settings.floatIntensity / 100;
-      if (fi > 0) {
-        tremorPhase += dt * (1.2 + fi * 2.0);
-        const tx = Math.sin(tremorPhase * 0.7) * fi * 1.5;
-        const ty = Math.sin(tremorPhase * 1.1) * fi * 2.0;
-        const tr = Math.sin(tremorPhase * 0.5) * fi * 0.4;
+      // Gentle float (amp 0-100%, speed 10-100%)
+      const fa = settings.floatAmp / 100;
+      const fs = settings.floatSpeed / 100;
+      if (fa > 0) {
+        tremorPhase += dt * (0.5 + fs * 3.0);
+        const tx = Math.sin(tremorPhase * 0.7) * fa * 2.5;
+        const ty = Math.sin(tremorPhase * 1.1) * fa * 3.5;
+        const tr = Math.sin(tremorPhase * 0.5) * fa * 0.6;
         car.style.transform = `translate(${tx}px,${carY + ty}px) rotate(${tr}deg)`;
       } else {
         car.style.transform = `translate(0px,${carY}px)`;

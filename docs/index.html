@@ -1318,8 +1318,8 @@ function drawJunction(decision) {
   html += `<line x1="0" y1="185" x2="0" y2="12" stroke="#465166" stroke-width="17" stroke-linecap="round"/>`;
 
   const ratio = Math.min((displayDistanceM||decision.distanceM)/carMaxDistM, 1);
-  const carY = 25 + ratio*350;
-  html += `<g id="egoCar" transform="translate(0,${carY})">
+  const carY = 25 + ratio*140;
+  html += `<g id="egoCar" style="transform:translate(0px,${carY}px);transition:transform .8s ease-out">
     <polygon points="0,-14 10,10 -10,10" fill="#00C8E8" opacity=".9"
       stroke="#67E8F9" stroke-width="1.5" stroke-linejoin="round"/>
   </g>`;
@@ -1402,8 +1402,8 @@ function updateCarPosition(decision) {
   const car = document.getElementById("egoCar");
   if (!car) return;
   const ratio = Math.min((displayDistanceM||decision.distanceM)/carMaxDistM, 1);
-  const carY = 25 + ratio*350;
-  car.setAttribute("transform", `translate(0,${carY})`);
+  const carY = 25 + ratio*140;
+  car.style.transform = `translate(0px,${carY}px)`;
 }
 
 function applyBranchHighlight(branches) {

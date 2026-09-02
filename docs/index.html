@@ -419,6 +419,14 @@
 
     <div class="s-section">
       <div class="s-section-title">ダイヤル演出</div>
+      <div style="margin-bottom:12px;">
+        <div class="s-radio-desc" style="margin-left:0;margin-bottom:6px;">マスターボリューム</div>
+        <div class="s-slider-row" style="margin-left:0;">
+          <span style="font-size:12px;color:#657186;">小</span>
+          <input type="range" id="masterVolSlider" min="0" max="200" step="10" value="100" oninput="onMasterVolChange()">
+          <span id="masterVolVal" class="s-slider-val">100%</span>
+        </div>
+      </div>
       <div class="s-toggle-row" style="margin-bottom:6px;">
         <span>回転ノッチ音</span>
         <div id="toggleSoundNotch" class="s-toggle on" onclick="toggleSetting('soundNotch','toggleSoundNotch')"></div>
@@ -520,6 +528,7 @@ let settings = {
   teslaToken: "",
   teslaVin: "",
   demoMode: false,
+  masterVol: 100,
   soundNotch: true,
   soundSwitch: true,
   soundConfirm: true,
@@ -556,6 +565,9 @@ function applySettingsToUI() {
   document.getElementById("teslaToken").value = settings.teslaToken;
   document.getElementById("teslaVinInput").value = settings.teslaVin;
   document.getElementById("demoToggle").classList.toggle("on", settings.demoMode);
+  document.getElementById("masterVolSlider").value = settings.masterVol;
+  document.getElementById("masterVolVal").textContent = settings.masterVol + "%";
+  updateMasterGain();
   document.getElementById("toggleSoundNotch").classList.toggle("on", settings.soundNotch);
   document.getElementById("toggleSoundSwitch").classList.toggle("on", settings.soundSwitch);
   document.getElementById("toggleSoundConfirm").classList.toggle("on", settings.soundConfirm);
@@ -618,6 +630,19 @@ function toggleSetting(key, elId) {
   settings[key] = !settings[key];
   document.getElementById(elId).classList.toggle("on", settings[key]);
   saveSettings();
+}
+
+function onMasterVolChange() {
+  settings.masterVol = parseInt(document.getElementById("masterVolSlider").value);
+  document.getElementById("masterVolVal").textContent = settings.masterVol + "%";
+  updateMasterGain();
+  saveSettings();
+}
+
+function updateMasterGain() {
+  if (masterGainNode) {
+    masterGainNode.gain.value = settings.masterVol / 100;
+  }
 }
 
 function toggleSideBarSide() {
@@ -1693,10 +1718,20 @@ function applyBranchHighlight(branches) {
 //  Haptic audio (dial notch feel)
 // ============================================================
 let audioCtx = null;
+let masterGainNode = null;
 function ensureAudioCtx() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGainNode = audioCtx.createGain();
+    masterGainNode.gain.value = settings.masterVol / 100;
+    masterGainNode.connect(audioCtx.destination);
+  }
   if (audioCtx.state === "suspended") audioCtx.resume();
   return audioCtx;
+}
+function getMasterOut() {
+  ensureAudioCtx();
+  return masterGainNode;
 }
 
 let noiseBuffer = null;
@@ -1727,7 +1762,7 @@ function playNotchClick(volume) {
   src.connect(hp);
   hp.connect(bp);
   bp.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(getMasterOut());
   src.start(ctx.currentTime);
   src.stop(ctx.currentTime + 0.012);
 }
@@ -1745,7 +1780,7 @@ function playBranchSwitch() {
   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03);
   src.connect(bp);
   bp.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(getMasterOut());
   src.start(ctx.currentTime);
   src.stop(ctx.currentTime + 0.03);
 }
@@ -1764,7 +1799,7 @@ function playConfirm() {
   nGain.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
   src.connect(bp);
   bp.connect(nGain);
-  nGain.connect(ctx.destination);
+  nGain.connect(getMasterOut());
   src.start(t);
   src.stop(t + 0.025);
   const osc1 = ctx.createOscillator();
@@ -1773,7 +1808,7 @@ function playConfirm() {
   osc1.frequency.value = 440;
   g1.gain.setValueAtTime(0.07, t + 0.01);
   g1.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
-  osc1.connect(g1); g1.connect(ctx.destination);
+  osc1.connect(g1); g1.connect(getMasterOut());
   osc1.start(t + 0.01); osc1.stop(t + 0.07);
   const osc2 = ctx.createOscillator();
   const g2 = ctx.createGain();
@@ -1781,7 +1816,7 @@ function playConfirm() {
   osc2.frequency.value = 554;
   g2.gain.setValueAtTime(0.06, t + 0.03);
   g2.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
-  osc2.connect(g2); g2.connect(ctx.destination);
+  osc2.connect(g2); g2.connect(getMasterOut());
   osc2.start(t + 0.03); osc2.stop(t + 0.09);
 }
 
@@ -1808,7 +1843,7 @@ function playDistanceAlert(thresholdM) {
     gain.gain.setValueAtTime(vol, start);
     gain.gain.exponentialRampToValueAtTime(0.001, start + 0.08);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterOut());
     osc.start(start);
     osc.stop(start + 0.08);
   }

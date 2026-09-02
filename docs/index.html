@@ -1183,7 +1183,7 @@ function processPosition(lat, lon, heading, speed) {
     }));
 
     currentDecision = decision;
-    displayDistanceM = displayDistanceM !== null
+    displayDistanceM = (displayDistanceM !== null && !junctionChanged)
       ? Math.min(displayDistanceM, Math.round(decision.distanceM))
       : Math.round(decision.distanceM);
     updateDistanceDisplay(displayDistanceM);

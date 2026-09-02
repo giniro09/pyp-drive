@@ -372,6 +372,14 @@
         <span>ダイヤル目盛り表示</span>
         <div id="toggleDialTicks" class="s-toggle on" onclick="toggleSetting('dialTicks','toggleDialTicks')"></div>
       </div>
+      <div style="margin-top:10px;">
+        <div class="s-radio-desc" style="margin-left:0;margin-bottom:6px;">自車アイコン浮遊感</div>
+        <div class="s-slider-row" style="margin-left:0;">
+          <span style="font-size:12px;color:#657186;">OFF</span>
+          <input type="range" id="floatSlider" min="0" max="100" step="5" value="30" oninput="onFloatSliderChange()">
+          <span id="floatVal" class="s-slider-val">30%</span>
+        </div>
+      </div>
     </div>
 
     <div class="s-section">
@@ -447,6 +455,7 @@ let settings = {
   soundSwitch: true,
   soundConfirm: true,
   dialTicks: true,
+  floatIntensity: 30,
 };
 
 function loadSettings() {
@@ -477,6 +486,8 @@ function applySettingsToUI() {
   document.getElementById("toggleSoundSwitch").classList.toggle("on", settings.soundSwitch);
   document.getElementById("toggleSoundConfirm").classList.toggle("on", settings.soundConfirm);
   document.getElementById("toggleDialTicks").classList.toggle("on", settings.dialTicks);
+  document.getElementById("floatSlider").value = settings.floatIntensity;
+  document.getElementById("floatVal").textContent = settings.floatIntensity + "%";
 }
 
 function toggleSettings() {
@@ -525,6 +536,12 @@ function toggleDemo() {
 function toggleSetting(key, elId) {
   settings[key] = !settings[key];
   document.getElementById(elId).classList.toggle("on", settings[key]);
+  saveSettings();
+}
+
+function onFloatSliderChange() {
+  settings.floatIntensity = parseInt(document.getElementById("floatSlider").value);
+  document.getElementById("floatVal").textContent = settings.floatIntensity + "%";
   saveSettings();
 }
 
@@ -1277,11 +1294,17 @@ function interpolationLoop(now) {
     if (car) {
       const ratio = Math.min(displayDistanceM / carMaxDistM, 1);
       const carY = 25 + ratio*140;
-      // Gentle float
-      tremorPhase += dt * 1.8;
-      const tx = Math.sin(tremorPhase * 0.7) * 0.3;
-      const ty = Math.sin(tremorPhase * 1.1) * 0.5;
-      car.style.transform = `translate(${tx}px,${carY + ty}px)`;
+      // Gentle float (intensity 0-100%)
+      const fi = settings.floatIntensity / 100;
+      if (fi > 0) {
+        tremorPhase += dt * (1.2 + fi * 2.0);
+        const tx = Math.sin(tremorPhase * 0.7) * fi * 1.5;
+        const ty = Math.sin(tremorPhase * 1.1) * fi * 2.0;
+        const tr = Math.sin(tremorPhase * 0.5) * fi * 0.4;
+        car.style.transform = `translate(${tx}px,${carY + ty}px) rotate(${tr}deg)`;
+      } else {
+        car.style.transform = `translate(0px,${carY}px)`;
+      }
     }
   }
 

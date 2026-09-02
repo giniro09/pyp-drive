@@ -7,12 +7,28 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
+  :root {
+    --bg-0: #090B12;
+    --bg-1: #0D111B;
+    --surface: #141B2A;
+    --surface-raised: #192235;
+    --text-primary: #F2F6FA;
+    --text-secondary: #A6B1C2;
+    --text-muted: #657186;
+    --route: #00C8E8;
+    --route-bright: #67E8F9;
+    --road: #465166;
+    --road-edge: #171E2B;
+    --near: #FF9F43;
+    --critical: #FF6257;
+    --success: #35C878;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; overflow: hidden; }
   body {
     font-family: -apple-system, "Hiragino Sans", "Meiryo", sans-serif;
-    background: #0f0f1a;
-    color: #eee;
+    background: radial-gradient(circle at 50% 48%, #111725 0%, var(--bg-0) 58%);
+    color: var(--text-primary);
     display: flex;
     flex-direction: column;
     height: 100vh;
@@ -21,7 +37,7 @@
   /* ===== PIN screen ===== */
   #pinScreen { flex: 1; display: flex; align-items: center; justify-content: center; }
   .pin-card {
-    background: #16213e; border-radius: 16px; padding: 48px 40px;
+    background: var(--surface-raised); border-radius: 16px; padding: 48px 40px;
     text-align: center; max-width: 360px; width: 90%;
   }
   .pin-card h1 { font-size: 22px; margin-bottom: 8px; }
@@ -59,19 +75,23 @@
 
   .header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 16px 24px; background: #16213e; flex-shrink: 0;
+    min-height: 126px; padding: 18px 28px;
+    background: linear-gradient(180deg, #18233A 0%, #141C2D 100%);
+    border-bottom: 1px solid rgba(255,255,255,.05);
+    flex-shrink: 0;
   }
   .distance-block { display: flex; align-items: baseline; gap: 6px; }
   .distance {
-    font-size: 64px; font-weight: 900; color: #00d4ff; line-height: 1;
+    font-size: 64px; font-weight: 900; color: var(--route-bright); line-height: 1;
     transition: color 0.3s; font-variant-numeric: tabular-nums;
+    letter-spacing: -.04em; text-shadow: 0 0 14px rgba(0,200,232,.14);
   }
-  .distance.near { color: #e74c3c; }
-  .distance-unit { font-size: 24px; color: #6ac5e0; }
-  .speed { font-size: 18px; color: #888; margin-left: 16px; }
+  .distance.near { color: var(--near); text-shadow: none; }
+  .distance-unit { font-size: 24px; color: #89AFC0; }
+  .speed { font-size: 18px; color: var(--text-secondary); margin-left: 16px; }
   .header-right { display: flex; align-items: center; gap: 16px; }
   .status { text-align: right; }
-  .status-text { font-size: 16px; color: #aaa; }
+  .status-text { font-size: 16px; color: var(--text-secondary); }
   .status-badge {
     display: inline-block; padding: 4px 12px; border-radius: 10px;
     font-size: 13px; font-weight: 600; margin-top: 4px;
@@ -90,38 +110,47 @@
   .gear-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
 
   .demo-banner {
-    display: none; background: #e74c3c; color: #fff; text-align: center;
-    padding: 6px; font-size: 14px; font-weight: 700; letter-spacing: 1px;
+    display: none; background: #9A4E18; color: #FFF2E7; text-align: center;
+    padding: 5px; font-size: 14px; font-weight: 700; letter-spacing: 1px;
     flex-shrink: 0;
   }
 
   .dist-bar-wrap {
-    height: 6px; background: #0a0a14; flex-shrink: 0;
+    height: 8px; padding: 2px 0; background: #090C12;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04); flex-shrink: 0;
   }
   .dist-bar {
-    height: 100%; width: 0%; border-radius: 0 3px 3px 0;
-    background: #00d4ff; transition: width 0.15s linear, background 0.3s;
+    height: 4px; width: 0%; border-radius: 0 4px 4px 0;
+    background: linear-gradient(90deg, #1677A8 0%, #00BCD9 55%, #67E8F9 100%);
+    box-shadow: 0 0 5px rgba(0,200,232,.55), 0 0 12px rgba(0,200,232,.18);
+    transition: width .15s linear, background .25s;
   }
-  .dist-bar.near { background: #e74c3c; }
+  .dist-bar.near {
+    background: linear-gradient(90deg, #C56A14 0%, #FF9F43 58%, #FFD166 100%);
+    box-shadow: 0 0 6px rgba(255,159,67,.6), 0 0 14px rgba(255,159,67,.2);
+  }
 
   .junction-view {
     flex: 1; display: flex; align-items: center; justify-content: center;
-    min-height: 0; position: relative;
+    min-height: 0; position: relative; padding: 16px 24px 20px;
   }
-  .junction-svg { width: 100%; height: 100%; max-width: 600px; max-height: 600px; }
+  .junction-svg {
+    width: min(70vh, 720px); height: min(70vh, 720px);
+    max-width: 100%; max-height: 100%; overflow: visible;
+  }
 
   .notice {
     flex: 1; display: flex; align-items: center; justify-content: center;
     flex-direction: column; gap: 12px;
   }
   .notice-icon { font-size: 48px; opacity: 0.4; }
-  .notice-text { font-size: 24px; color: #555; }
+  .notice-text { font-size: 24px; color: var(--text-muted); }
   .notice-sub { font-size: 14px; color: #444; }
 
   .footer {
-    padding: 8px 24px; background: #16213e; border-top: 1px solid #333;
+    padding: 8px 24px; background: #111827; border-top: 1px solid #252F42;
     display: flex; justify-content: space-between;
-    font-size: 12px; color: #555; flex-shrink: 0;
+    font-size: 12px; color: var(--text-muted); flex-shrink: 0;
   }
 
   /* ===== Settings overlay ===== */
@@ -130,7 +159,7 @@
     background: rgba(0,0,0,0.7); align-items: center; justify-content: center;
   }
   .settings-panel {
-    background: #16213e; border-radius: 16px; padding: 32px;
+    background: var(--surface-raised); border-radius: 16px; padding: 32px;
     max-width: 420px; width: 92%; max-height: 85vh; overflow-y: auto;
   }
   .settings-panel h2 { font-size: 20px; margin-bottom: 24px; }
@@ -1246,47 +1275,70 @@ function drawJunction(decision) {
   const branches = decision.branches;
 
   let html = `<defs>
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="5" result="blur"/>
+    <linearGradient id="selectedRoad" gradientUnits="userSpaceOnUse"
+      x1="0" y1="0" x2="0" y2="-165">
+      <stop offset="0" stop-color="#009DBB"/>
+      <stop offset=".55" stop-color="#00C8E8"/>
+      <stop offset="1" stop-color="#67E8F9"/>
+    </linearGradient>
+    <filter id="routeGlow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="2.8" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="0 0 0 0 0  0 0 0 0 .78  0 0 0 0 .91  0 0 0 .55 0"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="notchGlow" x="-100%" y="-50%" width="300%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>`;
 
-  html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#1a1a2e" stroke-width="2"/>`;
+  html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#202A3B" stroke-width="2"/>`;
+  html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#151C29" stroke-width="1"/>`;
 
   if (settings.dialTicks) {
     for (let deg = -180; deg < 180; deg += NOTCH_DEG) {
-      const r1 = 178, r2 = (deg % 15 === 0) ? 168 : 173;
+      const major = deg % 30 === 0;
+      const medium = !major && deg % 15 === 0;
+      const r1 = 181;
+      const r2 = major ? 166 : medium ? 171 : 176;
       const rad = deg * Math.PI / 180;
-      const x1 = Math.sin(rad)*r1, y1 = -Math.cos(rad)*r1;
-      const x2 = Math.sin(rad)*r2, y2 = -Math.cos(rad)*r2;
-      html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
-        stroke="#2a2a40" stroke-width="${deg % 15 === 0 ? 1.5 : 0.8}"/>`;
+      html += `<line x1="${Math.sin(rad)*r1}" y1="${-Math.cos(rad)*r1}"
+        x2="${Math.sin(rad)*r2}" y2="${-Math.cos(rad)*r2}"
+        stroke="${major ? '#8290A5' : medium ? '#536076' : '#30394B'}"
+        stroke-width="${major ? 2.2 : medium ? 1.5 : 1}" stroke-linecap="round"/>`;
     }
     if (swipeActive && lastNotchAngle !== null) {
-      const iRad = lastNotchAngle * Math.PI / 180;
-      const ix1 = Math.sin(iRad)*165, iy1 = -Math.cos(iRad)*165;
-      const ix2 = Math.sin(iRad)*185, iy2 = -Math.cos(iRad)*185;
-      html += `<line x1="${ix1}" y1="${iy1}" x2="${ix2}" y2="${iy2}"
-        stroke="#00d4ff" stroke-width="3" opacity="0.7" stroke-linecap="round"/>`;
+      const rad = lastNotchAngle * Math.PI / 180;
+      html += `<line x1="${Math.sin(rad)*164}" y1="${-Math.cos(rad)*164}"
+        x2="${Math.sin(rad)*185}" y2="${-Math.cos(rad)*185}"
+        stroke="#67E8F9" stroke-width="5" stroke-linecap="round" filter="url(#notchGlow)"/>`;
     }
   }
 
-  html += `<line x1="0" y1="185" x2="0" y2="14" stroke="#3a3a50" stroke-width="20" stroke-linecap="round"/>`;
+  html += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171E2B" stroke-width="26" stroke-linecap="round"/>`;
+  html += `<line x1="0" y1="185" x2="0" y2="12" stroke="#465166" stroke-width="17" stroke-linecap="round"/>`;
 
   const maxD = 500;
   const ratio = Math.min((displayDistanceM||decision.distanceM)/maxD, 1);
   const carY = 30 + ratio*140;
-  html += `<polygon points="0,${carY-14} -11,${carY+8} 11,${carY+8}"
-    fill="#00d4ff" stroke="#0a5e7a" stroke-width="1.5"/>`;
+  html += `<g id="egoCar" transform="translate(0,${carY})">
+    <ellipse cx="0" cy="3" rx="14" ry="21" fill="#05070C" opacity=".72"/>
+    <path d="M0-18 C7-16 10-9 10 7 Q10 15 4 17 H-4 Q-10 15-10 7 C-10-9-7-16 0-18Z"
+      fill="#EAF6FF" stroke="#00C8E8" stroke-width="2"/>
+    <path d="M-6-7 Q0-12 6-7 L5 1 H-5Z" fill="#17283A"/>
+    <path d="M-6 10H-3 M3 10H6" stroke="#FF6257" stroke-width="2.4" stroke-linecap="round"/>
+  </g>`;
 
   for (const b of branches) {
     const rad = b.angleDeg*Math.PI/180;
     const roadLen = 165;
     const ex = Math.sin(rad)*roadLen, ey = -Math.cos(rad)*roadLen;
 
+    html += `<line x1="0" y1="0" x2="${ex}" y2="${ey}"
+      stroke="#171E2B" stroke-width="24" stroke-linecap="round"/>`;
     html += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-      stroke="#666" stroke-width="18" stroke-linecap="round" opacity="0.5"
+      stroke="#465166" stroke-width="15" stroke-linecap="round" opacity=".82"
       style="cursor:pointer"/>`;
 
     const labelD=125;
@@ -1297,13 +1349,13 @@ function drawJunction(decision) {
     const road=b.roadName||b.roadRef||"";
 
     html += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-6}" text-anchor="${anchor}"
-      fill="#ccc" font-size="20" font-weight="800"
+      fill="#D7DEE8" font-size="20" font-weight="800"
       style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8)"
       >${label}</text>`;
 
     if(road){
       html += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+14}" text-anchor="${anchor}"
-        fill="#777" font-size="13"
+        fill="#8390A3" font-size="13"
         style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8)"
         >${road}</text>`;
     }
@@ -1311,16 +1363,17 @@ function drawJunction(decision) {
 
   // 中心ノード＋信号アイコン（最前面）
   if (decision.hasSignal) {
-    html += `<circle cx="0" cy="-20" r="38" fill="#0f0f1a" opacity="0.95"/>`;
-    html += `<g transform="translate(0,-20)">
-      <rect x="-16" y="-26" width="32" height="52" rx="6" fill="#222" stroke="#f39c12" stroke-width="2"/>
-      <circle cx="0" cy="-14" r="7" fill="#e74c3c"/>
-      <circle cx="0" cy="0" r="7" fill="#f39c12"/>
-      <circle cx="0" cy="14" r="7" fill="#27ae60"/>
+    html += `<g style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.65));pointer-events:none" transform="translate(0,-30)">
+      <path d="M-25-10 H25 Q30-10 30-5 V5 Q30 10 25 10 H-25 Q-30 10-30 5 V-5 Q-30-10-25-10 Z"
+        fill="#151C2A" stroke="#9AA7B8" stroke-width="1.8"/>
+      <circle cx="-17" cy="0" r="5.5" fill="#394354"/>
+      <circle cx="0" cy="0" r="5.5" fill="#394354"/>
+      <circle cx="17" cy="0" r="5.5" fill="#394354"/>
+      <path d="M-34 0H-30 M30 0H34" stroke="#9AA7B8" stroke-width="2" stroke-linecap="round"/>
     </g>`;
-    html += `<circle cx="0" cy="0" r="16" fill="#1e2a45" stroke="#f39c12" stroke-width="2.5"/>`;
+    html += `<circle cx="0" cy="0" r="15" fill="#121927" stroke="#74839A" stroke-width="2"/>`;
   } else {
-    html += `<circle cx="0" cy="0" r="16" fill="#1e2a45" stroke="#3a5070" stroke-width="2"/>`;
+    html += `<circle cx="0" cy="0" r="15" fill="#121927" stroke="#2A3548" stroke-width="2"/>`;
   }
 
   svg.innerHTML = html;
@@ -1338,12 +1391,12 @@ function drawJunction(decision) {
 }
 
 function updateCarPosition(decision) {
-  const car = document.getElementById("junctionSvg").querySelector("polygon[fill='#00d4ff']");
+  const car = document.getElementById("egoCar");
   if (!car) return;
   const maxD = 500;
   const ratio = Math.min((displayDistanceM||decision.distanceM)/maxD, 1);
   const carY = 30 + ratio*140;
-  car.setAttribute("points", `0,${carY-14} -11,${carY+8} 11,${carY+8}`);
+  car.setAttribute("transform", `translate(0,${carY})`);
 }
 
 function applyBranchHighlight(branches) {
@@ -1356,26 +1409,26 @@ function applyBranchHighlight(branches) {
     if (!road) continue;
 
     if (sel && !preview) {
-      road.setAttribute("stroke", "#00d4ff");
-      road.setAttribute("stroke-width", "24");
+      road.setAttribute("stroke", "url(#selectedRoad)");
+      road.setAttribute("stroke-width", "20");
       road.setAttribute("opacity", "1");
-      road.setAttribute("filter", "url(#glow)");
-      if (label) label.setAttribute("fill", "#00d4ff");
-      if (roadname) roadname.setAttribute("fill", "#6ac5e0");
+      road.setAttribute("filter", "url(#routeGlow)");
+      if (label) label.setAttribute("fill", "#F4FCFF");
+      if (roadname) roadname.setAttribute("fill", "#8FE9F5");
     } else if (preview) {
-      road.setAttribute("stroke", "#00d4ff");
-      road.setAttribute("stroke-width", "22");
-      road.setAttribute("opacity", "0.6");
-      road.removeAttribute("filter");
-      if (label) label.setAttribute("fill", "#5bb8d0");
-      if (roadname) roadname.setAttribute("fill", "#5bb8d0");
-    } else {
-      road.setAttribute("stroke", "#666");
+      road.setAttribute("stroke", "#55D9EC");
       road.setAttribute("stroke-width", "18");
-      road.setAttribute("opacity", "0.5");
+      road.setAttribute("opacity", ".82");
       road.removeAttribute("filter");
-      if (label) label.setAttribute("fill", "#ccc");
-      if (roadname) roadname.setAttribute("fill", "#777");
+      if (label) label.setAttribute("fill", "#BCEFF5");
+      if (roadname) roadname.setAttribute("fill", "#7FB7C2");
+    } else {
+      road.setAttribute("stroke", "#465166");
+      road.setAttribute("stroke-width", "15");
+      road.setAttribute("opacity", ".82");
+      road.removeAttribute("filter");
+      if (label) label.setAttribute("fill", "#D7DEE8");
+      if (roadname) roadname.setAttribute("fill", "#8390A3");
     }
   }
 }

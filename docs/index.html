@@ -1277,12 +1277,11 @@ function interpolationLoop(now) {
     if (car) {
       const ratio = Math.min(displayDistanceM / carMaxDistM, 1);
       const carY = 25 + ratio*140;
-      // Micro-tremor when driving
-      tremorPhase += dt * 18;
-      const tx = Math.sin(tremorPhase * 2.3) * 0.7 + Math.sin(tremorPhase * 5.1) * 0.3;
-      const ty = Math.sin(tremorPhase * 3.7) * 0.4;
-      const tr = Math.sin(tremorPhase * 4.1) * 0.25;
-      car.style.transform = `translate(${tx}px,${carY + ty}px) rotate(${tr}deg)`;
+      // Gentle float
+      tremorPhase += dt * 1.8;
+      const tx = Math.sin(tremorPhase * 0.7) * 0.3;
+      const ty = Math.sin(tremorPhase * 1.1) * 0.5;
+      car.style.transform = `translate(${tx}px,${carY + ty}px)`;
     }
   }
 

@@ -268,6 +268,18 @@
   .sidebar-thumb:active, .sidebar-thumb.active {
     background: rgba(0,200,232,0.8); cursor: grabbing;
   }
+  .sidebar-tick {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    height: 2px; border-radius: 1px; pointer-events: none;
+  }
+  .sidebar-tick-label {
+    position: absolute; right: 100%; margin-right: 4px; white-space: nowrap;
+    font-size: 10px; color: #657186; transform: translateY(-50%);
+    pointer-events: none;
+  }
+  .sidebar-tick-label.left-side {
+    right: auto; left: 100%; margin-right: 0; margin-left: 4px;
+  }
 
   /* Ego car driving micro-tremor */
   @keyframes egoTremor {
@@ -340,6 +352,7 @@
   <div id="minimap"></div>
   <div id="sideBarControl">
     <div class="sidebar-track"></div>
+    <div id="sideBarTicks"></div>
     <div id="sideBarThumb" class="sidebar-thumb"></div>
   </div>
 </div>
@@ -410,6 +423,11 @@
         <div id="toggleSideBarLeft" class="s-toggle" onclick="toggleSideBarSide()"></div>
       </div>
       <div class="s-radio-desc" style="margin-top:2px;">ON: 左端 / OFF: 右端</div>
+      <div class="s-toggle-row" style="margin-top:6px;margin-bottom:0;">
+        <span>サイドバー固定モード</span>
+        <div id="toggleSideBarFixed" class="s-toggle" onclick="toggleSetting('sideBarFixed','toggleSideBarFixed')"></div>
+      </div>
+      <div class="s-radio-desc" style="margin-top:2px;">OFF: 中心に戻る / ON: 位置が固定される（目盛り付き）</div>
       <div class="s-toggle-row" style="margin-top:10px;margin-bottom:6px;">
         <span>ルーレットモード</span>
         <div id="toggleRoulette" class="s-toggle" onclick="toggleSetting('roulette','toggleRoulette')"></div>
@@ -536,6 +554,7 @@ let settings = {
   dialRelative: false,
   sideBar: false,
   sideBarLeft: false,
+  sideBarFixed: false,
   roulette: false,
   floatAmp: 30,
   floatSpeed: 40,
@@ -575,6 +594,7 @@ function applySettingsToUI() {
   document.getElementById("toggleDialRelative").classList.toggle("on", settings.dialRelative);
   document.getElementById("toggleSideBar").classList.toggle("on", settings.sideBar);
   document.getElementById("toggleSideBarLeft").classList.toggle("on", settings.sideBarLeft);
+  document.getElementById("toggleSideBarFixed").classList.toggle("on", settings.sideBarFixed);
   document.getElementById("toggleRoulette").classList.toggle("on", settings.roulette);
   updateSideBar();
   document.getElementById("floatAmpSlider").value = settings.floatAmp;
@@ -2059,7 +2079,7 @@ function onSwipeEnd() {
     if (settings.soundConfirm) playConfirm();
     flashConfirmRoad(previewBranchId);
     chooseBranch(previewBranchId);
-  } else if (settings.roulette && Math.abs(swipeVelocity) > 300 && currentDecision) {
+  } else if (settings.roulette && Math.abs(swipeVelocity) > 150 && currentDecision) {
     // Roulette: strong flick triggers spin
     startRoulette(swipeVelocity);
   } else if (Math.abs(swipeVelocity) > 80 && currentDecision) {
@@ -2134,10 +2154,61 @@ document.addEventListener("DOMContentLoaded", () => {
   // Side bar control
   const sidebar = document.getElementById("sideBarControl");
   const thumb = document.getElementById("sideBarThumb");
+  const sidebarTicksEl = document.getElementById("sideBarTicks");
   let sidebarActive = false;
   let sidebarStartY = 0;
   let sidebarBaseAngle = 0;
   const SIDEBAR_DEG_PER_PX = 0.7;
+  const SIDEBAR_TRACK_TOP = 15; // %
+  const SIDEBAR_TRACK_RANGE = 70; // %
+
+  function angleToSidebarPct(angleDeg) {
+    if (!currentDecision || !currentDecision.branches.length) return 50;
+    const sorted = [...currentDecision.branches].sort((a,b) => a.angleDeg - b.angleDeg);
+    const minA = sorted[0].angleDeg;
+    const maxA = sorted[sorted.length - 1].angleDeg;
+    const range = maxA - minA || 1;
+    const margin = range * 0.2;
+    return ((angleDeg - (minA - margin)) / (range + margin * 2)) * 100;
+  }
+
+  function sidebarPctToAngle(pct) {
+    if (!currentDecision || !currentDecision.branches.length) return 0;
+    const sorted = [...currentDecision.branches].sort((a,b) => a.angleDeg - b.angleDeg);
+    const minA = sorted[0].angleDeg;
+    const maxA = sorted[sorted.length - 1].angleDeg;
+    const range = maxA - minA || 1;
+    const margin = range * 0.2;
+    return (minA - margin) + (pct / 100) * (range + margin * 2);
+  }
+
+  function renderSidebarTicks() {
+    sidebarTicksEl.innerHTML = "";
+    if (!settings.sideBarFixed || !currentDecision) return;
+    const isLeft = settings.sideBarLeft;
+    for (const b of currentDecision.branches) {
+      const pct = angleToSidebarPct(b.angleDeg);
+      const topPct = SIDEBAR_TRACK_TOP + (pct / 100) * SIDEBAR_TRACK_RANGE;
+      const sel = b.id === selectedBranchId;
+      const tick = document.createElement("div");
+      tick.className = "sidebar-tick";
+      tick.style.top = topPct + "%";
+      tick.style.width = sel ? "20px" : "12px";
+      tick.style.background = sel ? "#00C8E8" : "rgba(255,255,255,0.2)";
+      const label = document.createElement("div");
+      label.className = "sidebar-tick-label" + (isLeft ? " left-side" : "");
+      label.textContent = LABEL_JA[b.label] || b.label;
+      label.style.top = topPct + "%";
+      if (sel) { label.style.color = "#00C8E8"; label.style.fontWeight = "700"; }
+      sidebarTicksEl.appendChild(tick);
+      sidebarTicksEl.appendChild(label);
+    }
+  }
+
+  function setSidebarThumbForAngle(angleDeg) {
+    const pct = angleToSidebarPct(angleDeg);
+    thumb.style.top = (SIDEBAR_TRACK_TOP + (pct / 100) * SIDEBAR_TRACK_RANGE) + "%";
+  }
 
   function sidebarStart(clientY) {
     if (!currentDecision) return;
@@ -2152,14 +2223,28 @@ document.addEventListener("DOMContentLoaded", () => {
     lastSwipeVelocity = 0;
     relativeStartAngle = null;
     thumb.classList.add("active");
+    if (settings.sideBarFixed) renderSidebarTicks();
   }
 
   function sidebarMove(clientY) {
     if (!sidebarActive || !currentDecision) return;
-    const dy = sidebarStartY - clientY;
-    const angle = sidebarBaseAngle + dy * SIDEBAR_DEG_PER_PX;
 
-    // Feed into the same dial logic
+    let angle;
+    if (settings.sideBarFixed) {
+      const trackEl = sidebar.querySelector(".sidebar-track");
+      const trackRect = trackEl.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(100, ((clientY - trackRect.top) / trackRect.height) * 100));
+      angle = sidebarPctToAngle(pct);
+      thumb.style.top = (SIDEBAR_TRACK_TOP + (pct / 100) * SIDEBAR_TRACK_RANGE) + "%";
+    } else {
+      const dy = sidebarStartY - clientY;
+      angle = sidebarBaseAngle + dy * SIDEBAR_DEG_PER_PX;
+      const trackEl = sidebar.querySelector(".sidebar-track");
+      const trackRect = trackEl.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (clientY - trackRect.top) / trackRect.height));
+      thumb.style.top = (SIDEBAR_TRACK_TOP + pct * SIDEBAR_TRACK_RANGE) + "%";
+    }
+
     const now = performance.now();
     if (lastSwipeAngle !== null && now - lastSwipeTime > 0) {
       const dt = (now - lastSwipeTime) / 1000;
@@ -2196,21 +2281,32 @@ document.addEventListener("DOMContentLoaded", () => {
       preview: b.id === previewBranchId,
     }));
     applyBranchHighlight(updated);
-
-    // Move thumb visually
-    const trackEl = sidebar.querySelector(".sidebar-track");
-    const trackRect = trackEl.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (clientY - trackRect.top) / trackRect.height));
-    thumb.style.top = (15 + pct * 70) + "%";
   }
 
   function sidebarEnd() {
     if (!sidebarActive) return;
     sidebarActive = false;
     thumb.classList.remove("active");
-    thumb.style.top = "50%";
     onSwipeEnd();
+    if (settings.sideBarFixed) {
+      setSidebarThumbForAngle(dialFixedAngle);
+      renderSidebarTicks();
+    } else {
+      thumb.style.top = "50%";
+    }
   }
+
+  // Keep sidebar ticks in sync when junction or selection changes
+  const origDrawJunction = drawJunction;
+  drawJunction = function(decision) {
+    origDrawJunction(decision);
+    if (settings.sideBar && settings.sideBarFixed) {
+      setTimeout(() => {
+        renderSidebarTicks();
+        setSidebarThumbForAngle(dialFixedAngle);
+      }, 50);
+    }
+  };
 
   sidebar.addEventListener("touchstart", (ev) => {
     ev.preventDefault();

@@ -214,23 +214,53 @@
     transition: bottom 0.3s ease-out;
   }
   .cruise-value {
-    font-size: 56px; font-weight: 900; line-height: 1;
+    font-size: 48px; font-weight: 900; line-height: 1;
     font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
-    color: var(--route-bright);
-    text-shadow: 0 0 30px rgba(0,200,232,0.15);
-    transition: color 0.4s;
+    color: rgba(137,175,192,0.6);
+    text-shadow: none;
+    transition: font-size 0.4s ease-out, color 0.4s, text-shadow 0.4s;
   }
+  .cruise-value.tier1 {
+    font-size: 56px; color: var(--route-bright);
+    text-shadow: 0 0 20px rgba(0,200,232,0.15);
+  }
+  .cruise-value.tier2 {
+    font-size: 64px; color: #F5B731;
+    text-shadow: 0 0 24px rgba(245,183,49,0.25);
+  }
+  .cruise-value.tier3 {
+    font-size: 72px; color: #FFD700;
+    text-shadow: 0 0 30px rgba(255,215,0,0.35), 0 0 60px rgba(255,215,0,0.15);
+  }
+  @keyframes cruisePulse {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  .cruise-value.pulse { animation: cruisePulse 0.35s ease-out; }
   .cruise-unit {
     font-size: 20px; font-weight: 600; color: rgba(137,175,192,0.6);
-    margin-left: 4px;
+    margin-left: 4px; transition: color 0.4s;
   }
   .cruise-sub {
     font-size: 12px; color: var(--text-muted); margin-top: 2px;
     letter-spacing: 0.04em;
   }
   .cruise-total {
-    font-size: 12px; color: #5B9AB5; margin-top: 4px; opacity: 0.7;
+    font-size: 14px; color: #5B9AB5; margin-top: 4px;
+    font-weight: 600; opacity: 0.9;
+    transition: color 0.4s, text-shadow 0.4s;
   }
+  .cruise-total.glow {
+    color: #7DD3E8;
+    text-shadow: 0 0 10px rgba(125,211,232,0.3);
+  }
+  @keyframes totalBump {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.12); color: var(--route-bright); }
+    100% { transform: scale(1); }
+  }
+  .cruise-total.bump { animation: totalBump 0.4s ease-out; }
   @keyframes stakeConvert {
     0% { transform: scale(1); opacity: 1; }
     30% { transform: scale(1.15); color: var(--near); }
@@ -1153,7 +1183,7 @@ function syncHudPosition() {
   const wrap = document.getElementById("dialWrap");
   if (wrap) {
     const rect = wrap.getBoundingClientRect();
-    hud.style.top = Math.max(4, rect.top - 60) + "px";
+    hud.style.top = Math.max(4, rect.top - 80) + "px";
     hud.style.left = (rect.left + rect.width / 2) + "px";
   }
 }
@@ -2655,21 +2685,35 @@ function tickCruiseDistance(deltaM) {
   updateCruiseDisplay();
 }
 
+let lastCruiseTier = -1;
 function updateCruiseDisplay() {
   const el = document.getElementById("cruiseValue");
+  const unitEl = el.nextElementSibling;
   const subEl = document.getElementById("cruiseSub");
   const totalEl = document.getElementById("cruiseTotal");
+  const dm = Math.floor(cruiseDistanceM);
   if (cruiseDistanceM >= 1000) {
     el.textContent = (cruiseDistanceM / 1000).toFixed(1);
-    el.nextElementSibling.textContent = "km";
+    unitEl.textContent = "km";
   } else {
-    el.textContent = Math.floor(cruiseDistanceM);
-    el.nextElementSibling.textContent = "m";
+    el.textContent = dm;
+    unitEl.textContent = "m";
   }
+  const tier = dm >= 500 ? 3 : dm >= 300 ? 2 : dm >= 100 ? 1 : 0;
+  el.classList.remove("tier1","tier2","tier3");
+  if (tier >= 1) el.classList.add("tier" + tier);
+  unitEl.style.color = tier >= 2 ? "#F5B731" : "";
+  if (tier > lastCruiseTier && lastCruiseTier >= 0) {
+    el.classList.remove("pulse");
+    void el.offsetWidth;
+    el.classList.add("pulse");
+  }
+  lastCruiseTier = tier;
   subEl.textContent = "";
   if (totalSessionDistM > 0) {
     const tkm = (totalSessionDistM / 1000).toFixed(1);
     totalEl.textContent = "session " + tkm + " km";
+    totalEl.classList.toggle("glow", totalSessionDistM >= 2000);
   }
 }
 
@@ -2684,7 +2728,12 @@ function convertStake() {
   toast.classList.add("show");
   setTimeout(() => toast.classList.remove("show"), 1100);
   cruiseDistanceM = 0;
+  lastCruiseTier = -1;
   updateCruiseDisplay();
+  const totalEl = document.getElementById("cruiseTotal");
+  totalEl.classList.remove("bump");
+  void totalEl.offsetWidth;
+  totalEl.classList.add("bump");
 }
 
 function playStakeConvert() {

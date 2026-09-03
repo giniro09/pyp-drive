@@ -238,11 +238,17 @@
   .s-close-btn:hover { background: #33dfff; }
 
   /* ===== Background map behind junction ===== */
-  #bgMap {
+  .bg-map-clip {
     position: absolute; inset: 0; z-index: 0;
-    pointer-events: none; opacity: 0.15;
+    pointer-events: none; overflow: hidden;
+    border-radius: 50%;
+  }
+  #bgMap {
+    position: absolute;
+    width: 150%; height: 150%;
+    top: -25%; left: -25%;
+    opacity: 0.15;
     filter: saturate(0.3) brightness(0.6);
-    overflow: hidden; border-radius: 50%;
   }
   #bgMap .leaflet-control-container { display: none; }
 
@@ -364,7 +370,9 @@
 
   <div id="junctionArea" class="junction-view" style="display:none;">
     <div id="dialWrap" class="dial-wrap">
-      <div id="bgMap"></div>
+      <div id="bgMapClip" class="bg-map-clip">
+        <div id="bgMap"></div>
+      </div>
       <svg id="junctionSvg" class="junction-svg" viewBox="-200 -200 400 400"></svg>
     </div>
   </div>
@@ -856,7 +864,8 @@ function applyBgMapOpacity() {
   el.style.opacity = settings.bgMapOpacity / 100;
   if (settings.bgMapOpacity === 0 && bgLeafletMap) {
     bgLeafletMap.remove(); bgLeafletMap = null; bgMapMarker = null;
-    el.style.display = "none";
+    const clip = document.getElementById("bgMapClip");
+    if (clip) clip.style.display = "none";
   }
 }
 
@@ -874,25 +883,24 @@ function toggleBgMapScope() {
 }
 
 function applyBgMapScope() {
-  const el = document.getElementById("bgMap");
-  if (!el) return;
+  const clip = document.getElementById("bgMapClip");
+  if (!clip) return;
   if (settings.bgMapScope === "dial") {
-    el.style.borderRadius = "50%";
-    el.style.overflow = "hidden";
+    clip.style.borderRadius = "50%";
   } else {
-    el.style.borderRadius = "0";
-    el.style.overflow = "visible";
+    clip.style.borderRadius = "0";
   }
 }
 
 function initBgMap(lat, lon, inBearing) {
   if (settings.bgMapOpacity === 0) return;
+  const clip = document.getElementById("bgMapClip");
+  if (clip) clip.style.display = "block";
   const el = document.getElementById("bgMap");
-  el.style.display = "block";
   el.style.opacity = settings.bgMapOpacity / 100;
   if (bgLeafletMap) { bgLeafletMap.remove(); bgLeafletMap = null; }
   bgLeafletMap = L.map(el, {
-    center: [lat, lon], zoom: 16,
+    center: [lat, lon], zoom: 17,
     zoomControl: false, attributionControl: false,
     dragging: false, scrollWheelZoom: false,
     doubleClickZoom: false, touchZoom: false, keyboard: false,
@@ -904,8 +912,9 @@ function initBgMap(lat, lon, inBearing) {
     radius: 6, color: "#00d4ff", fillColor: "#00d4ff", fillOpacity: 0.6, weight: 2,
   }).addTo(bgLeafletMap);
   bgMapRotation = (inBearing != null) ? -inBearing : 0;
-  el.style.transform = `rotate(${bgMapRotation}deg) scale(1.5)`;
+  el.style.transform = `rotate(${bgMapRotation}deg)`;
   applyBgMapScope();
+  setTimeout(() => { if (bgLeafletMap) bgLeafletMap.invalidateSize(); }, 200);
 }
 
 function updateBgMap(lat, lon) {
@@ -917,8 +926,10 @@ function updateBgMap(lat, lon) {
 }
 
 function hideBgMap() {
+  const clip = document.getElementById("bgMapClip");
+  if (clip) clip.style.display = "none";
   const el = document.getElementById("bgMap");
-  if (el) { el.style.display = "none"; el.style.transform = ""; }
+  if (el) el.style.transform = "";
   if (bgLeafletMap) { bgLeafletMap.remove(); bgLeafletMap = null; bgMapMarker = null; }
 }
 

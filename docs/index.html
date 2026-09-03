@@ -878,7 +878,6 @@ function applyDialLayout() {
 }
 
 let bgLeafletMap = null;
-let bgMapMarker = null;
 let bgMapRotation = 0;
 
 function onBgMapOpacityChange() {
@@ -893,8 +892,7 @@ function applyBgMapOpacity() {
   if (!el) return;
   el.style.opacity = settings.bgMapOpacity / 100;
   if (settings.bgMapOpacity === 0 && bgLeafletMap) {
-    bgLeafletMap.remove(); bgLeafletMap = null; bgMapMarker = null;
-    const clip = document.getElementById("bgMapClip");
+    bgLeafletMap.remove(); bgLeafletMap = null;    const clip = document.getElementById("bgMapClip");
     if (clip) clip.style.display = "none";
   }
 }
@@ -938,26 +936,8 @@ function ensureBgMap() {
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 18,
   }).addTo(bgLeafletMap);
-  bgMapMarker = L.circleMarker([0, 0], {
-    radius: 6, color: "#00d4ff", fillColor: "#00d4ff", fillOpacity: 0.6, weight: 2,
-  }).addTo(bgLeafletMap);
   applyBgMapScope();
   setTimeout(() => { if (bgLeafletMap) bgLeafletMap.invalidateSize(); }, 200);
-}
-
-function bgMapOffsetCenter(lat, lon) {
-  if (!bgLeafletMap) return [lat, lon];
-  const wrap = document.getElementById("dialWrap");
-  if (!wrap) return [lat, lon];
-  const ratio = Math.min((displayDistanceM ?? carMaxDistM) / carMaxDistM, 1);
-  const carY = 25 + ratio * 140;
-  const offsetPx = carY * (wrap.offsetHeight * 1.5) / 400;
-  const size = bgLeafletMap.getSize();
-  if (!size.y) return [lat, lon];
-  const bounds = bgLeafletMap.getBounds();
-  const latSpan = bounds.getNorth() - bounds.getSouth();
-  const dLat = (offsetPx / size.y) * latSpan;
-  return [lat + dLat, lon];
 }
 
 function initBgMap(lat, lon, heading) {
@@ -967,9 +947,6 @@ function initBgMap(lat, lon, heading) {
   const el = document.getElementById("bgMap");
   if (el) el.style.transition = "none";
   bgLeafletMap.setView([lat, lon], 17, { animate: false });
-  const [oLat, oLon] = bgMapOffsetCenter(lat, lon);
-  bgLeafletMap.setView([oLat, oLon], 17, { animate: false });
-  if (bgMapMarker) bgMapMarker.setLatLng([lat, lon]);
   if (heading != null) {
     bgMapRotation = -heading;
     if (el) el.style.transform = `rotate(${bgMapRotation}deg)`;
@@ -989,9 +966,7 @@ function setBgMapRotation(heading) {
 
 function updateBgMap(lat, lon, heading) {
   if (!bgLeafletMap) return;
-  const [oLat, oLon] = bgMapOffsetCenter(lat, lon);
-  bgLeafletMap.panTo([oLat, oLon], { animate: true, duration: 0.8, easeLinearity: 1 });
-  if (bgMapMarker) bgMapMarker.setLatLng([lat, lon]);
+  bgLeafletMap.panTo([lat, lon], { animate: true, duration: 0.8, easeLinearity: 1 });
   setBgMapRotation(heading);
 }
 
@@ -2009,10 +1984,10 @@ function drawJunction(decision) {
 
       const lFill = sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
       const rnFill = sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
-      const labelD = 125;
+      const labelD = 95;
       const lx = Math.sin(rad) * labelD, ly = -Math.cos(rad) * labelD;
       const anchor = Math.abs(b.angleDeg) < 30 ? "middle" : b.angleDeg > 0 ? "start" : "end";
-      const tx = Math.abs(b.angleDeg) < 30 ? 0 : b.angleDeg > 0 ? 14 : -14;
+      const tx = Math.abs(b.angleDeg) < 30 ? 0 : b.angleDeg > 0 ? 10 : -10;
       const label = LABEL_JA[b.label] || b.label;
       const road = b.roadName || b.roadRef || "";
       const slideOx = Math.sin(rad) * 15;

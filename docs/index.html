@@ -254,7 +254,7 @@
     z-index: 40; touch-action: none;
   }
   .sidebar-track {
-    position: absolute; top: 15%; bottom: 15%; width: 6px;
+    position: absolute; width: 6px;
     left: 50%; transform: translateX(-50%);
     background: rgba(255,255,255,0.08); border-radius: 3px;
   }
@@ -428,6 +428,14 @@
         <div id="toggleSideBarFixed" class="s-toggle" onclick="toggleSetting('sideBarFixed','toggleSideBarFixed')"></div>
       </div>
       <div class="s-radio-desc" style="margin-top:2px;">OFF: 中心に戻る / ON: 位置が固定される（目盛り付き）</div>
+      <div style="margin-top:8px;">
+        <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">サイドバーの長さ</div>
+        <div class="s-slider-row" style="margin-left:0;">
+          <span style="font-size:12px;color:#657186;">短</span>
+          <input type="range" id="sideBarLengthSlider" min="30" max="90" step="5" value="70" oninput="onSideBarLengthChange()">
+          <span id="sideBarLengthVal" class="s-slider-val">70%</span>
+        </div>
+      </div>
       <div class="s-toggle-row" style="margin-top:10px;margin-bottom:6px;">
         <span>ルーレットモード</span>
         <div id="toggleRoulette" class="s-toggle" onclick="toggleSetting('roulette','toggleRoulette')"></div>
@@ -563,6 +571,7 @@ let settings = {
   sideBar: false,
   sideBarLeft: false,
   sideBarFixed: false,
+  sideBarLength: 70,
   roulette: false,
   rouletteThresh: 600,
   floatAmp: 30,
@@ -604,6 +613,8 @@ function applySettingsToUI() {
   document.getElementById("toggleSideBar").classList.toggle("on", settings.sideBar);
   document.getElementById("toggleSideBarLeft").classList.toggle("on", settings.sideBarLeft);
   document.getElementById("toggleSideBarFixed").classList.toggle("on", settings.sideBarFixed);
+  document.getElementById("sideBarLengthSlider").value = settings.sideBarLength;
+  document.getElementById("sideBarLengthVal").textContent = settings.sideBarLength + "%";
   document.getElementById("toggleRoulette").classList.toggle("on", settings.roulette);
   document.getElementById("rouletteThreshArea").style.display = settings.roulette ? "block" : "none";
   document.getElementById("rouletteThreshSlider").value = settings.rouletteThresh;
@@ -667,6 +678,21 @@ function toggleSetting(key, elId) {
   saveSettings();
 }
 
+function onSideBarLengthChange() {
+  settings.sideBarLength = parseInt(document.getElementById("sideBarLengthSlider").value);
+  document.getElementById("sideBarLengthVal").textContent = settings.sideBarLength + "%";
+  saveSettings();
+  applySideBarLength();
+}
+
+function applySideBarLength() {
+  const track = document.querySelector("#sideBarControl .sidebar-track");
+  if (!track) return;
+  const margin = (100 - settings.sideBarLength) / 2;
+  track.style.top = margin + "%";
+  track.style.bottom = margin + "%";
+}
+
 function onRouletteThreshChange() {
   settings.rouletteThresh = parseInt(document.getElementById("rouletteThreshSlider").value);
   document.getElementById("rouletteThreshVal").textContent = settings.rouletteThresh;
@@ -705,6 +731,7 @@ function updateSideBar() {
   }
   const ticksEl = document.getElementById("sideBarTicks");
   if (ticksEl && !settings.sideBarFixed) ticksEl.innerHTML = "";
+  applySideBarLength();
 }
 
 function onFloatParamChange() {
@@ -2183,8 +2210,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let sidebarStartY = 0;
   let sidebarBaseAngle = 0;
   const SIDEBAR_DEG_PER_PX = 0.7;
-  const SIDEBAR_TRACK_TOP = 15; // %
-  const SIDEBAR_TRACK_RANGE = 70; // %
+  function sidebarTrackTop() { return (100 - settings.sideBarLength) / 2; }
+  function sidebarTrackRange() { return settings.sideBarLength; }
 
   function angleToSidebarPct(angleDeg) {
     if (!currentDecision || !currentDecision.branches.length) return 50;
@@ -2212,7 +2239,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const isLeft = settings.sideBarLeft;
     for (const b of currentDecision.branches) {
       const pct = angleToSidebarPct(b.angleDeg);
-      const topPct = SIDEBAR_TRACK_TOP + (pct / 100) * SIDEBAR_TRACK_RANGE;
+      const topPct = sidebarTrackTop() + (pct / 100) * sidebarTrackRange();
       const sel = b.id === selectedBranchId;
       const tick = document.createElement("div");
       tick.className = "sidebar-tick";
@@ -2231,7 +2258,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setSidebarThumbForAngle(angleDeg) {
     const pct = angleToSidebarPct(angleDeg);
-    thumb.style.top = (SIDEBAR_TRACK_TOP + (pct / 100) * SIDEBAR_TRACK_RANGE) + "%";
+    thumb.style.top = (sidebarTrackTop() + (pct / 100) * sidebarTrackRange()) + "%";
   }
 
   function sidebarStart(clientY) {
@@ -2260,14 +2287,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const trackRect = trackEl.getBoundingClientRect();
       const pct = Math.max(0, Math.min(100, ((clientY - trackRect.top) / trackRect.height) * 100));
       angle = sidebarPctToAngle(pct);
-      thumb.style.top = (SIDEBAR_TRACK_TOP + (pct / 100) * SIDEBAR_TRACK_RANGE) + "%";
+      thumb.style.top = (sidebarTrackTop() + (pct / 100) * sidebarTrackRange()) + "%";
     } else {
       const dy = sidebarStartY - clientY;
       angle = sidebarBaseAngle + dy * SIDEBAR_DEG_PER_PX;
       const trackEl = sidebar.querySelector(".sidebar-track");
       const trackRect = trackEl.getBoundingClientRect();
       const pct = Math.max(0, Math.min(1, (clientY - trackRect.top) / trackRect.height));
-      thumb.style.top = (SIDEBAR_TRACK_TOP + pct * SIDEBAR_TRACK_RANGE) + "%";
+      thumb.style.top = (sidebarTrackTop() + pct * sidebarTrackRange()) + "%";
     }
 
     const now = performance.now();

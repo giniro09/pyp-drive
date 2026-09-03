@@ -660,6 +660,18 @@
       </div>
     </details>
 
+    <details class="s-section">
+      <summary class="s-section-title">プリセット</summary>
+      <div class="s-section-body">
+        <div id="presetList" style="margin-bottom:8px;"></div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="presetNameInput" placeholder="プリセット名"
+            style="flex:1;padding:6px 8px;background:#1A2235;border:1px solid #2D3B50;border-radius:6px;color:#E0E6EF;font-size:13px;">
+          <button onclick="savePreset()" style="padding:6px 12px;background:#2563AA;border:none;border-radius:6px;color:#fff;font-size:13px;cursor:pointer;">保存</button>
+        </div>
+      </div>
+    </details>
+
     <button class="s-close-btn" onclick="toggleSettings()">閉じる</button>
   </div>
 </div>
@@ -811,7 +823,54 @@ function applySettingsToUI() {
 
 function toggleSettings() {
   const el = document.getElementById("settingsOverlay");
-  el.style.display = el.style.display === "flex" ? "none" : "flex";
+  const show = el.style.display !== "flex";
+  el.style.display = show ? "flex" : "none";
+  if (show) renderPresetList();
+}
+
+function getPresets() {
+  try { return JSON.parse(localStorage.getItem("pyp_presets") || "[]"); } catch { return []; }
+}
+function setPresets(arr) { localStorage.setItem("pyp_presets", JSON.stringify(arr)); }
+
+function savePreset() {
+  const input = document.getElementById("presetNameInput");
+  const name = input.value.trim();
+  if (!name) return;
+  const presets = getPresets();
+  const existing = presets.findIndex(p => p.name === name);
+  const entry = { name, settings: { ...settings } };
+  if (existing >= 0) presets[existing] = entry; else presets.push(entry);
+  setPresets(presets);
+  input.value = "";
+  renderPresetList();
+}
+
+function loadPreset(name) {
+  const presets = getPresets();
+  const p = presets.find(p => p.name === name);
+  if (!p) return;
+  Object.assign(settings, p.settings);
+  saveSettings();
+  applySettingsToUI();
+  if (currentDecision) drawJunction(currentDecision);
+}
+
+function deletePreset(name) {
+  setPresets(getPresets().filter(p => p.name !== name));
+  renderPresetList();
+}
+
+function renderPresetList() {
+  const el = document.getElementById("presetList");
+  const presets = getPresets();
+  if (!presets.length) { el.innerHTML = '<div style="color:#657186;font-size:12px;">保存済みプリセットなし</div>'; return; }
+  el.innerHTML = presets.map(p => `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+    <button onclick="loadPreset('${p.name.replace(/'/g,"\\'")}')"
+      style="flex:1;text-align:left;padding:5px 8px;background:#1A2235;border:1px solid #2D3B50;border-radius:6px;color:#E0E6EF;font-size:13px;cursor:pointer;">${p.name}</button>
+    <button onclick="deletePreset('${p.name.replace(/'/g,"\\'")}')"
+      style="padding:4px 8px;background:#3A1A1A;border:1px solid #5A2020;border-radius:6px;color:#EF4444;font-size:12px;cursor:pointer;">✕</button>
+  </div>`).join("");
 }
 
 function onFilterChange() {
@@ -1730,7 +1789,11 @@ function processPosition(lat, lon, heading, speed) {
 
   const maxShowM = settings.junctionFilter === "all" ? 800 : 5000;
   if (decision && decision.distanceM <= maxShowM) {
-    const junctionChanged = !lastDecisionNodeId || lastDecisionNodeId !== decision.nodeId;
+    let junctionChanged = !lastDecisionNodeId || lastDecisionNodeId !== decision.nodeId;
+    if (junctionChanged && currentDecision && displayDistanceM > 50) {
+      junctionChanged = false;
+      decision = { ...currentDecision, distanceM: displayDistanceM };
+    }
     if (junctionChanged) {
       selectedBranchId = null;
       manuallySelected = false;

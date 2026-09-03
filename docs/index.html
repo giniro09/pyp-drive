@@ -945,6 +945,21 @@ function ensureBgMap() {
   setTimeout(() => { if (bgLeafletMap) bgLeafletMap.invalidateSize(); }, 200);
 }
 
+function bgMapOffsetCenter(lat, lon) {
+  if (!bgLeafletMap) return [lat, lon];
+  const wrap = document.getElementById("dialWrap");
+  if (!wrap) return [lat, lon];
+  const ratio = Math.min((displayDistanceM ?? carMaxDistM) / carMaxDistM, 1);
+  const carY = 25 + ratio * 140;
+  const offsetPx = carY * (wrap.offsetHeight * 1.5) / 400;
+  const size = bgLeafletMap.getSize();
+  if (!size.y) return [lat, lon];
+  const bounds = bgLeafletMap.getBounds();
+  const latSpan = bounds.getNorth() - bounds.getSouth();
+  const dLat = (offsetPx / size.y) * latSpan;
+  return [lat + dLat, lon];
+}
+
 function initBgMap(lat, lon, heading) {
   if (settings.bgMapOpacity === 0) return;
   ensureBgMap();
@@ -952,6 +967,8 @@ function initBgMap(lat, lon, heading) {
   const el = document.getElementById("bgMap");
   if (el) el.style.transition = "none";
   bgLeafletMap.setView([lat, lon], 17, { animate: false });
+  const [oLat, oLon] = bgMapOffsetCenter(lat, lon);
+  bgLeafletMap.setView([oLat, oLon], 17, { animate: false });
   if (bgMapMarker) bgMapMarker.setLatLng([lat, lon]);
   if (heading != null) {
     bgMapRotation = -heading;
@@ -972,7 +989,8 @@ function setBgMapRotation(heading) {
 
 function updateBgMap(lat, lon, heading) {
   if (!bgLeafletMap) return;
-  bgLeafletMap.panTo([lat, lon], { animate: true, duration: 0.8, easeLinearity: 1 });
+  const [oLat, oLon] = bgMapOffsetCenter(lat, lon);
+  bgLeafletMap.panTo([oLat, oLon], { animate: true, duration: 0.8, easeLinearity: 1 });
   if (bgMapMarker) bgMapMarker.setLatLng([lat, lon]);
   setBgMapRotation(heading);
 }
@@ -1989,10 +2007,9 @@ function drawJunction(decision) {
         bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="7" fill="#2A3548" stroke="#6B7A90" stroke-width="2" style="cursor:pointer"/>`;
       }
 
-      // Labels (closer to bezel)
       const lFill = sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
       const rnFill = sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
-      const labelD = 140;
+      const labelD = 125;
       const lx = Math.sin(rad) * labelD, ly = -Math.cos(rad) * labelD;
       const anchor = Math.abs(b.angleDeg) < 30 ? "middle" : b.angleDeg > 0 ? "start" : "end";
       const tx = Math.abs(b.angleDeg) < 30 ? 0 : b.angleDeg > 0 ? 14 : -14;
@@ -2079,9 +2096,7 @@ function drawJunction(decision) {
   html += bezelHtml;
   html += labelsHtml;
 
-  // 信号アイコン（最前面、信号ありの場合のみ）
   if (decision.hasSignal) {
-    html += `<circle cx="0" cy="0" r="8" fill="#121927" stroke="#3A4559" stroke-width="1.5"/>`;
     html += `<g style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.65));pointer-events:none" transform="translate(0,-30)">
       <path d="M-25-10 H25 Q30-10 30-5 V5 Q30 10 25 10 H-25 Q-30 10-30 5 V-5 Q-30-10-25-10 Z"
         fill="#151C2A" stroke="#9AA7B8" stroke-width="1.8"/>

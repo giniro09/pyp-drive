@@ -1976,27 +1976,17 @@ function drawJunction(decision) {
       const sel = b.selected && !b.preview;
       const pre = b.preview;
 
-      // Bezel dot markers on the outer ring
+      // Bezel markers on the outer ring
       const dotR = 172;
       const dx = Math.sin(rad) * dotR, dy = -Math.cos(rad) * dotR;
-      const dotSize = sel ? 7 : pre ? 6 : 4;
-      const dotColor = sel ? "#00C8E8" : pre ? "#55D9EC" : "#5A6980";
-      const dotGlow = sel ? "filter:drop-shadow(0 0 6px rgba(0,200,232,0.7))" : "";
-      bezelHtml += `<circle cx="${dx}" cy="${dy}" r="${dotSize}" fill="${dotColor}" style="${dotGlow}"/>`;
-
-      // Selected/preview: beam line from center toward direction
-      if (sel || pre) {
-        const beamLen = 160;
-        const bx = Math.sin(rad) * beamLen, by = -Math.cos(rad) * beamLen;
-        const beamColor = sel ? "rgba(0,200,232,0.35)" : "rgba(85,217,236,0.2)";
-        const beamWidth = sel ? 3 : 2;
-        bezelHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${bx}" y2="${by}"
-          stroke="${beamColor}" stroke-width="${beamWidth}" stroke-linecap="round"
-          style="cursor:pointer"/>`;
-        if (sel) {
-          bezelHtml += `<line x1="0" y1="0" x2="${bx}" y2="${by}"
-            stroke="rgba(0,200,232,0.12)" stroke-width="20" stroke-linecap="round"/>`;
-        }
+      if (sel) {
+        bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="10" fill="#00C8E8" style="cursor:pointer;filter:drop-shadow(0 0 8px rgba(0,200,232,0.8))"/>`;
+        bezelHtml += `<circle cx="${dx}" cy="${dy}" r="5" fill="#FFF" style="pointer-events:none"/>`;
+      } else if (pre) {
+        bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="8" fill="#55D9EC" opacity="0.9" style="cursor:pointer"/>`;
+        bezelHtml += `<circle cx="${dx}" cy="${dy}" r="4" fill="#C0F5FB" style="pointer-events:none"/>`;
+      } else {
+        bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="7" fill="#2A3548" stroke="#6B7A90" stroke-width="2" style="cursor:pointer"/>`;
       }
 
       // Labels (closer to bezel)

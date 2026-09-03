@@ -545,6 +545,14 @@
         </div>
         <div class="s-radio-desc" style="margin-top:2px;">道路線を消し、目盛り上のマーカーとビームで方向を表現</div>
         <div style="margin-top:8px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">ラベル位置（中心からの距離）</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">内</span>
+            <input type="range" id="labelDistSlider" min="60" max="160" step="5" value="120" oninput="onLabelDistChange()">
+            <span id="labelDistVal" class="s-slider-val">120</span>
+          </div>
+        </div>
+        <div style="margin-top:8px;">
           <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">自車浮遊 — 振幅</div>
           <div class="s-slider-row" style="margin-left:0;">
             <span style="font-size:12px;color:#657186;">OFF</span>
@@ -732,6 +740,7 @@ let settings = {
   bgMapCenter: "junction",
   bgMapScope: "dial",
   minimalUI: false,
+  labelDist: 120,
 };
 
 function loadSettings() {
@@ -779,6 +788,8 @@ function applySettingsToUI() {
   document.getElementById("rouletteThreshSlider").value = settings.rouletteThresh;
   document.getElementById("rouletteThreshVal").textContent = settings.rouletteThresh;
   updateSideBar();
+  document.getElementById("labelDistSlider").value = settings.labelDist;
+  document.getElementById("labelDistVal").textContent = settings.labelDist;
   document.getElementById("floatAmpSlider").value = settings.floatAmp;
   document.getElementById("floatAmpVal").textContent = settings.floatAmp + "%";
   document.getElementById("floatSpeedSlider").value = settings.floatSpeed;
@@ -1038,6 +1049,13 @@ function updateSideBar() {
   const ticksEl = document.getElementById("sideBarTicks");
   if (ticksEl && !settings.sideBarFixed) ticksEl.innerHTML = "";
   applySideBarLength();
+}
+
+function onLabelDistChange() {
+  settings.labelDist = parseInt(document.getElementById("labelDistSlider").value);
+  document.getElementById("labelDistVal").textContent = settings.labelDist;
+  saveSettings();
+  if (currentDecision) drawJunction(currentDecision);
 }
 
 function onFloatParamChange() {
@@ -1999,18 +2017,20 @@ function drawJunction(decision) {
       const dotR = 172;
       const dx = Math.sin(rad) * dotR, dy = -Math.cos(rad) * dotR;
       if (sel) {
-        bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="10" fill="#00C8E8" style="cursor:pointer;filter:drop-shadow(0 0 8px rgba(0,200,232,0.8))"/>`;
+        bezelHtml += `<circle cx="${dx}" cy="${dy}" r="14" fill="rgba(0,200,232,0.15)" style="pointer-events:none"/>`;
+        bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="10" fill="#00C8E8" style="cursor:pointer;filter:drop-shadow(0 0 10px rgba(0,200,232,0.9))"/>`;
         bezelHtml += `<circle cx="${dx}" cy="${dy}" r="5" fill="#FFF" style="pointer-events:none"/>`;
       } else if (pre) {
-        bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="8" fill="#55D9EC" opacity="0.9" style="cursor:pointer"/>`;
-        bezelHtml += `<circle cx="${dx}" cy="${dy}" r="4" fill="#C0F5FB" style="pointer-events:none"/>`;
+        bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="9" fill="#55D9EC" style="cursor:pointer;filter:drop-shadow(0 0 6px rgba(85,217,236,0.5))"/>`;
+        bezelHtml += `<circle cx="${dx}" cy="${dy}" r="4.5" fill="#C0F5FB" style="pointer-events:none"/>`;
       } else {
-        bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="7" fill="#2A3548" stroke="#6B7A90" stroke-width="2" style="cursor:pointer"/>`;
+        bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="9" fill="#1E3044" stroke="#5B9AB5" stroke-width="2.5" style="cursor:pointer;filter:drop-shadow(0 0 4px rgba(91,154,181,0.4))"/>`;
+        bezelHtml += `<circle cx="${dx}" cy="${dy}" r="3" fill="#5B9AB5" opacity="0.6" style="pointer-events:none"/>`;
       }
 
       const lFill = sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
       const rnFill = sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
-      const labelD = 95;
+      const labelD = settings.labelDist;
       const lx = Math.sin(rad) * labelD, ly = -Math.cos(rad) * labelD;
       const anchor = Math.abs(b.angleDeg) < 30 ? "middle" : b.angleDeg > 0 ? "start" : "end";
       const tx = Math.abs(b.angleDeg) < 30 ? 0 : b.angleDeg > 0 ? 10 : -10;
@@ -2062,7 +2082,7 @@ function drawJunction(decision) {
           style="cursor:pointer"/>`;
       }
 
-      const labelD=125;
+      const labelD=settings.labelDist;
       const lx=Math.sin(rad)*labelD, ly=-Math.cos(rad)*labelD;
       const anchor=Math.abs(b.angleDeg)<30?"middle":b.angleDeg>0?"start":"end";
       const tx=Math.abs(b.angleDeg)<30?0:b.angleDeg>0?18:-18;
@@ -2098,13 +2118,11 @@ function drawJunction(decision) {
   html += labelsHtml;
 
   if (decision.hasSignal) {
-    html += `<g style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.65));pointer-events:none" transform="translate(0,-30)">
-      <path d="M-25-10 H25 Q30-10 30-5 V5 Q30 10 25 10 H-25 Q-30 10-30 5 V-5 Q-30-10-25-10 Z"
-        fill="#151C2A" stroke="#9AA7B8" stroke-width="1.8"/>
-      <circle cx="-17" cy="0" r="5.5" fill="#394354"/>
-      <circle cx="0" cy="0" r="5.5" fill="#394354"/>
-      <circle cx="17" cy="0" r="5.5" fill="#394354"/>
-      <path d="M-34 0H-30 M30 0H34" stroke="#9AA7B8" stroke-width="2" stroke-linecap="round"/>
+    html += `<g style="filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));pointer-events:none" transform="translate(0,-185)">
+      <rect x="-18" y="-8" width="36" height="16" rx="4" fill="#151C2A" stroke="#9AA7B8" stroke-width="1.2"/>
+      <circle cx="-11" cy="0" r="4" fill="#394354"/>
+      <circle cx="0" cy="0" r="4" fill="#394354"/>
+      <circle cx="11" cy="0" r="4" fill="#394354"/>
     </g>`;
   }
 

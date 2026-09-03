@@ -133,20 +133,22 @@
   .junction-view {
     flex: 1; display: flex; align-items: center; justify-content: center;
     min-height: 0; position: relative; padding: 16px 24px 20px;
+    --dial-scale: 1; --dial-ox: 0px; --dial-oy: 0px;
   }
   .junction-svg {
     width: min(70vh, 720px); height: min(70vh, 720px);
     max-width: 100%; max-height: 100%; overflow: visible;
     transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+    transform: scale(var(--dial-scale)) translate(var(--dial-ox), var(--dial-oy));
   }
   .junction-svg.entering {
-    opacity: 0; transform: scale(0.85);
+    opacity: 0; transform: scale(calc(var(--dial-scale) * 0.85)) translate(var(--dial-ox), var(--dial-oy));
   }
   .junction-svg.visible {
-    opacity: 1; transform: scale(1);
+    opacity: 1; transform: scale(var(--dial-scale)) translate(var(--dial-ox), var(--dial-oy));
   }
   .junction-svg.exiting {
-    opacity: 0; transform: scale(0.9);
+    opacity: 0; transform: scale(calc(var(--dial-scale) * 0.9)) translate(var(--dial-ox), var(--dial-oy));
     transition: opacity 0.3s ease-in, transform 0.3s ease-in;
   }
 
@@ -452,6 +454,34 @@
     </div>
 
     <div class="s-section">
+      <div class="s-section-title">表示サイズ・配置</div>
+      <div style="margin-bottom:10px;">
+        <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">円盤サイズ</div>
+        <div class="s-slider-row" style="margin-left:0;">
+          <span style="font-size:12px;color:#657186;">小</span>
+          <input type="range" id="dialScaleSlider" min="50" max="150" step="5" value="100" oninput="onDialLayoutChange()">
+          <span id="dialScaleVal" class="s-slider-val">100%</span>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">横位置</div>
+        <div class="s-slider-row" style="margin-left:0;">
+          <span style="font-size:12px;color:#657186;">左</span>
+          <input type="range" id="dialOffsetXSlider" min="-200" max="200" step="10" value="0" oninput="onDialLayoutChange()">
+          <span id="dialOffsetXVal" class="s-slider-val">0px</span>
+        </div>
+      </div>
+      <div>
+        <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">縦位置</div>
+        <div class="s-slider-row" style="margin-left:0;">
+          <span style="font-size:12px;color:#657186;">上</span>
+          <input type="range" id="dialOffsetYSlider" min="-200" max="200" step="10" value="0" oninput="onDialLayoutChange()">
+          <span id="dialOffsetYVal" class="s-slider-val">0px</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="s-section">
       <div class="s-section-title">ダイヤル演出</div>
       <div style="margin-bottom:12px;">
         <div class="s-radio-desc" style="margin-left:0;margin-bottom:6px;">マスターボリューム</div>
@@ -576,6 +606,9 @@ let settings = {
   rouletteThresh: 600,
   floatAmp: 30,
   floatSpeed: 40,
+  dialScale: 100,
+  dialOffsetX: 0,
+  dialOffsetY: 0,
 };
 
 function loadSettings() {
@@ -624,6 +657,13 @@ function applySettingsToUI() {
   document.getElementById("floatAmpVal").textContent = settings.floatAmp + "%";
   document.getElementById("floatSpeedSlider").value = settings.floatSpeed;
   document.getElementById("floatSpeedVal").textContent = settings.floatSpeed + "%";
+  document.getElementById("dialScaleSlider").value = settings.dialScale;
+  document.getElementById("dialScaleVal").textContent = settings.dialScale + "%";
+  document.getElementById("dialOffsetXSlider").value = settings.dialOffsetX;
+  document.getElementById("dialOffsetXVal").textContent = settings.dialOffsetX + "px";
+  document.getElementById("dialOffsetYSlider").value = settings.dialOffsetY;
+  document.getElementById("dialOffsetYVal").textContent = settings.dialOffsetY + "px";
+  applyDialLayout();
 }
 
 function toggleSettings() {
@@ -691,6 +731,25 @@ function applySideBarLength() {
   const margin = (100 - settings.sideBarLength) / 2;
   track.style.top = margin + "%";
   track.style.bottom = margin + "%";
+}
+
+function onDialLayoutChange() {
+  settings.dialScale = parseInt(document.getElementById("dialScaleSlider").value);
+  settings.dialOffsetX = parseInt(document.getElementById("dialOffsetXSlider").value);
+  settings.dialOffsetY = parseInt(document.getElementById("dialOffsetYSlider").value);
+  document.getElementById("dialScaleVal").textContent = settings.dialScale + "%";
+  document.getElementById("dialOffsetXVal").textContent = settings.dialOffsetX + "px";
+  document.getElementById("dialOffsetYVal").textContent = settings.dialOffsetY + "px";
+  saveSettings();
+  applyDialLayout();
+}
+
+function applyDialLayout() {
+  const area = document.getElementById("junctionArea");
+  if (!area) return;
+  area.style.setProperty("--dial-scale", settings.dialScale / 100);
+  area.style.setProperty("--dial-ox", settings.dialOffsetX + "px");
+  area.style.setProperty("--dial-oy", settings.dialOffsetY + "px");
 }
 
 function onRouletteThreshChange() {

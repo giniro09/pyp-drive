@@ -386,7 +386,7 @@
     </div>
   </div>
 
-  <div class="dist-bar-wrap">
+  <div class="dist-bar-wrap" style="display:none;">
     <div id="distBar" class="dist-bar far"></div>
     <div id="distBarTicks" class="dist-bar-ticks"></div>
   </div>
@@ -534,6 +534,10 @@
         <div class="s-toggle-row" style="margin-bottom:6px;">
           <span>ダイヤル目盛り表示</span>
           <div id="toggleDialTicks" class="s-toggle on" onclick="toggleSetting('dialTicks','toggleDialTicks')"></div>
+        </div>
+        <div class="s-toggle-row" style="margin-bottom:6px;">
+          <span>上部距離バー表示</span>
+          <div id="toggleTopDistBar" class="s-toggle" onclick="toggleSetting('topDistBar','toggleTopDistBar')"></div>
         </div>
         <div class="s-toggle-row" style="margin-bottom:6px;">
           <span>ミニマルUI（ベゼル表示）</span>
@@ -711,6 +715,7 @@ let settings = {
   soundSwitch: true,
   soundConfirm: true,
   dialTicks: true,
+  topDistBar: false,
   dialRelative: false,
   sideBar: false,
   sideBarLeft: false,
@@ -760,7 +765,9 @@ function applySettingsToUI() {
   document.getElementById("toggleSoundSwitch").classList.toggle("on", settings.soundSwitch);
   document.getElementById("toggleSoundConfirm").classList.toggle("on", settings.soundConfirm);
   document.getElementById("toggleDialTicks").classList.toggle("on", settings.dialTicks);
+  document.getElementById("toggleTopDistBar").classList.toggle("on", settings.topDistBar);
   document.getElementById("toggleMinimalUI").classList.toggle("on", settings.minimalUI);
+  document.querySelector(".dist-bar-wrap").style.display = settings.topDistBar ? "" : "none";
   document.getElementById("toggleDialRelative").classList.toggle("on", settings.dialRelative);
   document.getElementById("toggleSideBar").classList.toggle("on", settings.sideBar);
   document.getElementById("toggleSideBarLeft").classList.toggle("on", settings.sideBarLeft);
@@ -1945,7 +1952,7 @@ function drawJunction(decision) {
   html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#202A3B" stroke-width="2"/>`;
   html += `<circle id="distArc" cx="0" cy="0" r="185" fill="none"
     stroke="#2563AA" stroke-width="5" stroke-linecap="round"
-    transform="rotate(180)" style="transition:stroke 0.3s,stroke-dasharray 0.15s"/>`;
+    transform="rotate(-90)" style="transition:stroke 0.3s,stroke-dasharray 0.15s"/>`;
   html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#151C29" stroke-width="1"/>`;
 
   if (settings.dialTicks) {

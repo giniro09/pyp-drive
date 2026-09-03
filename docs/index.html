@@ -133,6 +133,7 @@
   .junction-view {
     flex: 1; display: flex; align-items: center; justify-content: center;
     min-height: 0; position: relative; padding: 16px 24px 20px;
+    overflow: hidden;
     --dial-scale: 1; --dial-ox: 0px; --dial-oy: 0px;
   }
   .junction-svg {
@@ -498,6 +499,11 @@
         </div>
         <div class="s-radio-desc" style="margin-top:2px;">円盤の背景にうっすら地図を表示</div>
       </div>
+      <div class="s-toggle-row" style="margin-top:8px;margin-bottom:0;">
+        <span>背景マップ中心: 自車追従</span>
+        <div id="toggleBgMapCenter" class="s-toggle" onclick="toggleBgMapCenter()"></div>
+      </div>
+      <div class="s-radio-desc" style="margin-top:2px;">OFF: 交差点中心で固定 / ON: 自車位置を追従</div>
     </div>
 
     <div class="s-section">
@@ -629,6 +635,7 @@ let settings = {
   dialOffsetX: 0,
   dialOffsetY: 0,
   bgMapOpacity: 15,
+  bgMapCenter: "junction",
 };
 
 function loadSettings() {
@@ -686,6 +693,7 @@ function applySettingsToUI() {
   applyDialLayout();
   document.getElementById("bgMapOpacitySlider").value = settings.bgMapOpacity;
   document.getElementById("bgMapOpacityVal").textContent = settings.bgMapOpacity + "%";
+  document.getElementById("toggleBgMapCenter").classList.toggle("on", settings.bgMapCenter === "car");
   applyBgMapOpacity();
 }
 
@@ -777,6 +785,7 @@ function applyDialLayout() {
 
 let bgLeafletMap = null;
 let bgMapMarker = null;
+let bgMapRotation = 0;
 
 function onBgMapOpacityChange() {
   settings.bgMapOpacity = parseInt(document.getElementById("bgMapOpacitySlider").value);
@@ -795,7 +804,13 @@ function applyBgMapOpacity() {
   }
 }
 
-function initBgMap(lat, lon) {
+function toggleBgMapCenter() {
+  settings.bgMapCenter = settings.bgMapCenter === "car" ? "junction" : "car";
+  document.getElementById("toggleBgMapCenter").classList.toggle("on", settings.bgMapCenter === "car");
+  saveSettings();
+}
+
+function initBgMap(lat, lon, inBearing) {
   if (settings.bgMapOpacity === 0) return;
   const el = document.getElementById("bgMap");
   el.style.display = "block";
@@ -813,17 +828,21 @@ function initBgMap(lat, lon) {
   bgMapMarker = L.circleMarker([lat, lon], {
     radius: 6, color: "#00d4ff", fillColor: "#00d4ff", fillOpacity: 0.6, weight: 2,
   }).addTo(bgLeafletMap);
+  bgMapRotation = (inBearing != null) ? -inBearing + 180 : 0;
+  el.style.transform = `rotate(${bgMapRotation}deg) scale(1.5)`;
 }
 
 function updateBgMap(lat, lon) {
   if (!bgLeafletMap) return;
-  bgLeafletMap.panTo([lat, lon], { animate: false });
+  if (settings.bgMapCenter === "car") {
+    bgLeafletMap.panTo([lat, lon], { animate: true, duration: 0.3 });
+  }
   if (bgMapMarker) bgMapMarker.setLatLng([lat, lon]);
 }
 
 function hideBgMap() {
   const el = document.getElementById("bgMap");
-  if (el) el.style.display = "none";
+  if (el) { el.style.display = "none"; el.style.transform = ""; }
   if (bgLeafletMap) { bgLeafletMap.remove(); bgLeafletMap = null; bgMapMarker = null; }
 }
 
@@ -997,6 +1016,7 @@ function demoTick() {
   document.getElementById("gpsStatus").textContent = `DEMO: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
 
   updateMinimap(lat, lon);
+  updateBgMap(lat, lon);
   processPosition(lat, lon, heading, demoSpeedMps);
 }
 
@@ -1345,7 +1365,7 @@ function findNextDecision(graph, startEdge, startFraction) {
             roadName:oe.name, roadRef:oe.ref, selected:false };
         }).sort((a,b) => a.angleDeg - b.angleDeg);
 
-        return { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal };
+        return { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal, inBearing };
       } else {
         skippedJunctions++;
         lastSkipReason = `${nodeId} sig=${hasSignal} dist=${Math.round(accM)}m`;
@@ -1512,6 +1532,7 @@ function startGps() {
       setBadge("gps","GPS");
       const kph = Math.round(lastSpeedMps*3.6);
       document.getElementById("speed").textContent = kph>0 ? `${kph} km/h` : "";
+      updateBgMap(latitude, longitude);
       processPosition(latitude, longitude, heading, speed);
     },
     (err) => {
@@ -1575,7 +1596,7 @@ function processPosition(lat, lon, heading, speed) {
     } else {
       drawJunction(decision);
       if (junctionChanged) {
-        if (decision.lat != null && decision.lon != null) initBgMap(decision.lat, decision.lon);
+        if (decision.lat != null && decision.lon != null) initBgMap(decision.lat, decision.lon, decision.inBearing);
         const svg = document.getElementById("junctionSvg");
         svg.classList.remove("visible","exiting");
         svg.classList.add("entering");

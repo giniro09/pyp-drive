@@ -221,6 +221,15 @@
   }
   .s-close-btn:hover { background: #33dfff; }
 
+  /* ===== Background map behind junction ===== */
+  #bgMap {
+    position: absolute; inset: 0; z-index: 0;
+    pointer-events: none; opacity: 0.15;
+    filter: saturate(0.3) brightness(0.6);
+  }
+  #bgMap .leaflet-control-container { display: none; }
+  .junction-svg { position: relative; z-index: 1; }
+
   /* ===== Debug minimap ===== */
   #minimap {
     display: none; position: fixed; bottom: 40px; right: 80px;
@@ -338,6 +347,7 @@
   <div class="dist-bar-wrap"><div id="distBar" class="dist-bar"></div></div>
 
   <div id="junctionArea" class="junction-view" style="display:none;">
+    <div id="bgMap"></div>
     <svg id="junctionSvg" class="junction-svg" viewBox="-200 -200 400 400"></svg>
   </div>
 
@@ -479,6 +489,15 @@
           <span id="dialOffsetYVal" class="s-slider-val">0px</span>
         </div>
       </div>
+      <div style="margin-top:10px;">
+        <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">背景マップ透過度</div>
+        <div class="s-slider-row" style="margin-left:0;">
+          <span style="font-size:12px;color:#657186;">OFF</span>
+          <input type="range" id="bgMapOpacitySlider" min="0" max="40" step="1" value="15" oninput="onBgMapOpacityChange()">
+          <span id="bgMapOpacityVal" class="s-slider-val">15%</span>
+        </div>
+        <div class="s-radio-desc" style="margin-top:2px;">円盤の背景にうっすら地図を表示</div>
+      </div>
     </div>
 
     <div class="s-section">
@@ -609,6 +628,7 @@ let settings = {
   dialScale: 100,
   dialOffsetX: 0,
   dialOffsetY: 0,
+  bgMapOpacity: 15,
 };
 
 function loadSettings() {
@@ -664,6 +684,9 @@ function applySettingsToUI() {
   document.getElementById("dialOffsetYSlider").value = settings.dialOffsetY;
   document.getElementById("dialOffsetYVal").textContent = settings.dialOffsetY + "px";
   applyDialLayout();
+  document.getElementById("bgMapOpacitySlider").value = settings.bgMapOpacity;
+  document.getElementById("bgMapOpacityVal").textContent = settings.bgMapOpacity + "%";
+  applyBgMapOpacity();
 }
 
 function toggleSettings() {
@@ -750,6 +773,58 @@ function applyDialLayout() {
   area.style.setProperty("--dial-scale", settings.dialScale / 100);
   area.style.setProperty("--dial-ox", settings.dialOffsetX + "px");
   area.style.setProperty("--dial-oy", settings.dialOffsetY + "px");
+}
+
+let bgLeafletMap = null;
+let bgMapMarker = null;
+
+function onBgMapOpacityChange() {
+  settings.bgMapOpacity = parseInt(document.getElementById("bgMapOpacitySlider").value);
+  document.getElementById("bgMapOpacityVal").textContent = settings.bgMapOpacity + "%";
+  saveSettings();
+  applyBgMapOpacity();
+}
+
+function applyBgMapOpacity() {
+  const el = document.getElementById("bgMap");
+  if (!el) return;
+  el.style.opacity = settings.bgMapOpacity / 100;
+  if (settings.bgMapOpacity === 0 && bgLeafletMap) {
+    bgLeafletMap.remove(); bgLeafletMap = null; bgMapMarker = null;
+    el.style.display = "none";
+  }
+}
+
+function initBgMap(lat, lon) {
+  if (settings.bgMapOpacity === 0) return;
+  const el = document.getElementById("bgMap");
+  el.style.display = "block";
+  el.style.opacity = settings.bgMapOpacity / 100;
+  if (bgLeafletMap) { bgLeafletMap.remove(); bgLeafletMap = null; }
+  bgLeafletMap = L.map(el, {
+    center: [lat, lon], zoom: 16,
+    zoomControl: false, attributionControl: false,
+    dragging: false, scrollWheelZoom: false,
+    doubleClickZoom: false, touchZoom: false, keyboard: false,
+  });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+  }).addTo(bgLeafletMap);
+  bgMapMarker = L.circleMarker([lat, lon], {
+    radius: 6, color: "#00d4ff", fillColor: "#00d4ff", fillOpacity: 0.6, weight: 2,
+  }).addTo(bgLeafletMap);
+}
+
+function updateBgMap(lat, lon) {
+  if (!bgLeafletMap) return;
+  bgLeafletMap.panTo([lat, lon], { animate: false });
+  if (bgMapMarker) bgMapMarker.setLatLng([lat, lon]);
+}
+
+function hideBgMap() {
+  const el = document.getElementById("bgMap");
+  if (el) el.style.display = "none";
+  if (bgLeafletMap) { bgLeafletMap.remove(); bgLeafletMap = null; bgMapMarker = null; }
 }
 
 function onRouletteThreshChange() {
@@ -1500,6 +1575,7 @@ function processPosition(lat, lon, heading, speed) {
     } else {
       drawJunction(decision);
       if (junctionChanged) {
+        if (decision.lat != null && decision.lon != null) initBgMap(decision.lat, decision.lon);
         const svg = document.getElementById("junctionSvg");
         svg.classList.remove("visible","exiting");
         svg.classList.add("entering");
@@ -1527,10 +1603,12 @@ function processPosition(lat, lon, heading, speed) {
         document.getElementById("junctionArea").style.display = "none";
         document.getElementById("noticeArea").style.display = "flex";
         svg.classList.remove("exiting");
+        hideBgMap();
       }, 300);
     } else {
       document.getElementById("junctionArea").style.display = "none";
       document.getElementById("noticeArea").style.display = "flex";
+      hideBgMap();
     }
     document.getElementById("noticeText").textContent = "次の分岐を探しています";
     document.getElementById("noticeSub").textContent = "";
@@ -1632,6 +1710,7 @@ function updateDistanceDisplay(m) {
 
 function showNotice(text, sub) {
   document.getElementById("junctionArea").style.display = "none";
+  hideBgMap();
   document.getElementById("noticeArea").style.display = "flex";
   document.getElementById("noticeText").textContent = text;
   document.getElementById("noticeSub").textContent = sub||"";

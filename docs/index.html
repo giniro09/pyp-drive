@@ -544,6 +544,10 @@
           <div id="toggleMinimalUI" class="s-toggle" onclick="toggleSetting('minimalUI','toggleMinimalUI')"></div>
         </div>
         <div class="s-radio-desc" style="margin-top:2px;">道路線を消し、目盛り上のマーカーとビームで方向を表現</div>
+        <div class="s-toggle-row" style="margin-top:8px;">
+          <span>方向ラベル（直進・右折 等）</span>
+          <div id="toggleShowLabels" class="s-toggle" onclick="toggleSetting('showLabels','toggleShowLabels')"></div>
+        </div>
         <div style="margin-top:8px;">
           <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">ラベル位置（中心からの距離）</div>
           <div class="s-slider-row" style="margin-left:0;">
@@ -752,6 +756,7 @@ let settings = {
   bgMapCenter: "junction",
   bgMapScope: "dial",
   minimalUI: false,
+  showLabels: true,
   labelDist: 120,
 };
 
@@ -788,6 +793,7 @@ function applySettingsToUI() {
   document.getElementById("toggleDialTicks").classList.toggle("on", settings.dialTicks);
   document.getElementById("toggleTopDistBar").classList.toggle("on", settings.topDistBar);
   document.getElementById("toggleMinimalUI").classList.toggle("on", settings.minimalUI);
+  document.getElementById("toggleShowLabels").classList.toggle("on", settings.showLabels);
   document.querySelector(".dist-bar-wrap").style.display = settings.topDistBar ? "" : "none";
   document.getElementById("toggleDialRelative").classList.toggle("on", settings.dialRelative);
   document.getElementById("toggleSideBar").classList.toggle("on", settings.sideBar);
@@ -2178,7 +2184,7 @@ function drawJunction(decision) {
   </g>`;
   html += selectedHtml;
   html += bezelHtml;
-  html += labelsHtml;
+  if (settings.showLabels) html += labelsHtml;
 
   if (decision.hasSignal) {
     html += `<g style="filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));pointer-events:none" transform="translate(0,-185)">

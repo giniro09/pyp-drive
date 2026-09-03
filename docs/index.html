@@ -177,8 +177,17 @@
     max-width: 420px; width: 92%; max-height: 85vh; overflow-y: auto;
   }
   .settings-panel h2 { font-size: 20px; margin-bottom: 24px; }
-  .s-section { margin-bottom: 24px; }
-  .s-section-title { font-size: 14px; color: #6ac5e0; font-weight: 700; margin-bottom: 12px; }
+  .s-section { margin-bottom: 16px; border: 1px solid #252F42; border-radius: 10px; overflow: hidden; }
+  .s-section[open] { border-color: #3a4a60; }
+  .s-section-title {
+    font-size: 14px; color: #6ac5e0; font-weight: 700; padding: 12px 14px;
+    cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
+    user-select: none;
+  }
+  .s-section-title::-webkit-details-marker { display: none; }
+  .s-section-title::before { content: "\25B6"; font-size: 10px; transition: transform 0.2s; }
+  .s-section[open] > .s-section-title::before { transform: rotate(90deg); }
+  .s-section-body { padding: 0 14px 14px; }
   .s-radio-group { display: flex; flex-direction: column; gap: 8px; }
   .s-radio-label {
     display: flex; align-items: center; gap: 10px;
@@ -375,189 +384,225 @@
   <div class="settings-panel">
     <h2>&#9881; 設定</h2>
 
-    <div class="s-section">
-      <div class="s-section-title">対象交差点フィルタ</div>
-      <div class="s-radio-group">
-        <label class="s-radio-label">
-          <input type="radio" name="jFilter" value="all" checked onchange="onFilterChange()"> すべての交差点
-        </label>
-        <label class="s-radio-label">
-          <input type="radio" name="jFilter" value="signal" onchange="onFilterChange()"> 信号のある交差点のみ
-        </label>
-        <label class="s-radio-label">
-          <input type="radio" name="jFilter" value="signal_or_dist" onchange="onFilterChange()"> 信号あり＋一定距離以上離れた交差点
-        </label>
-        <div id="distSliderArea" style="display:none;">
-          <div class="s-slider-row">
-            <input type="range" id="minDistSlider" min="50" max="500" step="10" value="150" oninput="onDistSliderChange()">
-            <span id="minDistVal" class="s-slider-val">150m</span>
+    <!-- ===== 交差点検出 ===== -->
+    <details class="s-section" open>
+      <summary class="s-section-title">交差点検出</summary>
+      <div class="s-section-body">
+        <div class="s-radio-group">
+          <label class="s-radio-label">
+            <input type="radio" name="jFilter" value="all" checked onchange="onFilterChange()"> すべての交差点
+          </label>
+          <label class="s-radio-label">
+            <input type="radio" name="jFilter" value="signal" onchange="onFilterChange()"> 信号のある交差点のみ
+          </label>
+          <label class="s-radio-label">
+            <input type="radio" name="jFilter" value="signal_or_dist" onchange="onFilterChange()"> 信号あり＋一定距離以上
+          </label>
+          <div id="distSliderArea" style="display:none;">
+            <div class="s-slider-row">
+              <input type="range" id="minDistSlider" min="50" max="500" step="10" value="150" oninput="onDistSliderChange()">
+              <span id="minDistVal" class="s-slider-val">150m</span>
+            </div>
+            <div class="s-radio-desc">前回の対象交差点からの最低距離</div>
           </div>
-          <div class="s-radio-desc">前回の対象交差点からの最低距離</div>
         </div>
       </div>
-    </div>
+    </details>
 
-    <div class="s-section">
-      <div class="s-section-title">テスラナビ連携</div>
-      <div class="s-toggle-row">
-        <span>選択経路をテスラナビに送信</span>
-        <div id="teslaToggle" class="s-toggle" onclick="toggleTesla()"></div>
-      </div>
-      <div class="s-radio-desc" style="margin-top:6px;">
-        ONにすると、分岐選択時にTesla APIで経由地を設定します。APIトークンが必要です。
-      </div>
-      <div id="teslaTokenArea" class="s-input-row" style="display:none;">
-        <input id="teslaToken" class="s-input" type="password" placeholder="Teslaアクセストークン"
-          oninput="saveTeslaToken()" value="">
-        <div id="teslaVin" class="s-input-row">
-          <input id="teslaVinInput" class="s-input" type="text" placeholder="車両VIN (例: 5YJ...)"
-            oninput="saveTeslaVin()" value="">
+    <!-- ===== 操作方式 ===== -->
+    <details class="s-section" open>
+      <summary class="s-section-title">操作方式</summary>
+      <div class="s-section-body">
+        <div class="s-toggle-row" style="margin-bottom:6px;">
+          <span>ダイヤル相対モード</span>
+          <div id="toggleDialRelative" class="s-toggle" onclick="toggleSetting('dialRelative','toggleDialRelative')"></div>
+        </div>
+        <div class="s-radio-desc" style="margin-top:2px;">
+          OFF: タッチ位置の角度に合う（絶対）/ ON: 指の動き量で回転（相対）
+        </div>
+        <div class="s-toggle-row" style="margin-top:10px;margin-bottom:6px;">
+          <span>ルーレットモード</span>
+          <div id="toggleRoulette" class="s-toggle" onclick="toggleSetting('roulette','toggleRoulette')"></div>
+        </div>
+        <div class="s-radio-desc" style="margin-top:2px;">勢いよく回すとルーレット風にランダム方向決定</div>
+        <div id="rouletteThreshArea" style="display:none;margin-top:6px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">ルーレット感度（低い=入りやすい）</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">敏感</span>
+            <input type="range" id="rouletteThreshSlider" min="200" max="1500" step="50" value="600" oninput="onRouletteThreshChange()">
+            <span id="rouletteThreshVal" class="s-slider-val">600</span>
+          </div>
         </div>
       </div>
-    </div>
+    </details>
 
-    <div class="s-section">
-      <div class="s-section-title">操作方式</div>
-      <div class="s-toggle-row" style="margin-bottom:6px;">
-        <span>ダイヤル相対モード</span>
-        <div id="toggleDialRelative" class="s-toggle" onclick="toggleSetting('dialRelative','toggleDialRelative')"></div>
-      </div>
-      <div class="s-radio-desc" style="margin-top:2px;">
-        OFF: タッチ位置の角度にダイヤルが合う（絶対）<br>
-        ON: タッチ後の指の動き量だけ回転する（相対）
-      </div>
-      <div class="s-toggle-row" style="margin-top:10px;margin-bottom:6px;">
-        <span>サイドバー操作</span>
-        <div id="toggleSideBar" class="s-toggle" onclick="toggleSetting('sideBar','toggleSideBar')"></div>
-      </div>
-      <div class="s-radio-desc" style="margin-top:2px;">画面端の縦スライドでもダイヤルを回転</div>
-      <div class="s-toggle-row" style="margin-top:6px;margin-bottom:0;">
-        <span>サイドバー位置: 右</span>
-        <div id="toggleSideBarLeft" class="s-toggle" onclick="toggleSideBarSide()"></div>
-      </div>
-      <div class="s-radio-desc" style="margin-top:2px;">ON: 左端 / OFF: 右端</div>
-      <div class="s-toggle-row" style="margin-top:6px;margin-bottom:0;">
-        <span>サイドバー固定モード</span>
-        <div id="toggleSideBarFixed" class="s-toggle" onclick="toggleSetting('sideBarFixed','toggleSideBarFixed')"></div>
-      </div>
-      <div class="s-radio-desc" style="margin-top:2px;">OFF: 中心に戻る / ON: 位置が固定される（目盛り付き）</div>
-      <div style="margin-top:8px;">
-        <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">サイドバーの長さ</div>
-        <div class="s-slider-row" style="margin-left:0;">
-          <span style="font-size:12px;color:#657186;">短</span>
-          <input type="range" id="sideBarLengthSlider" min="30" max="90" step="5" value="70" oninput="onSideBarLengthChange()">
-          <span id="sideBarLengthVal" class="s-slider-val">70%</span>
+    <!-- ===== サイドバー ===== -->
+    <details class="s-section">
+      <summary class="s-section-title">サイドバー</summary>
+      <div class="s-section-body">
+        <div class="s-toggle-row" style="margin-bottom:6px;">
+          <span>サイドバー操作</span>
+          <div id="toggleSideBar" class="s-toggle" onclick="toggleSetting('sideBar','toggleSideBar')"></div>
+        </div>
+        <div class="s-radio-desc" style="margin-top:2px;">画面端の縦スライドでもダイヤルを回転</div>
+        <div class="s-toggle-row" style="margin-top:6px;margin-bottom:0;">
+          <span>左端に配置</span>
+          <div id="toggleSideBarLeft" class="s-toggle" onclick="toggleSideBarSide()"></div>
+        </div>
+        <div class="s-toggle-row" style="margin-top:6px;margin-bottom:0;">
+          <span>固定モード（目盛り付き）</span>
+          <div id="toggleSideBarFixed" class="s-toggle" onclick="toggleSetting('sideBarFixed','toggleSideBarFixed')"></div>
+        </div>
+        <div style="margin-top:8px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">長さ</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">短</span>
+            <input type="range" id="sideBarLengthSlider" min="30" max="90" step="5" value="70" oninput="onSideBarLengthChange()">
+            <span id="sideBarLengthVal" class="s-slider-val">70%</span>
+          </div>
         </div>
       </div>
-      <div class="s-toggle-row" style="margin-top:10px;margin-bottom:6px;">
-        <span>ルーレットモード</span>
-        <div id="toggleRoulette" class="s-toggle" onclick="toggleSetting('roulette','toggleRoulette')"></div>
-      </div>
-      <div class="s-radio-desc" style="margin-top:2px;">勢いよく回すとルーレット風にスピンしてランダムに方向決定</div>
-      <div id="rouletteThreshArea" style="display:none;margin-top:6px;">
-        <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">ルーレット感度（低い=入りやすい）</div>
-        <div class="s-slider-row" style="margin-left:0;">
-          <span style="font-size:12px;color:#657186;">敏感</span>
-          <input type="range" id="rouletteThreshSlider" min="200" max="1500" step="50" value="600" oninput="onRouletteThreshChange()">
-          <span id="rouletteThreshVal" class="s-slider-val">600</span>
-        </div>
-      </div>
-    </div>
+    </details>
 
-    <div class="s-section">
-      <div class="s-section-title">表示サイズ・配置</div>
-      <div style="margin-bottom:10px;">
-        <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">円盤サイズ</div>
-        <div class="s-slider-row" style="margin-left:0;">
-          <span style="font-size:12px;color:#657186;">小</span>
-          <input type="range" id="dialScaleSlider" min="50" max="150" step="5" value="100" oninput="onDialLayoutChange()">
-          <span id="dialScaleVal" class="s-slider-val">100%</span>
+    <!-- ===== 表示・レイアウト ===== -->
+    <details class="s-section">
+      <summary class="s-section-title">表示・レイアウト</summary>
+      <div class="s-section-body">
+        <div style="margin-bottom:10px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">円盤サイズ</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">小</span>
+            <input type="range" id="dialScaleSlider" min="50" max="150" step="5" value="100" oninput="onDialLayoutChange()">
+            <span id="dialScaleVal" class="s-slider-val">100%</span>
+          </div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">横位置</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">左</span>
+            <input type="range" id="dialOffsetXSlider" min="-500" max="500" step="10" value="0" oninput="onDialLayoutChange()">
+            <span id="dialOffsetXVal" class="s-slider-val">0px</span>
+          </div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">縦位置</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">上</span>
+            <input type="range" id="dialOffsetYSlider" min="-500" max="500" step="10" value="0" oninput="onDialLayoutChange()">
+            <span id="dialOffsetYVal" class="s-slider-val">0px</span>
+          </div>
+        </div>
+        <div class="s-toggle-row" style="margin-bottom:6px;">
+          <span>ダイヤル目盛り表示</span>
+          <div id="toggleDialTicks" class="s-toggle on" onclick="toggleSetting('dialTicks','toggleDialTicks')"></div>
+        </div>
+        <div style="margin-top:8px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">自車浮遊 — 振幅</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">OFF</span>
+            <input type="range" id="floatAmpSlider" min="0" max="100" step="5" value="30" oninput="onFloatParamChange()">
+            <span id="floatAmpVal" class="s-slider-val">30%</span>
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">自車浮遊 — 速さ</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">遅い</span>
+            <input type="range" id="floatSpeedSlider" min="10" max="100" step="5" value="40" oninput="onFloatParamChange()">
+            <span id="floatSpeedVal" class="s-slider-val">40%</span>
+          </div>
         </div>
       </div>
-      <div style="margin-bottom:10px;">
-        <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">横位置</div>
-        <div class="s-slider-row" style="margin-left:0;">
-          <span style="font-size:12px;color:#657186;">左</span>
-          <input type="range" id="dialOffsetXSlider" min="-500" max="500" step="10" value="0" oninput="onDialLayoutChange()">
-          <span id="dialOffsetXVal" class="s-slider-val">0px</span>
-        </div>
-      </div>
-      <div>
-        <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">縦位置</div>
-        <div class="s-slider-row" style="margin-left:0;">
-          <span style="font-size:12px;color:#657186;">上</span>
-          <input type="range" id="dialOffsetYSlider" min="-500" max="500" step="10" value="0" oninput="onDialLayoutChange()">
-          <span id="dialOffsetYVal" class="s-slider-val">0px</span>
-        </div>
-      </div>
-      <div style="margin-top:10px;">
-        <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">背景マップ透過度</div>
-        <div class="s-slider-row" style="margin-left:0;">
-          <span style="font-size:12px;color:#657186;">OFF</span>
-          <input type="range" id="bgMapOpacitySlider" min="0" max="40" step="1" value="15" oninput="onBgMapOpacityChange()">
-          <span id="bgMapOpacityVal" class="s-slider-val">15%</span>
-        </div>
-        <div class="s-radio-desc" style="margin-top:2px;">円盤の背景にうっすら地図を表示</div>
-      </div>
-      <div class="s-toggle-row" style="margin-top:8px;margin-bottom:0;">
-        <span>背景マップ中心: 自車追従</span>
-        <div id="toggleBgMapCenter" class="s-toggle" onclick="toggleBgMapCenter()"></div>
-      </div>
-      <div class="s-radio-desc" style="margin-top:2px;">OFF: 交差点中心で固定 / ON: 自車位置を追従</div>
-    </div>
+    </details>
 
-    <div class="s-section">
-      <div class="s-section-title">ダイヤル演出</div>
-      <div style="margin-bottom:12px;">
-        <div class="s-radio-desc" style="margin-left:0;margin-bottom:6px;">マスターボリューム</div>
-        <div class="s-slider-row" style="margin-left:0;">
-          <span style="font-size:12px;color:#657186;">小</span>
-          <input type="range" id="masterVolSlider" min="0" max="200" step="10" value="100" oninput="onMasterVolChange()">
-          <span id="masterVolVal" class="s-slider-val">100%</span>
+    <!-- ===== 背景マップ ===== -->
+    <details class="s-section">
+      <summary class="s-section-title">背景マップ</summary>
+      <div class="s-section-body">
+        <div style="margin-bottom:10px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">透過度</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">OFF</span>
+            <input type="range" id="bgMapOpacitySlider" min="0" max="40" step="1" value="15" oninput="onBgMapOpacityChange()">
+            <span id="bgMapOpacityVal" class="s-slider-val">15%</span>
+          </div>
+          <div class="s-radio-desc" style="margin-top:2px;">円盤の背景にうっすら地図を表示</div>
         </div>
-      </div>
-      <div class="s-toggle-row" style="margin-bottom:6px;">
-        <span>回転ノッチ音</span>
-        <div id="toggleSoundNotch" class="s-toggle on" onclick="toggleSetting('soundNotch','toggleSoundNotch')"></div>
-      </div>
-      <div class="s-toggle-row" style="margin-bottom:6px;">
-        <span>切り替え音</span>
-        <div id="toggleSoundSwitch" class="s-toggle on" onclick="toggleSetting('soundSwitch','toggleSoundSwitch')"></div>
-      </div>
-      <div class="s-toggle-row" style="margin-bottom:6px;">
-        <span>確定音</span>
-        <div id="toggleSoundConfirm" class="s-toggle on" onclick="toggleSetting('soundConfirm','toggleSoundConfirm')"></div>
-      </div>
-      <div class="s-toggle-row">
-        <span>ダイヤル目盛り表示</span>
-        <div id="toggleDialTicks" class="s-toggle on" onclick="toggleSetting('dialTicks','toggleDialTicks')"></div>
-      </div>
-      <div style="margin-top:10px;">
-        <div class="s-radio-desc" style="margin-left:0;margin-bottom:6px;">自車アイコン浮遊 — 振幅</div>
-        <div class="s-slider-row" style="margin-left:0;">
-          <span style="font-size:12px;color:#657186;">OFF</span>
-          <input type="range" id="floatAmpSlider" min="0" max="100" step="5" value="30" oninput="onFloatParamChange()">
-          <span id="floatAmpVal" class="s-slider-val">30%</span>
+        <div class="s-toggle-row" style="margin-bottom:6px;">
+          <span>自車追従モード</span>
+          <div id="toggleBgMapCenter" class="s-toggle" onclick="toggleBgMapCenter()"></div>
         </div>
-        <div class="s-radio-desc" style="margin-left:0;margin-bottom:6px;margin-top:8px;">自車アイコン浮遊 — 速さ</div>
-        <div class="s-slider-row" style="margin-left:0;">
-          <span style="font-size:12px;color:#657186;">遅い</span>
-          <input type="range" id="floatSpeedSlider" min="10" max="100" step="5" value="40" oninput="onFloatParamChange()">
-          <span id="floatSpeedVal" class="s-slider-val">40%</span>
+        <div class="s-radio-desc" style="margin-top:2px;">OFF: 交差点中心で固定 / ON: 自車位置をぬるぬる追従</div>
+        <div class="s-toggle-row" style="margin-top:6px;margin-bottom:0;">
+          <span>全画面に拡張</span>
+          <div id="toggleBgMapScope" class="s-toggle" onclick="toggleBgMapScope()"></div>
         </div>
+        <div class="s-radio-desc" style="margin-top:2px;">OFF: 円盤内のみ / ON: 画面全体に背景表示</div>
       </div>
-    </div>
+    </details>
 
-    <div class="s-section">
-      <div class="s-section-title">デモモード</div>
-      <div class="s-toggle-row">
-        <span>オフラインデモ（仮想走行）</span>
-        <div id="demoToggle" class="s-toggle" onclick="toggleDemo()"></div>
+    <!-- ===== サウンド ===== -->
+    <details class="s-section">
+      <summary class="s-section-title">サウンド</summary>
+      <div class="s-section-body">
+        <div style="margin-bottom:10px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">マスターボリューム</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">小</span>
+            <input type="range" id="masterVolSlider" min="0" max="200" step="10" value="100" oninput="onMasterVolChange()">
+            <span id="masterVolVal" class="s-slider-val">100%</span>
+          </div>
+        </div>
+        <div class="s-toggle-row" style="margin-bottom:6px;">
+          <span>回転ノッチ音</span>
+          <div id="toggleSoundNotch" class="s-toggle on" onclick="toggleSetting('soundNotch','toggleSoundNotch')"></div>
+        </div>
+        <div class="s-toggle-row" style="margin-bottom:6px;">
+          <span>切り替え音</span>
+          <div id="toggleSoundSwitch" class="s-toggle on" onclick="toggleSetting('soundSwitch','toggleSoundSwitch')"></div>
+        </div>
+        <div class="s-toggle-row">
+          <span>確定音</span>
+          <div id="toggleSoundConfirm" class="s-toggle on" onclick="toggleSetting('soundConfirm','toggleSoundConfirm')"></div>
+        </div>
       </div>
-      <div class="s-radio-desc" style="margin-top:6px;">
-        GPS不要。地図上をランダムに走行して動作を確認できます。
+    </details>
+
+    <!-- ===== 接続 ===== -->
+    <details class="s-section">
+      <summary class="s-section-title">テスラ連携</summary>
+      <div class="s-section-body">
+        <div class="s-toggle-row" style="margin-bottom:6px;">
+          <span>選択経路をテスラナビに送信</span>
+          <div id="teslaToggle" class="s-toggle" onclick="toggleTesla()"></div>
+        </div>
+        <div class="s-radio-desc" style="margin-top:2px;">
+          ONにすると、分岐選択時にTesla APIで経由地を設定
+        </div>
+        <div id="teslaTokenArea" class="s-input-row" style="display:none;">
+          <input id="teslaToken" class="s-input" type="password" placeholder="Teslaアクセストークン"
+            oninput="saveTeslaToken()" value="">
+          <div id="teslaVin" class="s-input-row">
+            <input id="teslaVinInput" class="s-input" type="text" placeholder="車両VIN (例: 5YJ...)"
+              oninput="saveTeslaVin()" value="">
+          </div>
+        </div>
       </div>
-    </div>
+    </details>
+
+    <!-- ===== デモ ===== -->
+    <details class="s-section">
+      <summary class="s-section-title">デモモード</summary>
+      <div class="s-section-body">
+        <div class="s-toggle-row">
+          <span>オフラインデモ（仮想走行）</span>
+          <div id="demoToggle" class="s-toggle" onclick="toggleDemo()"></div>
+        </div>
+        <div class="s-radio-desc" style="margin-top:6px;">
+          GPS不要。地図上をランダムに走行して動作を確認できます。
+        </div>
+      </div>
+    </details>
 
     <button class="s-close-btn" onclick="toggleSettings()">閉じる</button>
   </div>
@@ -636,6 +681,7 @@ let settings = {
   dialOffsetY: 0,
   bgMapOpacity: 15,
   bgMapCenter: "junction",
+  bgMapScope: "dial",
 };
 
 function loadSettings() {
@@ -694,7 +740,9 @@ function applySettingsToUI() {
   document.getElementById("bgMapOpacitySlider").value = settings.bgMapOpacity;
   document.getElementById("bgMapOpacityVal").textContent = settings.bgMapOpacity + "%";
   document.getElementById("toggleBgMapCenter").classList.toggle("on", settings.bgMapCenter === "car");
+  document.getElementById("toggleBgMapScope").classList.toggle("on", settings.bgMapScope === "full");
   applyBgMapOpacity();
+  applyBgMapScope();
 }
 
 function toggleSettings() {
@@ -810,6 +858,23 @@ function toggleBgMapCenter() {
   saveSettings();
 }
 
+function toggleBgMapScope() {
+  settings.bgMapScope = settings.bgMapScope === "full" ? "dial" : "full";
+  document.getElementById("toggleBgMapScope").classList.toggle("on", settings.bgMapScope === "full");
+  saveSettings();
+  applyBgMapScope();
+}
+
+function applyBgMapScope() {
+  const el = document.getElementById("bgMap");
+  if (!el) return;
+  if (settings.bgMapScope === "dial") {
+    el.style.clipPath = "circle(50% at 50% 50%)";
+  } else {
+    el.style.clipPath = "none";
+  }
+}
+
 function initBgMap(lat, lon, inBearing) {
   if (settings.bgMapOpacity === 0) return;
   const el = document.getElementById("bgMap");
@@ -830,6 +895,7 @@ function initBgMap(lat, lon, inBearing) {
   }).addTo(bgLeafletMap);
   bgMapRotation = (inBearing != null) ? -inBearing + 180 : 0;
   el.style.transform = `rotate(${bgMapRotation}deg) scale(1.5)`;
+  applyBgMapScope();
 }
 
 function updateBgMap(lat, lon) {

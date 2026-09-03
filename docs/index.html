@@ -682,6 +682,8 @@ function updateSideBar() {
   } else {
     el.style.display = "none";
   }
+  const ticksEl = document.getElementById("sideBarTicks");
+  if (ticksEl && !settings.sideBarFixed) ticksEl.innerHTML = "";
 }
 
 function onFloatParamChange() {
@@ -2225,6 +2227,7 @@ document.addEventListener("DOMContentLoaded", () => {
     relativeStartAngle = null;
     thumb.classList.add("active");
     if (settings.sideBarFixed) renderSidebarTicks();
+    else sidebarTicksEl.innerHTML = "";
   }
 
   function sidebarMove(clientY) {

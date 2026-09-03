@@ -892,15 +892,15 @@ function applyBgMapScope() {
   }
 }
 
-function initBgMap(lat, lon, inBearing) {
+function ensureBgMap() {
+  if (bgLeafletMap) return;
   if (settings.bgMapOpacity === 0) return;
   const clip = document.getElementById("bgMapClip");
   if (clip) clip.style.display = "block";
   const el = document.getElementById("bgMap");
   el.style.opacity = settings.bgMapOpacity / 100;
-  if (bgLeafletMap) { bgLeafletMap.remove(); bgLeafletMap = null; }
   bgLeafletMap = L.map(el, {
-    center: [lat, lon], zoom: 17,
+    center: [0, 0], zoom: 17,
     zoomControl: false, attributionControl: false,
     dragging: false, scrollWheelZoom: false,
     doubleClickZoom: false, touchZoom: false, keyboard: false,
@@ -908,13 +908,26 @@ function initBgMap(lat, lon, inBearing) {
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 18,
   }).addTo(bgLeafletMap);
-  bgMapMarker = L.circleMarker([lat, lon], {
+  bgMapMarker = L.circleMarker([0, 0], {
     radius: 6, color: "#00d4ff", fillColor: "#00d4ff", fillOpacity: 0.6, weight: 2,
   }).addTo(bgLeafletMap);
-  bgMapRotation = (inBearing != null) ? -inBearing : 0;
-  el.style.transform = `rotate(${bgMapRotation}deg)`;
   applyBgMapScope();
   setTimeout(() => { if (bgLeafletMap) bgLeafletMap.invalidateSize(); }, 200);
+}
+
+function initBgMap(lat, lon, inBearing) {
+  if (settings.bgMapOpacity === 0) return;
+  ensureBgMap();
+  if (!bgLeafletMap) return;
+  bgLeafletMap.setView([lat, lon], 17, { animate: true, duration: 0.5 });
+  if (bgMapMarker) bgMapMarker.setLatLng([lat, lon]);
+  const el = document.getElementById("bgMap");
+  bgMapRotation = (inBearing != null) ? -inBearing : 0;
+  if (el) {
+    el.style.transition = "transform 0.5s ease-out";
+    el.style.transform = `rotate(${bgMapRotation}deg)`;
+    setTimeout(() => { if (el) el.style.transition = ""; }, 600);
+  }
 }
 
 function updateBgMap(lat, lon) {
@@ -1095,7 +1108,7 @@ function demoTick() {
   const [lon2,lat2] = curEdge.geometry[curEdge.geometry.length - 1];
   const lat = lat1 + demoFraction * (lat2 - lat1);
   const lon = lon1 + demoFraction * (lon2 - lon1);
-  const heading = curEdge.startBearingDeg;
+  const heading = curEdge.startBearingDeg + demoFraction * (curEdge.endBearingDeg - curEdge.startBearingDeg);
 
   lastSpeedMps = demoSpeedMps;
   const kph = Math.round(demoSpeedMps * 3.6);

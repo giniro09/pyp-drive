@@ -2607,7 +2607,7 @@ function updateCruiseDisplay() {
     el.textContent = Math.floor(cruiseDistanceM);
     el.nextElementSibling.textContent = "m";
   }
-  subEl.textContent = cruiseDistanceM < 50 ? "" : "next junction...";
+  subEl.textContent = "";
   if (totalSessionDistM > 0) {
     const tkm = (totalSessionDistM / 1000).toFixed(1);
     totalEl.textContent = "session " + tkm + " km";

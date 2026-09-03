@@ -1103,7 +1103,7 @@ function syncCruisePosition() {
   const jArea = document.getElementById("junctionArea");
   if (wrap && jArea && jArea.style.display !== "none") {
     const rect = wrap.getBoundingClientRect();
-    counter.style.bottom = (window.innerHeight - rect.bottom - 40) + "px";
+    counter.style.bottom = Math.max(8, window.innerHeight - rect.bottom - 80) + "px";
     counter.style.left = (rect.left + rect.width / 2) + "px";
   } else {
     counter.style.bottom = "56px";

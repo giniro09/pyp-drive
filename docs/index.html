@@ -535,6 +535,11 @@
           <span>ダイヤル目盛り表示</span>
           <div id="toggleDialTicks" class="s-toggle on" onclick="toggleSetting('dialTicks','toggleDialTicks')"></div>
         </div>
+        <div class="s-toggle-row" style="margin-bottom:6px;">
+          <span>ミニマルUI（ベゼル表示）</span>
+          <div id="toggleMinimalUI" class="s-toggle" onclick="toggleSetting('minimalUI','toggleMinimalUI')"></div>
+        </div>
+        <div class="s-radio-desc" style="margin-top:2px;">道路線を消し、目盛り上のマーカーとビームで方向を表現</div>
         <div style="margin-top:8px;">
           <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">自車浮遊 — 振幅</div>
           <div class="s-slider-row" style="margin-left:0;">
@@ -721,6 +726,7 @@ let settings = {
   bgMapOpacity: 15,
   bgMapCenter: "junction",
   bgMapScope: "dial",
+  minimalUI: false,
 };
 
 function loadSettings() {
@@ -754,6 +760,7 @@ function applySettingsToUI() {
   document.getElementById("toggleSoundSwitch").classList.toggle("on", settings.soundSwitch);
   document.getElementById("toggleSoundConfirm").classList.toggle("on", settings.soundConfirm);
   document.getElementById("toggleDialTicks").classList.toggle("on", settings.dialTicks);
+  document.getElementById("toggleMinimalUI").classList.toggle("on", settings.minimalUI);
   document.getElementById("toggleDialRelative").classList.toggle("on", settings.dialRelative);
   document.getElementById("toggleSideBar").classList.toggle("on", settings.sideBar);
   document.getElementById("toggleSideBarLeft").classList.toggle("on", settings.sideBarLeft);
@@ -1956,67 +1963,120 @@ function drawJunction(decision) {
     ? branches.map(b => ({...b, selected: b.id === selectedBranchId && b.id !== previewBranchId, preview: b.id === previewBranchId}))
     : branches;
 
-  // Layer 1: all casings (bottom) — including approach road
-  // Layer 2: all road surfaces — including approach road
-  // Layer 3: ego car
-  // Layer 4: selected/preview roads (on top)
-  // Layer 5: labels (topmost)
   let casingHtml = "";
   let surfaceHtml = "";
-
-  // Approach road (from bottom)
-  casingHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171E2B" stroke-width="16" stroke-linecap="round"/>`;
-  surfaceHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#465166" stroke-width="10" stroke-linecap="round"/>`;
-
   let selectedHtml = "";
   let labelsHtml = "";
-  for (const b of resolvedBranches) {
-    const rad = b.angleDeg*Math.PI/180;
-    const roadLen = 165;
-    const ex = Math.sin(rad)*roadLen, ey = -Math.cos(rad)*roadLen;
+  let bezelHtml = "";
 
-    const sel = b.selected && !b.preview;
-    const pre = b.preview;
-    const lFill = sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
-    const rnFill = sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
+  if (settings.minimalUI) {
+    // ===== Minimal / bezel mode =====
+    for (const b of resolvedBranches) {
+      const rad = b.angleDeg * Math.PI / 180;
+      const sel = b.selected && !b.preview;
+      const pre = b.preview;
 
-    if (sel || pre) {
-      const rStroke = sel ? "#00C8E8" : "#55D9EC";
-      const rWidth = sel ? 14 : 11;
-      const rOpacity = sel ? 1 : .82;
-      const rStyle = sel ? "cursor:pointer;filter:drop-shadow(0 0 6px rgba(0,200,232,0.5))" : "cursor:pointer";
-      selectedHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-        stroke="${rStroke}" stroke-width="${rWidth}" stroke-linecap="round" opacity="${rOpacity}"
-        style="${rStyle}"/>`;
-    } else {
-      casingHtml += `<line id="casing_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-        stroke="#171E2B" stroke-width="14" stroke-linecap="round"/>`;
-      surfaceHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-        stroke="#465166" stroke-width="9" stroke-linecap="round" opacity=".82"
-        style="cursor:pointer"/>`;
+      // Bezel dot markers on the outer ring
+      const dotR = 172;
+      const dx = Math.sin(rad) * dotR, dy = -Math.cos(rad) * dotR;
+      const dotSize = sel ? 7 : pre ? 6 : 4;
+      const dotColor = sel ? "#00C8E8" : pre ? "#55D9EC" : "#5A6980";
+      const dotGlow = sel ? "filter:drop-shadow(0 0 6px rgba(0,200,232,0.7))" : "";
+      bezelHtml += `<circle cx="${dx}" cy="${dy}" r="${dotSize}" fill="${dotColor}" style="${dotGlow}"/>`;
+
+      // Selected/preview: beam line from center toward direction
+      if (sel || pre) {
+        const beamLen = 160;
+        const bx = Math.sin(rad) * beamLen, by = -Math.cos(rad) * beamLen;
+        const beamColor = sel ? "rgba(0,200,232,0.35)" : "rgba(85,217,236,0.2)";
+        const beamWidth = sel ? 3 : 2;
+        bezelHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${bx}" y2="${by}"
+          stroke="${beamColor}" stroke-width="${beamWidth}" stroke-linecap="round"
+          style="cursor:pointer"/>`;
+        if (sel) {
+          bezelHtml += `<line x1="0" y1="0" x2="${bx}" y2="${by}"
+            stroke="rgba(0,200,232,0.12)" stroke-width="20" stroke-linecap="round"/>`;
+        }
+      }
+
+      // Labels (closer to bezel)
+      const lFill = sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
+      const rnFill = sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
+      const labelD = 140;
+      const lx = Math.sin(rad) * labelD, ly = -Math.cos(rad) * labelD;
+      const anchor = Math.abs(b.angleDeg) < 30 ? "middle" : b.angleDeg > 0 ? "start" : "end";
+      const tx = Math.abs(b.angleDeg) < 30 ? 0 : b.angleDeg > 0 ? 14 : -14;
+      const label = LABEL_JA[b.label] || b.label;
+      const road = b.roadName || b.roadRef || "";
+      const slideOx = Math.sin(rad) * 15;
+      const slideOy = -Math.cos(rad) * 15;
+
+      labelsHtml += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-4}" text-anchor="${anchor}"
+        fill="${lFill}" font-size="${sel ? 20 : 16}" font-weight="${sel ? 800 : 600}"
+        style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out,transform 0.3s ease-out"
+        >${label}</text>`;
+      if (road) {
+        labelsHtml += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+12}" text-anchor="${anchor}"
+          fill="${rnFill}" font-size="12"
+          style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.05s,transform 0.3s ease-out 0.05s"
+          >${road}</text>`;
+      }
     }
+  } else {
+    // ===== Classic road-line mode =====
+    // Approach road (from bottom)
+    casingHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171E2B" stroke-width="16" stroke-linecap="round"/>`;
+    surfaceHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#465166" stroke-width="10" stroke-linecap="round"/>`;
 
-    const labelD=125;
-    const lx=Math.sin(rad)*labelD, ly=-Math.cos(rad)*labelD;
-    const anchor=Math.abs(b.angleDeg)<30?"middle":b.angleDeg>0?"start":"end";
-    const tx=Math.abs(b.angleDeg)<30?0:b.angleDeg>0?18:-18;
-    const label=LABEL_JA[b.label]||b.label;
-    const road=b.roadName||b.roadRef||"";
+    for (const b of resolvedBranches) {
+      const rad = b.angleDeg*Math.PI/180;
+      const roadLen = 165;
+      const ex = Math.sin(rad)*roadLen, ey = -Math.cos(rad)*roadLen;
 
-    const slideOx = Math.sin(rad) * 15;
-    const slideOy = -Math.cos(rad) * 15;
-    labelsHtml += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-6}" text-anchor="${anchor}"
-      fill="${lFill}" font-size="20" font-weight="800"
-      style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out,transform 0.3s ease-out"
-      >${label}</text>`;
+      const sel = b.selected && !b.preview;
+      const pre = b.preview;
+      const lFill = sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
+      const rnFill = sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
 
-    if(road){
-      labelsHtml += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+14}" text-anchor="${anchor}"
-        fill="${rnFill}" font-size="13"
-        style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.05s,transform 0.3s ease-out 0.05s"
-        >${road}</text>`;
+      if (sel || pre) {
+        const rStroke = sel ? "#00C8E8" : "#55D9EC";
+        const rWidth = sel ? 14 : 11;
+        const rOpacity = sel ? 1 : .82;
+        const rStyle = sel ? "cursor:pointer;filter:drop-shadow(0 0 6px rgba(0,200,232,0.5))" : "cursor:pointer";
+        selectedHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
+          stroke="${rStroke}" stroke-width="${rWidth}" stroke-linecap="round" opacity="${rOpacity}"
+          style="${rStyle}"/>`;
+      } else {
+        casingHtml += `<line id="casing_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
+          stroke="#171E2B" stroke-width="14" stroke-linecap="round"/>`;
+        surfaceHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
+          stroke="#465166" stroke-width="9" stroke-linecap="round" opacity=".82"
+          style="cursor:pointer"/>`;
+      }
+
+      const labelD=125;
+      const lx=Math.sin(rad)*labelD, ly=-Math.cos(rad)*labelD;
+      const anchor=Math.abs(b.angleDeg)<30?"middle":b.angleDeg>0?"start":"end";
+      const tx=Math.abs(b.angleDeg)<30?0:b.angleDeg>0?18:-18;
+      const label=LABEL_JA[b.label]||b.label;
+      const road=b.roadName||b.roadRef||"";
+
+      const slideOx = Math.sin(rad) * 15;
+      const slideOy = -Math.cos(rad) * 15;
+      labelsHtml += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-6}" text-anchor="${anchor}"
+        fill="${lFill}" font-size="20" font-weight="800"
+        style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out,transform 0.3s ease-out"
+        >${label}</text>`;
+
+      if(road){
+        labelsHtml += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+14}" text-anchor="${anchor}"
+          fill="${rnFill}" font-size="13"
+          style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.05s,transform 0.3s ease-out 0.05s"
+          >${road}</text>`;
+      }
     }
   }
+
   html += casingHtml;
   html += surfaceHtml;
   html += `<g id="egoCar" style="transform:translate(0px,${carY}px)">
@@ -2026,6 +2086,7 @@ function drawJunction(decision) {
       style="transform-origin:0 0"/>
   </g>`;
   html += selectedHtml;
+  html += bezelHtml;
   html += labelsHtml;
 
   // 信号アイコン（最前面、信号ありの場合のみ）

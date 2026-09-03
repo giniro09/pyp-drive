@@ -940,24 +940,13 @@ function ensureBgMap() {
   setTimeout(() => { if (bgLeafletMap) bgLeafletMap.invalidateSize(); }, 200);
 }
 
-function bgMapCarYFrac() {
-  const ratio = Math.min((displayDistanceM ?? carMaxDistM) / carMaxDistM, 1);
-  const carY = 25 + ratio * 140;
-  return carY / 400;
-}
-
-function updateBgMapOrigin() {
+function syncBgMapPosition() {
   const el = document.getElementById("bgMap");
   if (!el) return;
-  const f = bgMapCarYFrac();
-  const oyPct = (0.75 + f) / 1.5 * 100;
-  el.style.transformOrigin = `50% ${oyPct}%`;
-}
-
-function bgMapPanOffset() {
-  const wrap = document.getElementById("dialWrap");
-  if (!wrap) return 0;
-  return bgMapCarYFrac() * wrap.offsetHeight * 1.5;
+  const ratio = Math.min((displayDistanceM ?? carMaxDistM) / carMaxDistM, 1);
+  const carY = 25 + ratio * 140;
+  const offsetPct = carY / 400 * 100;
+  el.style.top = `calc(-25% + ${offsetPct}%)`;
 }
 
 function initBgMap(lat, lon, heading) {
@@ -966,10 +955,8 @@ function initBgMap(lat, lon, heading) {
   if (!bgLeafletMap) return;
   const el = document.getElementById("bgMap");
   if (el) el.style.transition = "none";
+  syncBgMapPosition();
   bgLeafletMap.setView([lat, lon], 17, { animate: false });
-  const off = bgMapPanOffset();
-  if (off) bgLeafletMap.panBy([0, -off], { animate: false });
-  updateBgMapOrigin();
   if (heading != null) {
     bgMapRotation = -heading;
     if (el) el.style.transform = `rotate(${bgMapRotation}deg)`;
@@ -980,7 +967,7 @@ function initBgMap(lat, lon, heading) {
 function setBgMapRotation(heading) {
   const el = document.getElementById("bgMap");
   if (!el || heading == null) return;
-  updateBgMapOrigin();
+  syncBgMapPosition();
   let target = -heading;
   let diff = target - bgMapRotation;
   diff = ((diff % 360) + 540) % 360 - 180;
@@ -988,19 +975,10 @@ function setBgMapRotation(heading) {
   el.style.transform = `rotate(${bgMapRotation}deg)`;
 }
 
-function bgMapOffsetLatLng(lat, lon) {
-  if (!bgLeafletMap) return [lat, lon];
-  const px = bgMapPanOffset();
-  if (!px) return [lat, lon];
-  const cp = bgLeafletMap.latLngToContainerPoint([lat, lon]);
-  const shifted = bgLeafletMap.containerPointToLatLng(L.point(cp.x, cp.y - px));
-  return [shifted.lat, shifted.lng];
-}
-
 function updateBgMap(lat, lon, heading) {
   if (!bgLeafletMap) return;
-  const [oLat, oLon] = bgMapOffsetLatLng(lat, lon);
-  bgLeafletMap.panTo([oLat, oLon], { animate: true, duration: 0.8, easeLinearity: 1 });
+  syncBgMapPosition();
+  bgLeafletMap.panTo([lat, lon], { animate: true, duration: 0.8, easeLinearity: 1 });
   setBgMapRotation(heading);
 }
 

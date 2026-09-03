@@ -956,7 +956,10 @@ function initBgMap(lat, lon, heading) {
 function setBgMapRotation(heading) {
   const el = document.getElementById("bgMap");
   if (!el || heading == null) return;
-  bgMapRotation = -heading;
+  let target = -heading;
+  let diff = target - bgMapRotation;
+  diff = ((diff % 360) + 540) % 360 - 180;
+  bgMapRotation += diff;
   el.style.transform = `rotate(${bgMapRotation}deg)`;
 }
 

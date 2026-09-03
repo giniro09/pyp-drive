@@ -186,6 +186,25 @@
   .notice-text { font-size: 24px; color: var(--text-muted); }
   .notice-sub { font-size: 14px; color: #444; }
 
+  /* ===== Junction HUD (distance + speed above dial) ===== */
+  #junctionHud {
+    display: none; position: fixed; left: 50%;
+    transform: translateX(-50%);
+    text-align: center; pointer-events: none; z-index: 85;
+    transition: top 0.3s ease-out;
+  }
+  #junctionHud .hud-distance {
+    font-size: 48px; font-weight: 900; line-height: 1;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+    color: var(--route-bright);
+    text-shadow: 0 0 14px rgba(0,200,232,0.14);
+    transition: color 0.3s;
+  }
+  #junctionHud .hud-distance.mid { color: var(--near); text-shadow: none; }
+  #junctionHud .hud-distance.near { color: #EF4444; text-shadow: 0 0 10px rgba(239,68,68,0.3); }
+  #junctionHud .hud-unit { font-size: 18px; color: #89AFC0; margin-left: 2px; }
+  #junctionHud .hud-speed { font-size: 14px; color: var(--text-secondary); margin-top: 2px; }
+
   /* ===== Cruise distance counter ===== */
   #cruiseCounter {
     display: none; position: fixed; left: 50%;
@@ -522,6 +541,10 @@
     <div id="noticeText" class="notice-text">GPS信号を待っています</div>
     <div id="noticeSub" class="notice-sub">ブラウザの位置情報を許可してください</div>
   </div>
+  <div id="junctionHud">
+    <div><span class="hud-distance" id="hudDistance">---</span><span class="hud-unit">m</span></div>
+    <div class="hud-speed" id="hudSpeed"></div>
+  </div>
   <div id="cruiseCounter">
     <div><span class="cruise-value" id="cruiseValue">0</span><span class="cruise-unit">m</span></div>
     <div class="cruise-sub" id="cruiseSub"></div>
@@ -682,6 +705,10 @@
         <div class="s-toggle-row" style="margin-top:8px;">
           <span>方向ラベル（直進・右折 等）</span>
           <div id="toggleShowLabels" class="s-toggle" onclick="toggleSetting('showLabels','toggleShowLabels')"></div>
+        </div>
+        <div class="s-toggle-row" style="margin-top:8px;">
+          <span>距離・速度HUD（円盤上部）</span>
+          <div id="toggleShowHeader" class="s-toggle" onclick="toggleSetting('showHeader','toggleShowHeader')"></div>
         </div>
         <div style="margin-top:8px;">
           <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">ラベル位置（中心からの距離）</div>
@@ -892,6 +919,7 @@ let settings = {
   bgMapScope: "dial",
   minimalUI: false,
   showLabels: true,
+  showHeader: true,
   labelDist: 120,
 };
 
@@ -929,6 +957,7 @@ function applySettingsToUI() {
   document.getElementById("toggleTopDistBar").classList.toggle("on", settings.topDistBar);
   document.getElementById("toggleMinimalUI").classList.toggle("on", settings.minimalUI);
   document.getElementById("toggleShowLabels").classList.toggle("on", settings.showLabels);
+  document.getElementById("toggleShowHeader").classList.toggle("on", settings.showHeader);
   document.querySelector(".dist-bar-wrap").style.display = settings.topDistBar ? "" : "none";
   document.getElementById("toggleDialRelative").classList.toggle("on", settings.dialRelative);
   document.getElementById("toggleSideBar").classList.toggle("on", settings.sideBar);
@@ -1094,6 +1123,7 @@ function applyDialLayout() {
   wrap.style.setProperty("--dial-ox", settings.dialOffsetX + "px");
   wrap.style.setProperty("--dial-oy", settings.dialOffsetY + "px");
   syncCruisePosition();
+  syncHudPosition();
 }
 
 function syncCruisePosition() {
@@ -1108,6 +1138,23 @@ function syncCruisePosition() {
   } else {
     counter.style.bottom = "56px";
     counter.style.left = "50%";
+  }
+}
+
+function syncHudPosition() {
+  const hud = document.getElementById("junctionHud");
+  if (!hud) return;
+  const jArea = document.getElementById("junctionArea");
+  const visible = settings.showHeader && jArea && jArea.style.display !== "none";
+  hud.style.display = visible ? "block" : "none";
+  const headerDist = document.querySelector(".distance-block");
+  if (headerDist) headerDist.style.visibility = visible ? "hidden" : "";
+  if (!visible) return;
+  const wrap = document.getElementById("dialWrap");
+  if (wrap) {
+    const rect = wrap.getBoundingClientRect();
+    hud.style.top = Math.max(4, rect.top - 60) + "px";
+    hud.style.left = (rect.left + rect.width / 2) + "px";
   }
 }
 
@@ -1401,6 +1448,8 @@ function demoTick() {
   lastSpeedMps = demoSpeedMps;
   const kph = Math.round(demoSpeedMps * 3.6);
   document.getElementById("speed").textContent = `${kph} km/h`;
+  const hudSpd1 = document.getElementById("hudSpeed");
+  if (hudSpd1) hudSpd1.textContent = `${kph} km/h`;
   document.getElementById("gpsStatus").textContent = `DEMO: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
 
   updateMinimap(lat, lon);
@@ -1921,6 +1970,8 @@ function startGps() {
       setBadge("gps","GPS");
       const kph = Math.round(lastSpeedMps*3.6);
       document.getElementById("speed").textContent = kph>0 ? `${kph} km/h` : "";
+      const hudSpd2 = document.getElementById("hudSpeed");
+      if (hudSpd2) hudSpd2.textContent = kph>0 ? `${kph} km/h` : "";
       updateBgMap(latitude, longitude, heading);
       processPosition(latitude, longitude, heading, speed);
     },
@@ -2072,7 +2123,7 @@ function interpolationLoop(now) {
     tickCruiseDistance(deltaM);
     tickContainerDistance(deltaM);
   }
-  if (!currentDecision || !gpsActive) return;
+  if (!currentDecision || !gpsActive) { syncHudPosition(); return; }
   if (dt>0 && dt<0.5 && displayDistanceM!==null && lastSpeedMps>0.5) {
     displayDistanceM = Math.max(0, displayDistanceM - lastSpeedMps*dt);
     updateDistanceDisplay(Math.round(displayDistanceM));
@@ -2103,6 +2154,7 @@ function interpolationLoop(now) {
     }
     syncBgMapPosition();
     syncCruisePosition();
+    syncHudPosition();
   }
 
   // Distance arc on outer ring
@@ -2157,6 +2209,13 @@ function updateDistanceDisplay(m) {
   el.classList.remove("mid", "near");
   if (m < 100) el.classList.add("near");
   else if (m < 300) el.classList.add("mid");
+  const hudD = document.getElementById("hudDistance");
+  if (hudD) {
+    hudD.textContent = m;
+    hudD.classList.remove("mid", "near");
+    if (m < 100) hudD.classList.add("near");
+    else if (m < 300) hudD.classList.add("mid");
+  }
   const maxM = carMaxDistM || 800;
   const pct = Math.max(0, Math.min(100, (1 - m / maxM) * 100));
   const bar = document.getElementById("distBar");

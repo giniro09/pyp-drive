@@ -188,9 +188,11 @@
 
   /* ===== Cruise distance counter ===== */
   #cruiseCounter {
-    display: none; position: fixed; bottom: 70px; left: 50%;
-    transform: translateX(-50%); z-index: 85; text-align: center;
-    pointer-events: none;
+    display: none; position: fixed; left: 50%;
+    transform: translateX(-50%);
+    bottom: 56px;
+    text-align: center; pointer-events: none; z-index: 85;
+    transition: bottom 0.3s ease-out;
   }
   .cruise-value {
     font-size: 56px; font-weight: 900; line-height: 1;
@@ -1091,6 +1093,22 @@ function applyDialLayout() {
   wrap.style.setProperty("--dial-scale", settings.dialScale / 100);
   wrap.style.setProperty("--dial-ox", settings.dialOffsetX + "px");
   wrap.style.setProperty("--dial-oy", settings.dialOffsetY + "px");
+  syncCruisePosition();
+}
+
+function syncCruisePosition() {
+  const counter = document.getElementById("cruiseCounter");
+  if (!counter) return;
+  const wrap = document.getElementById("dialWrap");
+  const jArea = document.getElementById("junctionArea");
+  if (wrap && jArea && jArea.style.display !== "none") {
+    const rect = wrap.getBoundingClientRect();
+    counter.style.bottom = (window.innerHeight - rect.bottom - 4) + "px";
+    counter.style.left = (rect.left + rect.width / 2) + "px";
+  } else {
+    counter.style.bottom = "56px";
+    counter.style.left = "50%";
+  }
 }
 
 let bgLeafletMap = null;
@@ -2084,6 +2102,7 @@ function interpolationLoop(now) {
       car.style.transform = `translate(0px,${carY}px)`;
     }
     syncBgMapPosition();
+    syncCruisePosition();
   }
 
   // Distance arc on outer ring

@@ -186,6 +186,51 @@
   .notice-text { font-size: 24px; color: var(--text-muted); }
   .notice-sub { font-size: 14px; color: #444; }
 
+  /* ===== Cruise distance counter ===== */
+  #cruiseCounter { display: none; text-align: center; }
+  .cruise-value {
+    font-size: 80px; font-weight: 900; line-height: 1;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+    color: var(--route-bright);
+    text-shadow: 0 0 30px rgba(0,200,232,0.15);
+    transition: color 0.4s;
+  }
+  .cruise-unit {
+    font-size: 28px; font-weight: 600; color: rgba(137,175,192,0.6);
+    margin-left: 4px;
+  }
+  .cruise-sub {
+    font-size: 13px; color: var(--text-muted); margin-top: 4px;
+    letter-spacing: 0.04em;
+  }
+  .cruise-total {
+    font-size: 14px; color: #5B9AB5; margin-top: 12px; opacity: 0.7;
+  }
+  @keyframes stakeConvert {
+    0% { transform: scale(1); opacity: 1; }
+    30% { transform: scale(1.15); color: var(--near); }
+    60% { transform: scale(0.95); opacity: 0.6; }
+    100% { transform: scale(0); opacity: 0; }
+  }
+  .cruise-value.converting {
+    animation: stakeConvert 0.7s ease-in forwards;
+  }
+  @keyframes stakeFlash {
+    0% { opacity: 0; transform: translateY(10px); }
+    30% { opacity: 1; transform: translateY(-5px); color: var(--near); }
+    100% { opacity: 0; transform: translateY(-30px); }
+  }
+  #stakeToast {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 36px; font-weight: 900; color: var(--near);
+    pointer-events: none; z-index: 95; display: none;
+    text-shadow: 0 0 20px rgba(255,159,67,0.4);
+  }
+  #stakeToast.show {
+    display: block;
+    animation: stakeFlash 1.0s ease-out forwards;
+  }
+
   .footer {
     padding: 8px 24px; background: #111827; border-top: 1px solid #252F42;
     display: flex; justify-content: space-between;
@@ -470,7 +515,13 @@
     <div class="notice-icon">&#128225;</div>
     <div id="noticeText" class="notice-text">GPS信号を待っています</div>
     <div id="noticeSub" class="notice-sub">ブラウザの位置情報を許可してください</div>
+    <div id="cruiseCounter">
+      <div><span class="cruise-value" id="cruiseValue">0</span><span class="cruise-unit">m</span></div>
+      <div class="cruise-sub" id="cruiseSub"></div>
+      <div class="cruise-total" id="cruiseTotal"></div>
+    </div>
   </div>
+  <div id="stakeToast"></div>
 
   <!-- Container / Loot overlay -->
   <div id="containerOverlay">
@@ -1879,6 +1930,8 @@ function processPosition(lat, lon, heading, speed) {
       decision = { ...currentDecision, distanceM: displayDistanceM };
     }
     if (junctionChanged) {
+      if (cruiseActive) convertStake();
+      stopCruise();
       if (lastDecisionNodeId && manuallySelected) {
         scheduleContainer(lastDecisionNodeId, lastChoiceWasRoulette);
         lastChoiceWasRoulette = false;
@@ -1962,6 +2015,7 @@ function processPosition(lat, lon, heading, speed) {
     document.getElementById("noticeSub").textContent = "";
     document.getElementById("stateLabel").textContent = "走行中";
     setBadge("ok","走行中");
+    if (gpsActive) startCruise();
   }
 }
 
@@ -1990,9 +2044,11 @@ function interpolationLoop(now) {
   requestAnimationFrame(interpolationLoop);
   const dt = (now - lastFrameTime) / 1000;
   lastFrameTime = now;
-  // Container distance tick runs even during cruise (no junction shown)
+  // Distance ticks run even during cruise (no junction shown)
   if (gpsActive && dt > 0 && dt < 0.5 && lastSpeedMps > 0.5) {
-    tickContainerDistance(lastSpeedMps * dt);
+    const deltaM = lastSpeedMps * dt;
+    tickCruiseDistance(deltaM);
+    tickContainerDistance(deltaM);
   }
   if (!currentDecision || !gpsActive) return;
   if (dt>0 && dt<0.5 && displayDistanceM!==null && lastSpeedMps>0.5) {
@@ -2487,6 +2543,106 @@ function checkDistanceAlerts(distM) {
       return;
     }
   }
+}
+
+// ============================================================
+//  Cruise Distance Counter (距離 = 賭け金)
+// ============================================================
+let cruiseDistanceM = 0;
+let totalSessionDistM = 0;
+let currentStake = 0;
+let cruiseActive = false;
+
+function startCruise() {
+  cruiseActive = true;
+  cruiseDistanceM = 0;
+  const counter = document.getElementById("cruiseCounter");
+  const noticeIcon = counter.parentElement.querySelector(".notice-icon");
+  const noticeText = document.getElementById("noticeText");
+  const noticeSub = document.getElementById("noticeSub");
+  if (noticeIcon) noticeIcon.style.display = "none";
+  if (noticeText) noticeText.style.display = "none";
+  if (noticeSub) noticeSub.style.display = "none";
+  counter.style.display = "block";
+  document.getElementById("cruiseValue").classList.remove("converting");
+  updateCruiseDisplay();
+}
+
+function stopCruise() {
+  cruiseActive = false;
+  const counter = document.getElementById("cruiseCounter");
+  counter.style.display = "none";
+  const noticeIcon = counter.parentElement.querySelector(".notice-icon");
+  const noticeText = document.getElementById("noticeText");
+  const noticeSub = document.getElementById("noticeSub");
+  if (noticeIcon) noticeIcon.style.display = "";
+  if (noticeText) noticeText.style.display = "";
+  if (noticeSub) noticeSub.style.display = "";
+}
+
+function tickCruiseDistance(deltaM) {
+  if (!cruiseActive) return;
+  cruiseDistanceM += deltaM;
+  totalSessionDistM += deltaM;
+  updateCruiseDisplay();
+}
+
+function updateCruiseDisplay() {
+  const el = document.getElementById("cruiseValue");
+  const subEl = document.getElementById("cruiseSub");
+  const totalEl = document.getElementById("cruiseTotal");
+  if (cruiseDistanceM >= 1000) {
+    el.textContent = (cruiseDistanceM / 1000).toFixed(1);
+    el.nextElementSibling.textContent = "km";
+  } else {
+    el.textContent = Math.floor(cruiseDistanceM);
+    el.nextElementSibling.textContent = "m";
+  }
+  subEl.textContent = cruiseDistanceM < 50 ? "" : "next junction...";
+  if (totalSessionDistM > 0) {
+    const tkm = (totalSessionDistM / 1000).toFixed(1);
+    totalEl.textContent = "session " + tkm + " km";
+  }
+}
+
+function convertStake() {
+  currentStake = Math.floor(cruiseDistanceM);
+  if (currentStake < 10) return;
+  const valEl = document.getElementById("cruiseValue");
+  valEl.classList.add("converting");
+  playStakeConvert();
+  const toast = document.getElementById("stakeToast");
+  toast.textContent = "+" + currentStake + " m";
+  toast.classList.remove("show");
+  void toast.offsetWidth;
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 1100);
+  cruiseDistanceM = 0;
+}
+
+function playStakeConvert() {
+  const ctx = ensureAudioCtx();
+  const t = ctx.currentTime;
+  // Rising tone: low → high sweep
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(220, t);
+  osc.frequency.exponentialRampToValueAtTime(660, t + 0.2);
+  gain.gain.setValueAtTime(0.07, t);
+  gain.gain.setValueAtTime(0.07, t + 0.15);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+  osc.connect(gain); gain.connect(getMasterOut());
+  osc.start(t); osc.stop(t + 0.35);
+  // Chime
+  const osc2 = ctx.createOscillator();
+  const g2 = ctx.createGain();
+  osc2.type = "triangle";
+  osc2.frequency.value = 880;
+  g2.gain.setValueAtTime(0.05, t + 0.18);
+  g2.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+  osc2.connect(g2); g2.connect(getMasterOut());
+  osc2.start(t + 0.18); osc2.stop(t + 0.4);
 }
 
 // ============================================================

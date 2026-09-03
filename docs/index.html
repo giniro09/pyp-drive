@@ -1842,23 +1842,26 @@ function interpolationLoop(now) {
     syncBgMapPosition();
   }
 
-  // Distance-linked urgency glow on outer ring
+  // Distance arc on outer ring
   if (displayDistanceM !== null) {
-    const urgency = Math.max(0, 1 - displayDistanceM / 300);
-    const ring = document.getElementById("urgencyRing");
-    if (ring) {
-      if (urgency > 0) {
-        const r = Math.round(32 + urgency * 223);
-        const g = Math.round(42 + urgency * (159 - 42) * (1 - urgency));
-        const b = Math.round(59 + urgency * (67 - 59));
-        ring.setAttribute("stroke", `rgb(${r},${g},${b})`);
-        ring.setAttribute("stroke-width", String(2 + urgency * 2));
-        ring.style.filter = `drop-shadow(0 0 ${4 + urgency * 10}px rgba(255,${Math.round(159*(1-urgency))},67,${urgency * 0.6}))`;
-      } else {
-        ring.setAttribute("stroke", "#202A3B");
-        ring.setAttribute("stroke-width", "2");
-        ring.style.filter = "";
-      }
+    const arc = document.getElementById("distArc");
+    if (arc) {
+      const maxM = carMaxDistM || 800;
+      const pct = Math.max(0, Math.min(1, 1 - displayDistanceM / maxM));
+      const circ = 2 * Math.PI * 185;
+      const len = pct * circ;
+      arc.setAttribute("stroke-dasharray", `${len} ${circ}`);
+      let color;
+      if (displayDistanceM < 100) color = "#EF4444";
+      else if (displayDistanceM < 300) color = "#F59E0B";
+      else color = "#2563AA";
+      arc.setAttribute("stroke", color);
+      const glow = displayDistanceM < 100
+        ? `drop-shadow(0 0 8px rgba(239,68,68,0.6))`
+        : displayDistanceM < 300
+        ? `drop-shadow(0 0 6px rgba(245,158,11,0.4))`
+        : "";
+      arc.style.filter = glow;
     }
   }
 }
@@ -1939,7 +1942,10 @@ function drawJunction(decision) {
     </filter>
   </defs>`;
 
-  html += `<circle id="urgencyRing" cx="0" cy="0" r="185" fill="none" stroke="#202A3B" stroke-width="2"/>`;
+  html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#202A3B" stroke-width="2"/>`;
+  html += `<circle id="distArc" cx="0" cy="0" r="185" fill="none"
+    stroke="#2563AA" stroke-width="5" stroke-linecap="round"
+    transform="rotate(180)" style="transition:stroke 0.3s,stroke-dasharray 0.15s"/>`;
   html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#151C29" stroke-width="1"/>`;
 
   if (settings.dialTicks) {

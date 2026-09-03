@@ -268,7 +268,7 @@
     top: -25%; left: -25%;
     opacity: 0.15;
     filter: saturate(0.3) brightness(0.6);
-    transition: transform 0.8s linear;
+    transition: transform 0.8s linear, top 0.15s linear;
   }
   #bgMap .leaflet-control-container { display: none; }
 
@@ -967,7 +967,6 @@ function initBgMap(lat, lon, heading) {
 function setBgMapRotation(heading) {
   const el = document.getElementById("bgMap");
   if (!el || heading == null) return;
-  syncBgMapPosition();
   let target = -heading;
   let diff = target - bgMapRotation;
   diff = ((diff % 360) + 540) % 360 - 180;
@@ -977,7 +976,6 @@ function setBgMapRotation(heading) {
 
 function updateBgMap(lat, lon, heading) {
   if (!bgLeafletMap) return;
-  syncBgMapPosition();
   bgLeafletMap.panTo([lat, lon], { animate: true, duration: 0.8, easeLinearity: 1 });
   setBgMapRotation(heading);
 }
@@ -1838,6 +1836,7 @@ function interpolationLoop(now) {
       }
       car.style.transform = `translate(0px,${carY}px)`;
     }
+    syncBgMapPosition();
   }
 
   // Distance-linked urgency glow on outer ring

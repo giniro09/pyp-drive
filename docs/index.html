@@ -268,6 +268,7 @@
     top: -25%; left: -25%;
     opacity: 0.15;
     filter: saturate(0.3) brightness(0.6);
+    transition: transform 0.8s linear;
   }
   #bgMap .leaflet-control-container { display: none; }
 
@@ -941,9 +942,15 @@ function initBgMap(lat, lon, heading) {
   if (settings.bgMapOpacity === 0) return;
   ensureBgMap();
   if (!bgLeafletMap) return;
+  const el = document.getElementById("bgMap");
+  if (el) el.style.transition = "none";
   bgLeafletMap.setView([lat, lon], 17, { animate: false });
   if (bgMapMarker) bgMapMarker.setLatLng([lat, lon]);
-  setBgMapRotation(heading);
+  if (heading != null) {
+    bgMapRotation = -heading;
+    if (el) el.style.transform = `rotate(${bgMapRotation}deg)`;
+  }
+  requestAnimationFrame(() => { if (el) el.style.transition = ""; });
 }
 
 function setBgMapRotation(heading) {
@@ -955,7 +962,7 @@ function setBgMapRotation(heading) {
 
 function updateBgMap(lat, lon, heading) {
   if (!bgLeafletMap) return;
-  bgLeafletMap.panTo([lat, lon], { animate: false });
+  bgLeafletMap.panTo([lat, lon], { animate: true, duration: 0.8, easeLinearity: 1 });
   if (bgMapMarker) bgMapMarker.setLatLng([lat, lon]);
   setBgMapRotation(heading);
 }
@@ -1955,8 +1962,8 @@ function drawJunction(decision) {
   let surfaceHtml = "";
 
   // Approach road (from bottom)
-  casingHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171E2B" stroke-width="26" stroke-linecap="round"/>`;
-  surfaceHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#465166" stroke-width="17" stroke-linecap="round"/>`;
+  casingHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171E2B" stroke-width="16" stroke-linecap="round"/>`;
+  surfaceHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#465166" stroke-width="10" stroke-linecap="round"/>`;
 
   let selectedHtml = "";
   let labelsHtml = "";
@@ -1972,7 +1979,7 @@ function drawJunction(decision) {
 
     if (sel || pre) {
       const rStroke = sel ? "#00C8E8" : "#55D9EC";
-      const rWidth = sel ? 22 : 18;
+      const rWidth = sel ? 14 : 11;
       const rOpacity = sel ? 1 : .82;
       const rStyle = sel ? "cursor:pointer;filter:drop-shadow(0 0 6px rgba(0,200,232,0.5))" : "cursor:pointer";
       selectedHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
@@ -1980,9 +1987,9 @@ function drawJunction(decision) {
         style="${rStyle}"/>`;
     } else {
       casingHtml += `<line id="casing_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-        stroke="#171E2B" stroke-width="24" stroke-linecap="round"/>`;
+        stroke="#171E2B" stroke-width="14" stroke-linecap="round"/>`;
       surfaceHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-        stroke="#465166" stroke-width="15" stroke-linecap="round" opacity=".82"
+        stroke="#465166" stroke-width="9" stroke-linecap="round" opacity=".82"
         style="cursor:pointer"/>`;
     }
 

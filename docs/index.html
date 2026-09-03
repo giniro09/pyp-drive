@@ -915,27 +915,27 @@ function ensureBgMap() {
   setTimeout(() => { if (bgLeafletMap) bgLeafletMap.invalidateSize(); }, 200);
 }
 
-function initBgMap(lat, lon, inBearing) {
+function initBgMap(lat, lon, heading) {
   if (settings.bgMapOpacity === 0) return;
   ensureBgMap();
   if (!bgLeafletMap) return;
-  bgLeafletMap.setView([lat, lon], 17, { animate: true, duration: 0.5 });
+  bgLeafletMap.setView([lat, lon], 17, { animate: false });
   if (bgMapMarker) bgMapMarker.setLatLng([lat, lon]);
-  const el = document.getElementById("bgMap");
-  bgMapRotation = (inBearing != null) ? -inBearing : 0;
-  if (el) {
-    el.style.transition = "transform 0.5s ease-out";
-    el.style.transform = `rotate(${bgMapRotation}deg)`;
-    setTimeout(() => { if (el) el.style.transition = ""; }, 600);
-  }
+  setBgMapRotation(heading);
 }
 
-function updateBgMap(lat, lon) {
+function setBgMapRotation(heading) {
+  const el = document.getElementById("bgMap");
+  if (!el || heading == null) return;
+  bgMapRotation = -heading;
+  el.style.transform = `rotate(${bgMapRotation}deg)`;
+}
+
+function updateBgMap(lat, lon, heading) {
   if (!bgLeafletMap) return;
-  if (settings.bgMapCenter === "car") {
-    bgLeafletMap.panTo([lat, lon], { animate: true, duration: 0.3 });
-  }
+  bgLeafletMap.panTo([lat, lon], { animate: false });
   if (bgMapMarker) bgMapMarker.setLatLng([lat, lon]);
+  setBgMapRotation(heading);
 }
 
 function hideBgMap() {
@@ -1116,7 +1116,7 @@ function demoTick() {
   document.getElementById("gpsStatus").textContent = `DEMO: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
 
   updateMinimap(lat, lon);
-  updateBgMap(lat, lon);
+  updateBgMap(lat, lon, heading);
   processPosition(lat, lon, heading, demoSpeedMps);
 }
 
@@ -1632,7 +1632,7 @@ function startGps() {
       setBadge("gps","GPS");
       const kph = Math.round(lastSpeedMps*3.6);
       document.getElementById("speed").textContent = kph>0 ? `${kph} km/h` : "";
-      updateBgMap(latitude, longitude);
+      updateBgMap(latitude, longitude, heading);
       processPosition(latitude, longitude, heading, speed);
     },
     (err) => {
@@ -1696,7 +1696,7 @@ function processPosition(lat, lon, heading, speed) {
     } else {
       drawJunction(decision);
       if (junctionChanged) {
-        if (decision.lat != null && decision.lon != null) initBgMap(decision.lat, decision.lon, decision.inBearing);
+        initBgMap(lat, lon, heading);
         const svg = document.getElementById("junctionSvg");
         svg.classList.remove("visible","exiting");
         svg.classList.add("entering");

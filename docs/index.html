@@ -940,6 +940,26 @@ function ensureBgMap() {
   setTimeout(() => { if (bgLeafletMap) bgLeafletMap.invalidateSize(); }, 200);
 }
 
+function bgMapCarYFrac() {
+  const ratio = Math.min((displayDistanceM ?? carMaxDistM) / carMaxDistM, 1);
+  const carY = 25 + ratio * 140;
+  return carY / 400;
+}
+
+function updateBgMapOrigin() {
+  const el = document.getElementById("bgMap");
+  if (!el) return;
+  const f = bgMapCarYFrac();
+  const oyPct = (0.75 + f) / 1.5 * 100;
+  el.style.transformOrigin = `50% ${oyPct}%`;
+}
+
+function bgMapPanOffset() {
+  const wrap = document.getElementById("dialWrap");
+  if (!wrap) return 0;
+  return bgMapCarYFrac() * wrap.offsetHeight * 1.5;
+}
+
 function initBgMap(lat, lon, heading) {
   if (settings.bgMapOpacity === 0) return;
   ensureBgMap();
@@ -947,6 +967,9 @@ function initBgMap(lat, lon, heading) {
   const el = document.getElementById("bgMap");
   if (el) el.style.transition = "none";
   bgLeafletMap.setView([lat, lon], 17, { animate: false });
+  const off = bgMapPanOffset();
+  if (off) bgLeafletMap.panBy([0, -off], { animate: false });
+  updateBgMapOrigin();
   if (heading != null) {
     bgMapRotation = -heading;
     if (el) el.style.transform = `rotate(${bgMapRotation}deg)`;
@@ -957,6 +980,7 @@ function initBgMap(lat, lon, heading) {
 function setBgMapRotation(heading) {
   const el = document.getElementById("bgMap");
   if (!el || heading == null) return;
+  updateBgMapOrigin();
   let target = -heading;
   let diff = target - bgMapRotation;
   diff = ((diff % 360) + 540) % 360 - 180;
@@ -964,9 +988,19 @@ function setBgMapRotation(heading) {
   el.style.transform = `rotate(${bgMapRotation}deg)`;
 }
 
+function bgMapOffsetLatLng(lat, lon) {
+  if (!bgLeafletMap) return [lat, lon];
+  const px = bgMapPanOffset();
+  if (!px) return [lat, lon];
+  const cp = bgLeafletMap.latLngToContainerPoint([lat, lon]);
+  const shifted = bgLeafletMap.containerPointToLatLng(L.point(cp.x, cp.y - px));
+  return [shifted.lat, shifted.lng];
+}
+
 function updateBgMap(lat, lon, heading) {
   if (!bgLeafletMap) return;
-  bgLeafletMap.panTo([lat, lon], { animate: true, duration: 0.8, easeLinearity: 1 });
+  const [oLat, oLon] = bgMapOffsetLatLng(lat, lon);
+  bgLeafletMap.panTo([oLat, oLon], { animate: true, duration: 0.8, easeLinearity: 1 });
   setBgMapRotation(heading);
 }
 
@@ -975,7 +1009,7 @@ function hideBgMap() {
   if (clip) clip.style.display = "none";
   const el = document.getElementById("bgMap");
   if (el) el.style.transform = "";
-  if (bgLeafletMap) { bgLeafletMap.remove(); bgLeafletMap = null; bgMapMarker = null; }
+  if (bgLeafletMap) { bgLeafletMap.remove(); bgLeafletMap = null; }
 }
 
 function onRouletteThreshChange() {

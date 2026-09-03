@@ -86,7 +86,8 @@
     transition: color 0.3s; font-variant-numeric: tabular-nums;
     letter-spacing: -.04em; text-shadow: 0 0 14px rgba(0,200,232,.14);
   }
-  .distance.near { color: var(--near); text-shadow: none; }
+  .distance.mid { color: var(--near); text-shadow: none; }
+  .distance.near { color: #EF4444; text-shadow: 0 0 10px rgba(239,68,68,.3); }
   .distance-unit { font-size: 24px; color: #89AFC0; }
   .speed { font-size: 18px; color: var(--text-secondary); margin-left: 16px; }
   .header-right { display: flex; align-items: center; gap: 16px; }
@@ -116,18 +117,36 @@
   }
 
   .dist-bar-wrap {
-    height: 8px; padding: 2px 0; background: #090C12;
+    height: 10px; padding: 2px 0; background: #090C12;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04); flex-shrink: 0;
+    position: relative;
+  }
+  .dist-bar-ticks {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  .dist-bar-ticks span {
+    position: absolute; top: 0; width: 1px; height: 100%;
+    background: rgba(255,255,255,0.15);
+  }
+  .dist-bar-ticks span::after {
+    content: attr(data-label); position: absolute; top: 10px; left: 50%;
+    transform: translateX(-50%); font-size: 9px; color: #556; white-space: nowrap;
   }
   .dist-bar {
-    height: 4px; width: 0%; border-radius: 0 4px 4px 0;
+    height: 6px; width: 0%; border-radius: 0 4px 4px 0;
+    transition: width .15s linear, background .25s, box-shadow .25s;
+  }
+  .dist-bar.far {
     background: linear-gradient(90deg, #1677A8 0%, #00BCD9 55%, #67E8F9 100%);
     box-shadow: 0 0 5px rgba(0,200,232,.55), 0 0 12px rgba(0,200,232,.18);
-    transition: width .15s linear, background .25s;
   }
-  .dist-bar.near {
+  .dist-bar.mid {
     background: linear-gradient(90deg, #C56A14 0%, #FF9F43 58%, #FFD166 100%);
     box-shadow: 0 0 6px rgba(255,159,67,.6), 0 0 14px rgba(255,159,67,.2);
+  }
+  .dist-bar.near {
+    background: linear-gradient(90deg, #B91C1C 0%, #EF4444 60%, #FCA5A5 100%);
+    box-shadow: 0 0 8px rgba(239,68,68,.7), 0 0 16px rgba(239,68,68,.3);
   }
 
   .junction-view {
@@ -366,7 +385,10 @@
     </div>
   </div>
 
-  <div class="dist-bar-wrap"><div id="distBar" class="dist-bar"></div></div>
+  <div class="dist-bar-wrap">
+    <div id="distBar" class="dist-bar far"></div>
+    <div id="distBarTicks" class="dist-bar-ticks"></div>
+  </div>
 
   <div id="junctionArea" class="junction-view" style="display:none;">
     <div id="dialWrap" class="dial-wrap">
@@ -539,7 +561,7 @@
           <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">透過度</div>
           <div class="s-slider-row" style="margin-left:0;">
             <span style="font-size:12px;color:#657186;">OFF</span>
-            <input type="range" id="bgMapOpacitySlider" min="0" max="40" step="1" value="15" oninput="onBgMapOpacityChange()">
+            <input type="range" id="bgMapOpacitySlider" min="0" max="100" step="1" value="15" oninput="onBgMapOpacityChange()">
             <span id="bgMapOpacityVal" class="s-slider-val">15%</span>
           </div>
           <div class="s-radio-desc" style="margin-top:2px;">円盤の背景にうっすら地図を表示</div>
@@ -1713,9 +1735,10 @@ function processPosition(lat, lon, heading, speed) {
     manuallySelected = false;
     displayDistanceM = null;
     document.getElementById("distance").textContent = "---";
-    document.getElementById("distance").classList.remove("near");
+    document.getElementById("distance").classList.remove("mid", "near");
     document.getElementById("distBar").style.width = "0%";
-    document.getElementById("distBar").classList.remove("near");
+    document.getElementById("distBar").classList.remove("far", "mid", "near");
+    document.getElementById("distBar").classList.add("far");
     if (wasShowing) {
       const svg = document.getElementById("junctionSvg");
       svg.classList.remove("visible","entering");
@@ -1819,14 +1842,40 @@ function interpolationLoop(now) {
 // ============================================================
 //  UI helpers
 // ============================================================
+let lastDistBarMaxM = 0;
+
+function updateDistBarTicks(maxM) {
+  if (maxM === lastDistBarMaxM) return;
+  lastDistBarMaxM = maxM;
+  const el = document.getElementById("distBarTicks");
+  if (!el) return;
+  el.innerHTML = "";
+  const steps = [100, 200, 300, 500];
+  for (const s of steps) {
+    if (s >= maxM) break;
+    const pct = (1 - s / maxM) * 100;
+    const tick = document.createElement("span");
+    tick.style.left = pct + "%";
+    tick.dataset.label = s + "m";
+    el.appendChild(tick);
+  }
+}
+
 function updateDistanceDisplay(m) {
   const el = document.getElementById("distance");
   el.textContent = m;
-  el.classList.toggle("near", m<80);
+  el.classList.remove("mid", "near");
+  if (m < 100) el.classList.add("near");
+  else if (m < 300) el.classList.add("mid");
+  const maxM = carMaxDistM || 800;
+  const pct = Math.max(0, Math.min(100, (1 - m / maxM) * 100));
   const bar = document.getElementById("distBar");
-  const pct = Math.max(0, Math.min(100, (1 - m/800) * 100));
   bar.style.width = pct + "%";
-  bar.classList.toggle("near", m<80);
+  bar.classList.remove("far", "mid", "near");
+  if (m < 100) bar.classList.add("near");
+  else if (m < 300) bar.classList.add("mid");
+  else bar.classList.add("far");
+  updateDistBarTicks(maxM);
 }
 
 function showNotice(text, sub) {

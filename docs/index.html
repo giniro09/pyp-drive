@@ -940,12 +940,16 @@ function ensureBgMap() {
   setTimeout(() => { if (bgLeafletMap) bgLeafletMap.invalidateSize(); }, 200);
 }
 
+function getCarY() {
+  if (settings.minimalUI) return 80;
+  const ratio = Math.min((displayDistanceM ?? carMaxDistM) / carMaxDistM, 1);
+  return 25 + ratio * 140;
+}
+
 function syncBgMapPosition() {
   const el = document.getElementById("bgMap");
   if (!el) return;
-  const ratio = Math.min((displayDistanceM ?? carMaxDistM) / carMaxDistM, 1);
-  const carY = 25 + ratio * 140;
-  const offsetPct = carY / 400 * 100;
+  const offsetPct = getCarY() / 400 * 100;
   el.style.top = `calc(-25% + ${offsetPct}%)`;
 }
 
@@ -1813,8 +1817,7 @@ function interpolationLoop(now) {
     checkDistanceAlerts(displayDistanceM);
     const car = document.getElementById("egoCar");
     if (car) {
-      const ratio = Math.min(displayDistanceM / carMaxDistM, 1);
-      const carY = 25 + ratio*140;
+      const carY = getCarY();
       // Hover float: scale pulse + shadow spread (simulates vertical bob in top-down view)
       const fa = settings.floatAmp / 100;
       const fs = settings.floatSpeed / 100;
@@ -1960,8 +1963,7 @@ function drawJunction(decision) {
     html += `</g>`;
   }
 
-  const ratio = Math.min((displayDistanceM||decision.distanceM)/carMaxDistM, 1);
-  const carY = 25 + ratio*140;
+  const carY = getCarY();
 
   const resolvedBranches = swipeActive && previewBranchId
     ? branches.map(b => ({...b, selected: b.id === selectedBranchId && b.id !== previewBranchId, preview: b.id === previewBranchId}))
@@ -2111,9 +2113,7 @@ function drawJunction(decision) {
 function updateCarPosition(decision) {
   const car = document.getElementById("egoCar");
   if (!car) return;
-  const ratio = Math.min((displayDistanceM||decision.distanceM)/carMaxDistM, 1);
-  const carY = 25 + ratio*140;
-  car.style.transform = `translate(0px,${carY}px)`;
+  car.style.transform = `translate(0px,${getCarY()}px)`;
 }
 
 function applyBranchHighlight(branches) {

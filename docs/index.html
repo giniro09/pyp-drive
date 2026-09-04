@@ -74,28 +74,19 @@
   #driveScreen { display: none; flex-direction: column; height: 100vh; }
 
   .header {
-    display: flex; justify-content: space-between; align-items: center;
-    min-height: 126px; padding: 18px 28px;
-    background: linear-gradient(180deg, #18233A 0%, #141C2D 100%);
-    border-bottom: 1px solid rgba(255,255,255,.05);
-    flex-shrink: 0;
+    position: fixed; top: 0; right: 0; z-index: 90;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    pointer-events: none;
   }
-  .distance-block { display: flex; align-items: baseline; gap: 6px; }
-  .distance {
-    font-size: 64px; font-weight: 900; color: var(--route-bright); line-height: 1;
-    transition: color 0.3s; font-variant-numeric: tabular-nums;
-    letter-spacing: -.04em; text-shadow: 0 0 14px rgba(0,200,232,.14);
-  }
-  .distance.mid { color: var(--near); text-shadow: none; }
-  .distance.near { color: #EF4444; text-shadow: 0 0 10px rgba(239,68,68,.3); }
-  .distance-unit { font-size: 24px; color: #89AFC0; }
-  .speed { font-size: 18px; color: var(--text-secondary); margin-left: 16px; }
-  .header-right { display: flex; align-items: center; gap: 16px; }
+  .header > * { pointer-events: auto; }
+  .distance-block { display: none; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
   .status { text-align: right; }
-  .status-text { font-size: 16px; color: var(--text-secondary); }
+  .status-text { font-size: 13px; color: var(--text-secondary); opacity: 0.7; }
   .status-badge {
-    display: inline-block; padding: 4px 12px; border-radius: 10px;
-    font-size: 13px; font-weight: 600; margin-top: 4px;
+    display: inline-block; padding: 3px 10px; border-radius: 10px;
+    font-size: 12px; font-weight: 600; margin-top: 2px;
   }
   .badge-wait { background: #555; color: #fff; }
   .badge-gps { background: #2980b9; color: #fff; }
@@ -538,19 +529,14 @@
 <div id="driveScreen">
   <div id="demoBanner" class="demo-banner">OFFLINE DEMO</div>
   <div class="header">
-    <div class="distance-block">
-      <span id="distance" class="distance">---</span>
-      <span class="distance-unit">m</span>
-      <span id="speed" class="speed"></span>
+    <div class="status">
+      <div id="stateLabel" class="status-text">GPS待機中</div>
+      <span id="badge" class="status-badge badge-wait">待機</span>
     </div>
-    <div class="header-right">
-      <div class="status">
-        <div id="stateLabel" class="status-text">GPS待機中</div>
-        <span id="badge" class="status-badge badge-wait">待機</span>
-      </div>
-      <button class="gear-btn" onclick="toggleSettings()">&#9881;</button>
-    </div>
+    <button class="gear-btn" onclick="toggleSettings()">&#9881;</button>
   </div>
+  <span id="distance" class="distance" style="display:none;">---</span>
+  <span id="speed" style="display:none;"></span>
 
   <div class="dist-bar-wrap" style="display:none;">
     <div id="distBar" class="dist-bar far"></div>
@@ -1177,8 +1163,6 @@ function syncHudPosition() {
   const jArea = document.getElementById("junctionArea");
   const visible = settings.showHeader && jArea && jArea.style.display !== "none";
   hud.style.display = visible ? "block" : "none";
-  const headerDist = document.querySelector(".distance-block");
-  if (headerDist) headerDist.style.visibility = visible ? "hidden" : "";
   if (!visible) return;
   const wrap = document.getElementById("dialWrap");
   if (wrap) {

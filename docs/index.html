@@ -210,16 +210,34 @@
     transition: font-size 0.4s ease-out, color 0.4s, text-shadow 0.4s;
   }
   .cruise-value.tier1 {
-    font-size: 56px; color: var(--route-bright);
-    text-shadow: 0 0 20px rgba(0,200,232,0.15);
+    font-size: 56px; color: #34D399;
+    text-shadow: 0 0 16px rgba(52,211,153,0.2);
   }
   .cruise-value.tier2 {
-    font-size: 64px; color: #F5B731;
-    text-shadow: 0 0 24px rgba(245,183,49,0.25);
+    font-size: 64px;
+    background: linear-gradient(135deg, #818CF8 0%, #C084FC 50%, #818CF8 100%);
+    background-size: 200% 200%;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 12px rgba(168,85,247,0.35));
+    animation: epicShift 3s ease-in-out infinite;
   }
   .cruise-value.tier3 {
-    font-size: 72px; color: #FFD700;
-    text-shadow: 0 0 30px rgba(255,215,0,0.35), 0 0 60px rgba(255,215,0,0.15);
+    font-size: 72px;
+    background: linear-gradient(90deg, #F59E0B 0%, #FDE68A 30%, #F59E0B 50%, #FDE68A 70%, #F59E0B 100%);
+    background-size: 300% 100%;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 18px rgba(245,158,11,0.4)) drop-shadow(0 0 40px rgba(245,158,11,0.15));
+    animation: legendShimmer 2s linear infinite;
+  }
+  @keyframes epicShift {
+    0%,100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  @keyframes legendShimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
   }
   @keyframes cruisePulse {
     0% { transform: scale(1); }
@@ -227,6 +245,8 @@
     100% { transform: scale(1); }
   }
   .cruise-value.pulse { animation: cruisePulse 0.35s ease-out; }
+  .cruise-value.tier2.pulse { animation: cruisePulse 0.35s ease-out, epicShift 3s ease-in-out infinite; }
+  .cruise-value.tier3.pulse { animation: cruisePulse 0.35s ease-out, legendShimmer 2s linear infinite; }
   .cruise-unit {
     font-size: 20px; font-weight: 600; color: rgba(137,175,192,0.6);
     margin-left: 4px; transition: color 0.4s;
@@ -2684,7 +2704,7 @@ function updateCruiseDisplay() {
   const tier = dm >= 500 ? 3 : dm >= 300 ? 2 : dm >= 100 ? 1 : 0;
   el.classList.remove("tier1","tier2","tier3");
   if (tier >= 1) el.classList.add("tier" + tier);
-  unitEl.style.color = tier >= 2 ? "#F5B731" : "";
+  unitEl.style.color = tier >= 3 ? "#F59E0B" : tier >= 2 ? "#C084FC" : tier >= 1 ? "#34D399" : "";
   if (tier > lastCruiseTier && lastCruiseTier >= 0) {
     el.classList.remove("pulse");
     void el.offsetWidth;

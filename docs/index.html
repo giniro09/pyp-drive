@@ -101,10 +101,8 @@
   }
   .gear-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
 
-  .demo-banner {
-    display: none; background: #9A4E18; color: #FFF2E7; text-align: center;
-    padding: 5px; font-size: 14px; font-weight: 700; letter-spacing: 1px;
-    flex-shrink: 0;
+  .badge-demo {
+    background: #9A4E18; color: #FFF2E7;
   }
 
   .dist-bar-wrap {
@@ -527,10 +525,10 @@
 
 <!-- ===== Drive Screen ===== -->
 <div id="driveScreen">
-  <div id="demoBanner" class="demo-banner">OFFLINE DEMO</div>
   <div class="header">
     <div class="status">
       <div id="stateLabel" class="status-text">GPS待機中</div>
+      <span id="demoBadge" class="status-badge badge-demo" style="display:none;">DEMO</span>
       <span id="badge" class="status-badge badge-wait">待機</span>
     </div>
     <button class="gear-btn" onclick="toggleSettings()">&#9881;</button>
@@ -1392,7 +1390,7 @@ function hideMinimap() {
 
 function startDemoSim() {
   stopDemoSim();
-  document.getElementById("demoBanner").style.display = "block";
+  document.getElementById("demoBadge").style.display = "";
   gpsActive = true;
   startCruise();
   if (!demoEdgeId) {
@@ -1412,7 +1410,7 @@ function startDemoSim() {
 
 function stopDemoSim() {
   if (demoInterval) { clearInterval(demoInterval); demoInterval = null; }
-  document.getElementById("demoBanner").style.display = "none";
+  document.getElementById("demoBadge").style.display = "none";
   hideMinimap();
 }
 

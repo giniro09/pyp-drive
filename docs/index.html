@@ -281,14 +281,13 @@
   }
   @keyframes stakeFlash {
     0% { opacity: 0; transform: translateY(10px); }
-    30% { opacity: 1; transform: translateY(-5px); color: var(--near); }
+    30% { opacity: 1; transform: translateY(-5px); }
     100% { opacity: 0; transform: translateY(-30px); }
   }
   #stakeToast {
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    font-size: 36px; font-weight: 900; color: var(--near);
+    font-size: 36px; font-weight: 900;
     pointer-events: none; z-index: 95; display: none;
-    text-shadow: 0 0 20px rgba(255,159,67,0.4);
   }
   #stakeToast.show {
     display: block;
@@ -2722,9 +2721,14 @@ function updateCruiseDisplay() {
 function convertStake() {
   currentStake = Math.floor(cruiseDistanceM);
   if (currentStake < 10) return;
+  const tier = currentStake >= 500 ? 3 : currentStake >= 300 ? 2 : currentStake >= 100 ? 1 : 0;
+  const tierColors = ["rgba(137,175,192,0.8)", "#34D399", "#C084FC", "#F59E0B"];
+  const tierGlows = ["none", "0 0 16px rgba(52,211,153,0.3)", "0 0 20px rgba(192,132,252,0.4)", "0 0 24px rgba(245,158,11,0.5)"];
   playStakeConvert();
   const toast = document.getElementById("stakeToast");
   toast.textContent = "+" + currentStake + " m";
+  toast.style.color = tierColors[tier];
+  toast.style.textShadow = tierGlows[tier];
   toast.classList.remove("show");
   void toast.offsetWidth;
   toast.classList.add("show");

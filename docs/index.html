@@ -340,9 +340,10 @@
     animation: bustToastAnim 1.4s ease-out forwards;
   }
   #bustJudge {
-    position: fixed; top: 40%; left: 0; right: 0;
+    position: fixed; left: 0; right: 0;
     display: none; flex-direction: column; align-items: center; justify-content: center;
     pointer-events: none; z-index: 96;
+    transition: top 0.3s ease-out;
   }
   #bustJudge.show { display: flex; }
   #bustJudge .judge-result {
@@ -2997,7 +2998,7 @@ function showRewardToast(amount, wasRoulette, streakMult, rouletteMult) {
   let multLabel = "";
   if (streakMult > 1) multLabel += " ×" + streakMult.toFixed(1);
   if (wasRoulette) multLabel += " 🎰×" + rouletteMult.toFixed(1);
-  toast.textContent = "+" + amount + " pts" + multLabel;
+  toast.textContent = "+" + amount.toLocaleString() + " pts";
   toast.style.color = tierColors[tier];
   toast.style.textShadow = tierGlows[tier];
   toast.classList.remove("show");
@@ -3013,6 +3014,11 @@ function showRewardToast(amount, wasRoulette, streakMult, rouletteMult) {
 function showBustJudge(prob, isBust) {
   const judge = document.getElementById("bustJudge");
   const resultEl = document.getElementById("judgeResult");
+  const wrap = document.getElementById("dialWrap");
+  if (wrap) {
+    const rect = wrap.getBoundingClientRect();
+    judge.style.top = (rect.top + rect.height / 2 - 20) + "px";
+  }
   resultEl.textContent = "";
   resultEl.className = "judge-result";
   judge.classList.add("show");

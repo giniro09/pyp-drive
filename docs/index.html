@@ -2347,17 +2347,20 @@ function interpolationLoop(now) {
       const offset = (t / 15) % 100;
       rArc.setAttribute("opacity", String(pulse));
       rArc.setAttribute("stroke", "#34D399");
-      rArc.setAttribute("stroke-width", "4");
-      rArc.setAttribute("stroke-dasharray", "14 10");
+      rArc.setAttribute("stroke-width", "5");
+      rArc.setAttribute("stroke-dasharray", "16 8");
       rArc.setAttribute("stroke-dashoffset", String(-offset));
       rArc.setAttribute("transform", "rotate(-90)");
-      rArc.style.filter = `drop-shadow(0 0 14px rgba(52,211,153,${0.6 + 0.4 * pulse}))`;
+      rArc.style.filter = `drop-shadow(0 0 18px rgba(52,211,153,${0.7 + 0.3 * pulse})) drop-shadow(0 0 6px rgba(52,211,153,0.9))`;
       if (rGlow) {
         rGlow.setAttribute("r", "192");
         rGlow.setAttribute("stroke", "#34D399");
-        rGlow.setAttribute("stroke-width", "8");
-        rGlow.setAttribute("opacity", String(0.15 + 0.15 * pulse));
-        rGlow.style.filter = `blur(6px)`;
+        rGlow.setAttribute("stroke-width", "14");
+        rGlow.setAttribute("stroke-dasharray", "16 8");
+        rGlow.setAttribute("stroke-dashoffset", String(-offset));
+        rGlow.setAttribute("transform", "rotate(-90)");
+        rGlow.setAttribute("opacity", String(0.25 + 0.2 * pulse));
+        rGlow.style.filter = `blur(8px)`;
       }
     } else {
       rArc.setAttribute("opacity", "0");
@@ -3381,7 +3384,7 @@ function resolveDialAngle(rawAngle) {
 }
 
 function onSwipeMove(ev) {
-  if (!swipeActive || !currentDecision || rouletteUsedThisJunction) return;
+  if (!swipeActive || !currentDecision || rouletteUsedThisJunction || rouletteAnimId) return;
   const rawAngle = getSvgAngle(ev);
   if (rawAngle === null) return;
   const angle = resolveDialAngle(rawAngle);
@@ -3571,7 +3574,7 @@ function startRoulette(velocity) {
 function onSwipeEnd() {
   if (!swipeActive) return;
   swipeActive = false;
-  if (rouletteUsedThisJunction) return;
+  if (rouletteUsedThisJunction || rouletteAnimId) return;
 
   const swipeVelocity = lastSwipeVelocity;
   lastNotchAngle = null;
@@ -3630,7 +3633,7 @@ function spawnRipple(clientX, clientY) {
 document.addEventListener("DOMContentLoaded", () => {
   const area = document.getElementById("junctionArea");
   area.addEventListener("touchstart", (ev) => {
-    if (!currentDecision) return;
+    if (!currentDecision || rouletteAnimId) return;
     ensureAudioCtx();
     swipeActive = true;
     previewBranchId = null;
@@ -3645,7 +3648,7 @@ document.addEventListener("DOMContentLoaded", () => {
   area.addEventListener("touchend", onSwipeEnd);
   area.addEventListener("touchcancel", onSwipeEnd);
   area.addEventListener("mousedown", (ev) => {
-    if (!currentDecision) return;
+    if (!currentDecision || rouletteAnimId) return;
     ensureAudioCtx();
     swipeActive = true;
     previewBranchId = null;

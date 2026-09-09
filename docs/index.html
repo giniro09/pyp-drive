@@ -198,11 +198,12 @@
   #rouletteIndicator {
     display: none; position: fixed; z-index: 86;
     pointer-events: none; text-align: center;
-    font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+    font-size: 22px; line-height: 1;
     transition: top 0.3s ease-out;
   }
-  #rouletteIndicator.ready { display: block; color: #00C8E8; animation: roulettePulse 2s ease-in-out infinite; }
-  #rouletteIndicator.used { display: block; color: #555; }
+  #rouletteIndicator.ready { display: block; animation: roulettePulse 2s ease-in-out infinite; }
+  #rouletteIndicator.used { display: block; opacity: 0.25; }
+  #rouletteIndicator.locked { display: block; opacity: 0.15; }
   @keyframes roulettePulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
 
   /* ===== Cruise distance counter ===== */
@@ -1259,7 +1260,7 @@ function syncCruisePosition() {
   const jArea = document.getElementById("junctionArea");
   if (wrap && jArea && jArea.style.display !== "none") {
     const rect = wrap.getBoundingClientRect();
-    counter.style.bottom = Math.max(8, window.innerHeight - rect.bottom + 8) + "px";
+    counter.style.bottom = Math.max(8, window.innerHeight - rect.bottom + 56) + "px";
     counter.style.left = (rect.left + rect.width / 2) + "px";
   } else {
     counter.style.bottom = "56px";
@@ -1299,12 +1300,13 @@ function updateRouletteIndicator() {
     el.className = ""; el.style.display = "none"; return;
   }
   const tooClose = displayDistanceM !== null && displayDistanceM < 100;
+  el.textContent = "🎰";
   if (rouletteUsedThisJunction) {
-    el.textContent = "ROULETTE USED"; el.className = "used";
+    el.className = "used";
   } else if (tooClose) {
-    el.textContent = "ROULETTE LOCKED"; el.className = "used";
+    el.className = "locked";
   } else {
-    el.textContent = "ROULETTE READY"; el.className = "ready";
+    el.className = "ready";
   }
   syncRoulettePosition();
 }
@@ -2610,25 +2612,32 @@ function drawJunction(decision) {
       const tagY = ly + labelOffset + roadOffset;
       const slideOx = Math.sin(rad) * 15;
       const slideOy = -Math.cos(rad) * 15;
-      let tagText, tagColor, showTag = true;
+      let tagText, tagColor, showTag = true, tagSize = 17;
       const streakMults = [1.0, 1.5, 2.0, 3.0, 4.0, 5.0];
       const sMult = streakMults[Math.min(consecutiveStraights, streakMults.length - 1)];
       if (rouletteUsedThisJunction) {
         if (b.id === rouletteBranchId) {
-          tagText = "×?? 🎰"; tagColor = "#F59E0B";
+          tagText = "🎰 ×??"; tagColor = "#F59E0B"; tagSize = 19;
         } else {
           showTag = false;
         }
       } else if (b.id === defaultBrId) {
-        tagText = "RISK " + Math.round(bustProb * 100) + "%";
-        if (sMult > 1) tagText += " (×" + sMult.toFixed(1) + "育成中)";
-        tagColor = "#EF4444";
+        const pct = Math.round(bustProb * 100);
+        tagText = "⚠ " + pct + "%";
+        tagColor = pct >= 50 ? "#EF4444" : "#F59E0B";
+        tagSize = 19;
+        if (sMult > 1) {
+          html += `<text x="${lx+tx}" y="${tagY + 18}" text-anchor="${anchor}"
+            fill="#F59E0B" font-size="15" font-weight="700"
+            style="pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.15s,transform 0.3s ease-out 0.15s"
+            class="branch-label-anim">×${sMult.toFixed(1)}</text>`;
+        }
       } else {
         tagText = "×" + sMult.toFixed(1);
         tagColor = sMult > 1 ? "#F59E0B" : "#34D399";
       }
       if (showTag) html += `<text x="${lx+tx}" y="${tagY}" text-anchor="${anchor}"
-        fill="${tagColor}" font-size="13" font-weight="700"
+        fill="${tagColor}" font-size="${tagSize}" font-weight="700"
         style="pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
         class="branch-label-anim">${tagText}</text>`;
     }

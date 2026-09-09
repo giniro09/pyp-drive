@@ -2344,12 +2344,12 @@ function interpolationLoop(now) {
       if (tooClose) {
         rArc.setAttribute("opacity", "0");
       } else {
-        const pulse = 0.3 + 0.3 * Math.sin(performance.now() / 400);
+        const pulse = 0.3 + 0.7 * Math.abs(Math.sin(performance.now() / 600));
         rArc.setAttribute("opacity", String(pulse));
         rArc.setAttribute("stroke", "#00C8E8");
         rArc.setAttribute("stroke-dasharray", `${circ} 0`);
         rArc.setAttribute("transform", "rotate(-90)");
-        rArc.style.filter = `drop-shadow(0 0 6px rgba(0,200,232,0.5))`;
+        rArc.style.filter = `drop-shadow(0 0 10px rgba(0,200,232,0.7))`;
       }
     } else if (rouletteUsedThisJunction && rouletteBranchId && currentDecision) {
       const branch = currentDecision.branches.find(b => b.id === rouletteBranchId);
@@ -2360,9 +2360,9 @@ function interpolationLoop(now) {
         rArc.setAttribute("stroke-dasharray", `${segLen} ${circ - segLen}`);
         rArc.setAttribute("transform", `rotate(${startDeg})`);
         rArc.setAttribute("stroke", "#F59E0B");
-        const pulse = 0.5 + 0.3 * Math.sin(performance.now() / 500);
+        const pulse = 0.4 + 0.6 * Math.abs(Math.sin(performance.now() / 500));
         rArc.setAttribute("opacity", String(pulse));
-        rArc.style.filter = `drop-shadow(0 0 8px rgba(245,158,11,0.5))`;
+        rArc.style.filter = `drop-shadow(0 0 12px rgba(245,158,11,0.7))`;
       }
     } else {
       rArc.setAttribute("opacity", "0");
@@ -2460,7 +2460,7 @@ function drawJunction(decision) {
     stroke="#2563AA" stroke-width="5" stroke-linecap="round"
     transform="rotate(-90)" style="transition:stroke 0.3s,stroke-dasharray 0.15s"/>`;
   html += `<circle id="rouletteArc" cx="0" cy="0" r="192" fill="none"
-    stroke="#00C8E8" stroke-width="3" stroke-linecap="round"
+    stroke="#00C8E8" stroke-width="5" stroke-linecap="round"
     stroke-dasharray="0 9999" opacity="0"
     style="transition:opacity 0.4s,stroke 0.3s"/>`;
   html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#151C29" stroke-width="1"/>`;

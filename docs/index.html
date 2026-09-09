@@ -2339,36 +2339,31 @@ function interpolationLoop(now) {
   const rArc = document.getElementById("rouletteArc");
   if (rArc && settings.roulette) {
     const circ = 2 * Math.PI * 192;
-    if (!rouletteUsedThisJunction && !rouletteAnimId) {
-      const tooClose = displayDistanceM !== null && displayDistanceM < 100;
-      if (tooClose) {
-        rArc.setAttribute("opacity", "0");
-      } else {
-        const pulse = 0.3 + 0.7 * Math.abs(Math.sin(performance.now() / 600));
-        rArc.setAttribute("opacity", String(pulse));
-        rArc.setAttribute("stroke", "#00C8E8");
-        rArc.setAttribute("stroke-dasharray", `${circ} 0`);
-        rArc.setAttribute("transform", "rotate(-90)");
-        rArc.style.filter = `drop-shadow(0 0 10px rgba(0,200,232,0.7))`;
-      }
-    } else if (rouletteUsedThisJunction && rouletteBranchId && currentDecision) {
-      const branch = currentDecision.branches.find(b => b.id === rouletteBranchId);
-      if (branch) {
-        const segDeg = 40;
-        const segLen = circ * segDeg / 360;
-        const startDeg = branch.angleDeg - segDeg / 2 - 90;
-        rArc.setAttribute("stroke-dasharray", `${segLen} ${circ - segLen}`);
-        rArc.setAttribute("transform", `rotate(${startDeg})`);
-        rArc.setAttribute("stroke", "#F59E0B");
-        const pulse = 0.4 + 0.6 * Math.abs(Math.sin(performance.now() / 500));
-        rArc.setAttribute("opacity", String(pulse));
-        rArc.style.filter = `drop-shadow(0 0 12px rgba(245,158,11,0.7))`;
-      }
+    const showReady = !rouletteUsedThisJunction && !rouletteAnimId;
+    const tooClose = displayDistanceM !== null && displayDistanceM < 100;
+    if (showReady && !tooClose) {
+      const pulse = 0.3 + 0.7 * Math.abs(Math.sin(performance.now() / 600));
+      rArc.setAttribute("opacity", String(pulse));
+      rArc.setAttribute("stroke", "#00C8E8");
+      rArc.setAttribute("stroke-dasharray", `${circ} 0`);
+      rArc.setAttribute("transform", "rotate(-90)");
+      rArc.style.filter = `drop-shadow(0 0 10px rgba(0,200,232,0.7))`;
     } else {
       rArc.setAttribute("opacity", "0");
     }
   } else if (document.getElementById("rouletteArc")) {
     document.getElementById("rouletteArc").setAttribute("opacity", "0");
+  }
+
+  if (rouletteUsedThisJunction && rouletteBranchId) {
+    const dot = document.getElementById("road_" + rouletteBranchId);
+    if (dot) {
+      const pulse = 0.5 + 0.5 * Math.abs(Math.sin(performance.now() / 400));
+      const r = 10 + 4 * pulse;
+      dot.setAttribute("r", String(r));
+      dot.setAttribute("fill", "#00C8E8");
+      dot.style.filter = `drop-shadow(0 0 ${8 + 8 * pulse}px rgba(0,200,232,${0.5 + 0.4 * pulse}))`;
+    }
   }
 }
 

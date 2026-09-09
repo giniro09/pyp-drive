@@ -3467,8 +3467,9 @@ function showRouletteMultOverlay(mult) {
   }
   el.textContent = "×" + mult.toFixed(1);
   el.classList.remove("show");
-  void el.offsetWidth;
-  el.classList.add("show");
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.classList.add("show");
+  }));
 }
 
 function hideRouletteMultOverlay() {

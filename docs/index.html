@@ -2648,13 +2648,21 @@ function drawJunction(decision) {
       const slideOx = Math.sin(rad) * 15;
       const slideOy = -Math.cos(rad) * 15;
       let tagText, tagColor, showTag = true, tagSize = 17;
-      if (rouletteUsedThisJunction) {
-        if (b.id === rouletteBranchId && branchMults[b.id]) {
-          tagText = "×" + branchMults[b.id].toFixed(1);
-          tagColor = "#34D399";
-          tagSize = 20;
-        } else {
+      if (rouletteAnimId) {
+        showTag = false;
+      } else if (rouletteUsedThisJunction) {
+        if (b.id === defaultBrId) {
           showTag = false;
+        } else {
+          const bm = branchMults[b.id];
+          if (bm !== undefined) {
+            const isWinner = b.id === rouletteBranchId;
+            tagText = "×" + bm.toFixed(1);
+            tagColor = isWinner ? "#34D399" : "#6B7280";
+            tagSize = isWinner ? 22 : 15;
+          } else {
+            showTag = false;
+          }
         }
       } else if (b.id === defaultBrId) {
         const pct = Math.round(bustProb * 100);
@@ -3619,6 +3627,7 @@ function startRoulette(velocity) {
     }
   }
   rouletteAnimId = requestAnimationFrame(tick);
+  if (currentDecision) drawJunction(currentDecision);
   return true;
 }
 

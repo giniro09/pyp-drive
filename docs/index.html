@@ -364,6 +364,16 @@
   }
   .cruise-sub.risk { color: #EF4444; font-weight: 700; font-size: 13px; }
 
+  #rouletteMult {
+    position: fixed; transform: translate(-50%, -50%);
+    display: none; text-align: center;
+    pointer-events: none; z-index: 95;
+    font-size: 48px; font-weight: 900;
+    color: #F59E0B; text-shadow: 0 0 24px rgba(245,158,11,0.5);
+    letter-spacing: -0.02em;
+  }
+  #rouletteMult.show { display: block; animation: judgePop 0.4s ease-out; }
+
   .footer {
     padding: 8px 24px; background: #111827; border-top: 1px solid #252F42;
     display: flex; justify-content: space-between;
@@ -659,6 +669,7 @@
   <div id="bustJudge">
     <div class="judge-result" id="judgeResult"></div>
   </div>
+  <div id="rouletteMult"></div>
 
   <!-- Container / Loot overlay -->
   <div id="containerOverlay">
@@ -2188,6 +2199,8 @@ function processPosition(lat, lon, heading, speed) {
       manuallySelected = false;
       rouletteUsedThisJunction = false;
       rouletteBranchId = null;
+      currentRouletteMult = 1.0;
+      hideRouletteMultOverlay();
       lastAcceptedDecisionDistAcc = 0;
       dialFixedAngle = 0;
       lastAlertThreshold = null;
@@ -2243,6 +2256,8 @@ function processPosition(lat, lon, heading, speed) {
     manuallySelected = false;
     rouletteUsedThisJunction = false;
     rouletteBranchId = null;
+    currentRouletteMult = 1.0;
+    hideRouletteMultOverlay();
     displayDistanceM = null;
     updateRouletteIndicator();
     document.getElementById("distance").textContent = "---";
@@ -2976,7 +2991,7 @@ function resolveJunctionReward(wasManual, wasRoulette) {
   updateRiskDisplay();
   const stakeM = Math.floor(cruiseDistanceM);
   if (stakeM < 10) { cruiseDistanceM = 0; lastCruiseTier = -1; updateCruiseDisplay(); return; }
-  const rouletteMult = wasRoulette ? (1.0 + Math.random() * 3.0) : 1.0;
+  const rouletteMult = wasRoulette ? currentRouletteMult : 1.0;
   const totalMult = streakMult * rouletteMult;
   const effectiveStake = Math.floor(stakeM * totalMult);
   totalSessionScore += effectiveStake;
@@ -3431,6 +3446,7 @@ function forceFinishRoulette() {
   if (rouletteWinner) {
     rouletteUsedThisJunction = true;
     rouletteBranchId = rouletteWinner.id;
+    currentRouletteMult = Math.round((1.0 + Math.random() * 3.0) * 10) / 10;
     dialFixedAngle = rouletteWinner.angleDeg;
     lastChoiceWasRoulette = true;
     chooseBranch(rouletteWinner.id);
@@ -3442,6 +3458,27 @@ function forceFinishRoulette() {
 }
 
 let rouletteWinner = null;
+let currentRouletteMult = 1.0;
+
+function showRouletteMultOverlay(mult) {
+  const el = document.getElementById("rouletteMult");
+  if (!el) return;
+  const wrap = document.getElementById("dialWrap");
+  if (wrap) {
+    const rect = wrap.getBoundingClientRect();
+    el.style.top = (rect.top + rect.height / 2) + "px";
+    el.style.left = (rect.left + rect.width / 2) + "px";
+  }
+  el.textContent = "×" + mult.toFixed(1);
+  el.classList.remove("show");
+  void el.offsetWidth;
+  el.classList.add("show");
+}
+
+function hideRouletteMultOverlay() {
+  const el = document.getElementById("rouletteMult");
+  if (el) el.classList.remove("show");
+}
 
 function startRoulette(velocity) {
   if (!currentDecision || currentDecision.branches.length < 2) return false;
@@ -3508,10 +3545,12 @@ function startRoulette(velocity) {
       rouletteAnimId = null;
       rouletteUsedThisJunction = true;
       rouletteBranchId = winner.id;
+      currentRouletteMult = Math.round((1.0 + Math.random() * 3.0) * 10) / 10;
       dialFixedAngle = targetAngle;
       animateDialSnap(ring, targetAngle);
       if (settings.soundConfirm) playConfirm();
       flashConfirmRoad(winner.id);
+      showRouletteMultOverlay(currentRouletteMult);
       lastChoiceWasRoulette = true;
       chooseBranch(winner.id);
       previewBranchId = null;

@@ -2455,13 +2455,16 @@ function drawJunction(decision) {
       } else if (pre) {
         bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="9" fill="#55D9EC" style="cursor:pointer;filter:drop-shadow(0 0 6px rgba(85,217,236,0.5))"/>`;
         bezelHtml += `<circle cx="${dx}" cy="${dy}" r="4.5" fill="#C0F5FB" style="pointer-events:none"/>`;
+      } else if (rouletteUsedThisJunction) {
+        bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="7" fill="#1A1F2A" stroke="#333" stroke-width="1.5" opacity="0.3" style="pointer-events:none"/>`;
       } else {
         bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="9" fill="#1E3044" stroke="#5B9AB5" stroke-width="2.5" style="cursor:pointer;filter:drop-shadow(0 0 4px rgba(91,154,181,0.4))"/>`;
         bezelHtml += `<circle cx="${dx}" cy="${dy}" r="3" fill="#5B9AB5" opacity="0.6" style="pointer-events:none"/>`;
       }
 
-      const lFill = sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
-      const rnFill = sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
+      const dimmed = rouletteUsedThisJunction && !sel;
+      const lFill = dimmed ? "#444" : sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
+      const rnFill = dimmed ? "#333" : sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
       const labelD = settings.labelDist;
       const lx = Math.sin(rad) * labelD, ly = -Math.cos(rad) * labelD;
       const anchor = Math.abs(b.angleDeg) < 30 ? "middle" : b.angleDeg > 0 ? "start" : "end";
@@ -2561,18 +2564,21 @@ function drawJunction(decision) {
       const tagY = ly + (settings.minimalUI ? 24 : 26) + roadOffset;
       const slideOx = Math.sin(rad) * 15;
       const slideOy = -Math.cos(rad) * 15;
-      let tagText, tagColor;
-      if (b.id === defaultBrId) {
+      let tagText, tagColor, showTag = true;
+      if (rouletteUsedThisJunction) {
+        if (b.id === rouletteBranchId) {
+          tagText = "×2.5"; tagColor = "#F59E0B";
+        } else {
+          showTag = false;
+        }
+      } else if (b.id === defaultBrId) {
         tagText = "RISK " + Math.round(bustProb * 100) + "%";
         tagColor = "#EF4444";
-      } else if (settings.roulette) {
-        tagText = "×1.0 / ×2.5";
-        tagColor = "#34D399";
       } else {
         tagText = "×1.0";
         tagColor = "#34D399";
       }
-      html += `<text x="${lx+tx}" y="${tagY}" text-anchor="${anchor}"
+      if (showTag) html += `<text x="${lx+tx}" y="${tagY}" text-anchor="${anchor}"
         fill="${tagColor}" font-size="13" font-weight="700"
         style="pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
         class="branch-label-anim">${tagText}</text>`;
@@ -2590,11 +2596,15 @@ function drawJunction(decision) {
 
   if (settings.roulette) {
     if (rouletteUsedThisJunction) {
-      html += `<circle cx="0" cy="0" r="192" fill="none" stroke="rgba(100,100,100,0.2)" stroke-width="2" stroke-dasharray="4 4" style="pointer-events:none"/>`;
+      html += `<text x="0" y="-190" text-anchor="middle" fill="#555" font-size="11" font-weight="600" style="pointer-events:none;letter-spacing:0.1em">ROULETTE USED</text>`;
     } else {
-      html += `<circle cx="0" cy="0" r="192" fill="none" stroke="rgba(0,200,232,0.35)" stroke-width="2.5" style="pointer-events:none">
-        <animate attributeName="stroke-opacity" values="0.2;0.5;0.2" dur="2s" repeatCount="indefinite"/>
+      html += `<circle cx="0" cy="0" r="193" fill="none" stroke="#00C8E8" stroke-width="3" stroke-dasharray="12 6" style="pointer-events:none">
+        <animate attributeName="stroke-dashoffset" values="0;-36" dur="1.5s" repeatCount="indefinite"/>
+        <animate attributeName="stroke-opacity" values="0.4;0.8;0.4" dur="2s" repeatCount="indefinite"/>
       </circle>`;
+      html += `<text x="0" y="-196" text-anchor="middle" fill="#00C8E8" font-size="12" font-weight="700" style="pointer-events:none;letter-spacing:0.08em">
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite"/>
+        ROULETTE READY</text>`;
     }
   }
 
@@ -2648,6 +2658,14 @@ function applyBranchHighlight(branches) {
       if (casing) casing.setAttribute("opacity", "1");
       if (label) label.setAttribute("fill", "#BCEFF5");
       if (roadname) roadname.setAttribute("fill", "#7FB7C2");
+    } else if (rouletteUsedThisJunction) {
+      road.setAttribute("stroke", "#2A3040");
+      road.setAttribute("stroke-width", "10");
+      road.setAttribute("opacity", ".3");
+      road.style.filter = "";
+      if (casing) { casing.setAttribute("opacity", ".3"); casing.setAttribute("stroke-width", "10"); }
+      if (label) { label.setAttribute("fill", "#555"); label.setAttribute("opacity", "0.3"); }
+      if (roadname) { roadname.setAttribute("fill", "#444"); roadname.setAttribute("opacity", "0.3"); }
     } else {
       road.setAttribute("stroke", "#465166");
       road.setAttribute("stroke-width", "15");
@@ -3303,7 +3321,7 @@ function resolveDialAngle(rawAngle) {
 }
 
 function onSwipeMove(ev) {
-  if (!swipeActive || !currentDecision) return;
+  if (!swipeActive || !currentDecision || rouletteUsedThisJunction) return;
   const rawAngle = getSvgAngle(ev);
   if (rawAngle === null) return;
   const angle = resolveDialAngle(rawAngle);
@@ -3447,6 +3465,7 @@ function startRoulette(velocity) {
 function onSwipeEnd() {
   if (!swipeActive) return;
   swipeActive = false;
+  if (rouletteUsedThisJunction) return;
 
   const swipeVelocity = lastSwipeVelocity;
   lastNotchAngle = null;

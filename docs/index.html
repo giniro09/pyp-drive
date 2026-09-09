@@ -194,18 +194,6 @@
   #junctionHud .hud-unit { font-size: 18px; color: #89AFC0; margin-left: 2px; }
   #junctionHud .hud-speed { font-size: 14px; color: var(--text-secondary); margin-top: 2px; }
 
-  /* ===== Roulette indicator (HTML overlay) ===== */
-  #rouletteIndicator {
-    display: none; position: fixed; z-index: 86;
-    pointer-events: none; text-align: center;
-    font-size: 22px; line-height: 1;
-    transition: top 0.3s ease-out;
-  }
-  #rouletteIndicator.ready { display: block; animation: roulettePulse 2s ease-in-out infinite; }
-  #rouletteIndicator.used { display: block; opacity: 0.25; }
-  #rouletteIndicator.locked { display: block; opacity: 0.15; }
-  @keyframes roulettePulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
-
   /* ===== Cruise distance counter ===== */
   #cruiseCounter {
     display: none; position: fixed; left: 50%;
@@ -663,7 +651,6 @@
     <div><span class="hud-distance" id="hudDistance">---</span><span class="hud-unit">m</span></div>
     <div class="hud-speed" id="hudSpeed"></div>
   </div>
-  <div id="rouletteIndicator"></div>
   <div id="cruiseCounter">
     <div><span class="cruise-value" id="cruiseValue">0</span><span class="cruise-unit">m</span></div>
     <div class="cruise-sub" id="cruiseSub"></div>
@@ -1265,7 +1252,6 @@ function applyDialLayout() {
   wrap.style.setProperty("--dial-oy", settings.dialOffsetY + "px");
   syncCruisePosition();
   syncHudPosition();
-  syncRoulettePosition();
 }
 
 function syncCruisePosition() {
@@ -1307,36 +1293,6 @@ function syncHudPosition() {
     const rect = wrap.getBoundingClientRect();
     hud.style.top = Math.max(4, rect.top - 80) + "px";
     hud.style.left = (rect.left + rect.width / 2) + "px";
-  }
-}
-
-function updateRouletteIndicator() {
-  const el = document.getElementById("rouletteIndicator");
-  if (!el) return;
-  if (!settings.roulette || !currentDecision) {
-    el.className = ""; el.style.display = "none"; return;
-  }
-  const tooClose = displayDistanceM !== null && displayDistanceM < 100;
-  el.textContent = "🎰";
-  if (rouletteUsedThisJunction) {
-    el.className = "used";
-  } else if (tooClose) {
-    el.className = "locked";
-  } else {
-    el.className = "ready";
-  }
-  syncRoulettePosition();
-}
-
-function syncRoulettePosition() {
-  const el = document.getElementById("rouletteIndicator");
-  if (!el || el.style.display === "none") return;
-  const wrap = document.getElementById("dialWrap");
-  if (wrap) {
-    const rect = wrap.getBoundingClientRect();
-    el.style.top = Math.max(4, rect.top - 20) + "px";
-    el.style.left = (rect.left + rect.width / 2) + "px";
-    el.style.transform = "translateX(-50%)";
   }
 }
 
@@ -2264,7 +2220,6 @@ function processPosition(lat, lon, heading, speed) {
     currentRouletteMult = 1.0;
     hideRouletteMultOverlay();
     displayDistanceM = null;
-    updateRouletteIndicator();
     document.getElementById("distance").textContent = "---";
     document.getElementById("distance").classList.remove("mid", "near");
     document.getElementById("distBar").style.width = "0%";
@@ -2356,7 +2311,6 @@ function interpolationLoop(now) {
     syncBgMapPosition();
     syncCruisePosition();
     syncHudPosition();
-    syncRoulettePosition();
   }
 
   // Distance arc on outer ring
@@ -2380,6 +2334,41 @@ function interpolationLoop(now) {
         : "";
       arc.style.filter = glow;
     }
+  }
+
+  const rArc = document.getElementById("rouletteArc");
+  if (rArc && settings.roulette) {
+    const circ = 2 * Math.PI * 192;
+    if (!rouletteUsedThisJunction && !rouletteAnimId) {
+      const tooClose = displayDistanceM !== null && displayDistanceM < 100;
+      if (tooClose) {
+        rArc.setAttribute("opacity", "0");
+      } else {
+        const pulse = 0.3 + 0.3 * Math.sin(performance.now() / 400);
+        rArc.setAttribute("opacity", String(pulse));
+        rArc.setAttribute("stroke", "#00C8E8");
+        rArc.setAttribute("stroke-dasharray", `${circ} 0`);
+        rArc.setAttribute("transform", "rotate(-90)");
+        rArc.style.filter = `drop-shadow(0 0 6px rgba(0,200,232,0.5))`;
+      }
+    } else if (rouletteUsedThisJunction && rouletteBranchId && currentDecision) {
+      const branch = currentDecision.branches.find(b => b.id === rouletteBranchId);
+      if (branch) {
+        const segDeg = 40;
+        const segLen = circ * segDeg / 360;
+        const startDeg = branch.angleDeg - segDeg / 2 - 90;
+        rArc.setAttribute("stroke-dasharray", `${segLen} ${circ - segLen}`);
+        rArc.setAttribute("transform", `rotate(${startDeg})`);
+        rArc.setAttribute("stroke", "#F59E0B");
+        const pulse = 0.5 + 0.3 * Math.sin(performance.now() / 500);
+        rArc.setAttribute("opacity", String(pulse));
+        rArc.style.filter = `drop-shadow(0 0 8px rgba(245,158,11,0.5))`;
+      }
+    } else {
+      rArc.setAttribute("opacity", "0");
+    }
+  } else if (document.getElementById("rouletteArc")) {
+    document.getElementById("rouletteArc").setAttribute("opacity", "0");
   }
 }
 
@@ -2470,6 +2459,10 @@ function drawJunction(decision) {
   html += `<circle id="distArc" cx="0" cy="0" r="185" fill="none"
     stroke="#2563AA" stroke-width="5" stroke-linecap="round"
     transform="rotate(-90)" style="transition:stroke 0.3s,stroke-dasharray 0.15s"/>`;
+  html += `<circle id="rouletteArc" cx="0" cy="0" r="192" fill="none"
+    stroke="#00C8E8" stroke-width="3" stroke-linecap="round"
+    stroke-dasharray="0 9999" opacity="0"
+    style="transition:opacity 0.4s,stroke 0.3s"/>`;
   html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#151C29" stroke-width="1"/>`;
 
   if (settings.dialTicks) {
@@ -2668,8 +2661,6 @@ function drawJunction(decision) {
       <circle cx="11" cy="0" r="4" fill="#394354"/>
     </g>`;
   }
-
-  updateRouletteIndicator();
 
   svg.innerHTML = html;
 

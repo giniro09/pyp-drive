@@ -250,6 +250,12 @@
     font-size: 20px; font-weight: 600; color: rgba(137,175,192,0.6);
     margin-left: 4px; transition: color 0.4s;
   }
+  .cruise-streak {
+    font-size: 16px; font-weight: 700; color: #F59E0B; margin-top: 2px;
+    letter-spacing: 0.02em; opacity: 0; transition: opacity 0.3s;
+    text-shadow: 0 0 8px rgba(245,158,11,0.4);
+  }
+  .cruise-streak.visible { opacity: 1; }
   .cruise-sub {
     font-size: 12px; color: var(--text-muted); margin-top: 2px;
     letter-spacing: 0.04em;
@@ -653,6 +659,7 @@
   </div>
   <div id="cruiseCounter">
     <div><span class="cruise-value" id="cruiseValue">0</span><span class="cruise-unit">m</span></div>
+    <div class="cruise-streak" id="cruiseStreak"></div>
     <div class="cruise-sub" id="cruiseSub"></div>
     <div class="cruise-total" id="cruiseTotal"></div>
   </div>
@@ -2160,12 +2167,13 @@ function processPosition(lat, lon, heading, speed) {
       manuallySelected = false;
       rouletteUsedThisJunction = false;
       rouletteBranchId = null;
-      currentRouletteMult = 1.0;
+
       hideRouletteMultOverlay();
       lastAcceptedDecisionDistAcc = 0;
       dialFixedAngle = 0;
       lastAlertThreshold = null;
       carMaxDistM = Math.max(decision.distanceM, 50);
+      generateBranchMults(decision.branches);
     }
     lastDecisionNodeId = decision.nodeId;
     lastAcceptedDecisionNodeId = decision.nodeId;
@@ -2217,7 +2225,6 @@ function processPosition(lat, lon, heading, speed) {
     manuallySelected = false;
     rouletteUsedThisJunction = false;
     rouletteBranchId = null;
-    currentRouletteMult = 1.0;
     hideRouletteMultOverlay();
     displayDistanceM = null;
     document.getElementById("distance").textContent = "---";
@@ -2641,24 +2648,28 @@ function drawJunction(decision) {
       const slideOx = Math.sin(rad) * 15;
       const slideOy = -Math.cos(rad) * 15;
       let tagText, tagColor, showTag = true, tagSize = 17;
-      const streakMults = [1.0, 1.5, 2.0, 3.0, 4.0, 5.0];
-      const sMult = streakMults[Math.min(consecutiveStraights, streakMults.length - 1)];
       if (rouletteUsedThisJunction) {
-        showTag = false;
+        if (b.id === rouletteBranchId && branchMults[b.id]) {
+          tagText = "×" + branchMults[b.id].toFixed(1);
+          tagColor = "#34D399";
+          tagSize = 20;
+        } else {
+          showTag = false;
+        }
       } else if (b.id === defaultBrId) {
         const pct = Math.round(bustProb * 100);
         tagText = "⚠ " + pct + "%";
         tagColor = pct >= 50 ? "#EF4444" : "#F59E0B";
         tagSize = 19;
-        if (sMult > 1) {
-          html += `<text x="${lx+tx}" y="${tagY + 18}" text-anchor="${anchor}"
-            fill="#F59E0B" font-size="15" font-weight="700"
-            style="pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.15s,transform 0.3s ease-out 0.15s"
-            class="branch-label-anim">×${sMult.toFixed(1)}</text>`;
-        }
       } else {
-        tagText = "×" + sMult.toFixed(1);
-        tagColor = sMult > 1 ? "#F59E0B" : "#34D399";
+        const bm = branchMults[b.id];
+        if (bm !== undefined) {
+          tagText = "×" + bm.toFixed(1);
+          tagColor = bm >= 1.5 ? "#F59E0B" : bm >= 1.0 ? "#34D399" : "#9CA3AF";
+          tagSize = 20;
+        } else {
+          showTag = false;
+        }
       }
       if (showTag) html += `<text x="${lx+tx}" y="${tagY}" text-anchor="${anchor}"
         fill="${tagColor}" font-size="${tagSize}" font-weight="700"
@@ -2941,6 +2952,17 @@ function updateCruiseDisplay() {
     totalEl.textContent = totalSessionScore.toLocaleString() + " pts";
     totalEl.classList.toggle("glow", totalSessionScore >= 2000);
   }
+  const streakEl = document.getElementById("cruiseStreak");
+  if (streakEl) {
+    const streakMultipliers = [1.0, 1.5, 2.0, 3.0, 4.0, 5.0];
+    const sMult = streakMultipliers[Math.min(consecutiveStraights, streakMultipliers.length - 1)];
+    if (consecutiveStraights > 0) {
+      streakEl.textContent = "STREAK ×" + sMult.toFixed(1);
+      streakEl.classList.add("visible");
+    } else {
+      streakEl.classList.remove("visible");
+    }
+  }
 }
 
 function convertStake() {
@@ -2969,6 +2991,33 @@ function convertStake() {
 
 let consecutiveStraights = 0;
 const BUST_CHANCES = [0.10, 0.25, 0.50, 0.80, 1.0];
+let branchMults = {};
+
+function generateBranchMults(branches) {
+  const nonDefault = branches.filter(b => b.id !== pickDefaultBranch(branches));
+  if (nonDefault.length === 0) { branchMults = {}; return; }
+  const pool = nonDefault.length * (0.8 + Math.random() * 0.7);
+  const raw = nonDefault.map(() => 0.3 + Math.random());
+  const sum = raw.reduce((a, b) => a + b, 0);
+  branchMults = {};
+  nonDefault.forEach((b, i) => {
+    branchMults[b.id] = Math.round((raw[i] / sum * pool) * 10) / 10;
+  });
+}
+
+function rerollBranchMults(branches) {
+  const nonDefault = branches.filter(b => b.id !== pickDefaultBranch(branches));
+  if (nonDefault.length === 0) return;
+  const oldPool = Object.values(branchMults).reduce((a, b) => a + b, 0) || nonDefault.length;
+  const boost = 1.5 + Math.random() * 0.5;
+  const newPool = Math.round(oldPool * boost * 10) / 10;
+  const raw = nonDefault.map(() => 0.1 + Math.random());
+  const sum = raw.reduce((a, b) => a + b, 0);
+  branchMults = {};
+  nonDefault.forEach((b, i) => {
+    branchMults[b.id] = Math.round((raw[i] / sum * newPool) * 10) / 10;
+  });
+}
 
 function getNextBustProb() {
   return BUST_CHANCES[Math.min(consecutiveStraights, BUST_CHANCES.length - 1)];
@@ -2997,11 +3046,11 @@ function resolveJunctionReward(wasManual, wasRoulette) {
   updateRiskDisplay();
   const stakeM = Math.floor(cruiseDistanceM);
   if (stakeM < 10) { cruiseDistanceM = 0; lastCruiseTier = -1; updateCruiseDisplay(); return; }
-  const rouletteMult = wasRoulette ? currentRouletteMult : 1.0;
-  const totalMult = streakMult * rouletteMult;
+  const dirMult = branchMults[selectedBranchId] || 1.0;
+  const totalMult = streakMult * dirMult;
   const effectiveStake = Math.floor(stakeM * totalMult);
   totalSessionScore += effectiveStake;
-  showRewardToast(effectiveStake, wasRoulette, streakMult, rouletteMult);
+  showRewardToast(effectiveStake, wasRoulette, streakMult, dirMult);
   const rewardTier = effectiveStake >= 500 ? 3 : effectiveStake >= 300 ? 2 : effectiveStake >= 100 ? 1 : 0;
   scheduleRewardContainer(rewardTier, wasRoulette);
   cruiseDistanceM = 0;
@@ -3455,7 +3504,7 @@ function forceFinishRoulette() {
   if (rouletteWinner) {
     rouletteUsedThisJunction = true;
     rouletteBranchId = rouletteWinner.id;
-    currentRouletteMult = Math.round((1.0 + Math.random() * 3.0) * 10) / 10;
+    if (currentDecision) rerollBranchMults(currentDecision.branches);
     dialFixedAngle = rouletteWinner.angleDeg;
     lastChoiceWasRoulette = true;
     chooseBranch(rouletteWinner.id);
@@ -3467,7 +3516,7 @@ function forceFinishRoulette() {
 }
 
 let rouletteWinner = null;
-let currentRouletteMult = 1.0;
+
 
 function showRouletteMultOverlay(mult) {
   const el = document.getElementById("rouletteMult");
@@ -3555,16 +3604,18 @@ function startRoulette(velocity) {
       rouletteAnimId = null;
       rouletteUsedThisJunction = true;
       rouletteBranchId = winner.id;
-      currentRouletteMult = Math.round((1.0 + Math.random() * 3.0) * 10) / 10;
+      rerollBranchMults(currentDecision.branches);
+      const winnerMult = branchMults[winner.id] || 1.0;
       dialFixedAngle = targetAngle;
       animateDialSnap(ring, targetAngle);
       if (settings.soundConfirm) playConfirm();
       flashConfirmRoad(winner.id);
-      showRouletteMultOverlay(currentRouletteMult);
+      showRouletteMultOverlay(winnerMult);
       lastChoiceWasRoulette = true;
       chooseBranch(winner.id);
       previewBranchId = null;
       rouletteWinner = null;
+      if (currentDecision) drawJunction(currentDecision);
     }
   }
   rouletteAnimId = requestAnimationFrame(tick);

@@ -297,7 +297,7 @@
     100% { opacity: 0; transform: translateY(-30px); }
   }
   #stakeToast {
-    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    position: fixed; transform: translate(-50%, -50%);
     font-size: 36px; font-weight: 900;
     pointer-events: none; z-index: 95; display: none;
   }
@@ -3005,9 +3005,12 @@ function showRewardToast(amount, wasRoulette, streakMult, rouletteMult) {
   const tierGlows = ["none", "0 0 16px rgba(52,211,153,0.3)", "0 0 20px rgba(192,132,252,0.4)", "0 0 24px rgba(245,158,11,0.5)"];
   playStakeConvert();
   const toast = document.getElementById("stakeToast");
-  let multLabel = "";
-  if (streakMult > 1) multLabel += " ×" + streakMult.toFixed(1);
-  if (wasRoulette) multLabel += " 🎰×" + rouletteMult.toFixed(1);
+  const wrap = document.getElementById("dialWrap");
+  if (wrap) {
+    const rect = wrap.getBoundingClientRect();
+    toast.style.top = (rect.top + rect.height / 2) + "px";
+    toast.style.left = (rect.left + rect.width / 2) + "px";
+  }
   toast.textContent = "+" + amount.toLocaleString() + " pts";
   toast.style.color = tierColors[tier];
   toast.style.textShadow = tierGlows[tier];

@@ -2142,6 +2142,8 @@ function processPosition(lat, lon, heading, speed) {
       }
       selectedBranchId = null;
       manuallySelected = false;
+      rouletteUsedThisJunction = false;
+      rouletteBranchId = null;
       lastAcceptedDecisionDistAcc = 0;
       dialFixedAngle = 0;
       lastAlertThreshold = null;
@@ -2194,6 +2196,8 @@ function processPosition(lat, lon, heading, speed) {
     currentDecision = null;
     selectedBranchId = null;
     manuallySelected = false;
+    rouletteUsedThisJunction = false;
+    rouletteBranchId = null;
     displayDistanceM = null;
     document.getElementById("distance").textContent = "---";
     document.getElementById("distance").classList.remove("mid", "near");
@@ -2224,6 +2228,7 @@ function processPosition(lat, lon, heading, speed) {
 
 function chooseBranch(branchId) {
   if (!currentDecision) return;
+  if (rouletteUsedThisJunction && branchId !== rouletteBranchId) return;
   selectedBranchId = branchId;
   manuallySelected = true;
   currentDecision.branches = currentDecision.branches.map(b => ({
@@ -2583,6 +2588,16 @@ function drawJunction(decision) {
     </g>`;
   }
 
+  if (settings.roulette) {
+    if (rouletteUsedThisJunction) {
+      html += `<circle cx="0" cy="0" r="192" fill="none" stroke="rgba(100,100,100,0.2)" stroke-width="2" stroke-dasharray="4 4" style="pointer-events:none"/>`;
+    } else {
+      html += `<circle cx="0" cy="0" r="192" fill="none" stroke="rgba(0,200,232,0.35)" stroke-width="2.5" style="pointer-events:none">
+        <animate attributeName="stroke-opacity" values="0.2;0.5;0.2" dur="2s" repeatCount="indefinite"/>
+      </circle>`;
+    }
+  }
+
   svg.innerHTML = html;
 
   // Trigger label slide-in animation after DOM paint
@@ -2885,6 +2900,11 @@ function updateRiskDisplay() {
 }
 
 function resolveJunctionReward(wasManual, wasRoulette) {
+  if (wasRoulette && rouletteBranchId && selectedBranchId !== rouletteBranchId) {
+    triggerBust();
+    consecutiveStraights = 0;
+    return;
+  }
   if (!wasManual && !wasRoulette) {
     consecutiveStraights++;
     const bustProb = BUST_CHANCES[Math.min(consecutiveStraights - 1, BUST_CHANCES.length - 1)];
@@ -3345,8 +3365,11 @@ function flashConfirmRoad(branchId) {
 }
 
 let rouletteAnimId = null;
+let rouletteUsedThisJunction = false;
+let rouletteBranchId = null;
 function startRoulette(velocity) {
   if (!currentDecision || currentDecision.branches.length < 2) return false;
+  if (rouletteUsedThisJunction) return false;
   const ring = document.getElementById("dialRing");
   if (!ring) return false;
 
@@ -3406,6 +3429,8 @@ function startRoulette(velocity) {
       rouletteAnimId = requestAnimationFrame(tick);
     } else {
       rouletteAnimId = null;
+      rouletteUsedThisJunction = true;
+      rouletteBranchId = winner.id;
       dialFixedAngle = targetAngle;
       animateDialSnap(ring, targetAngle);
       if (settings.soundConfirm) playConfirm();

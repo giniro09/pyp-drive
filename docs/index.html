@@ -340,7 +340,7 @@
     animation: bustToastAnim 1.4s ease-out forwards;
   }
   #bustJudge {
-    position: fixed; left: 50%; transform: translateX(-50%);
+    position: fixed; transform: translate(-50%, -50%);
     display: none; text-align: center;
     pointer-events: none; z-index: 96;
   }
@@ -3016,7 +3016,8 @@ function showBustJudge(prob, isBust) {
   const wrap = document.getElementById("dialWrap");
   if (wrap) {
     const rect = wrap.getBoundingClientRect();
-    judge.style.top = (rect.top + rect.height / 2 - 20) + "px";
+    judge.style.top = (rect.top + rect.height / 2) + "px";
+    judge.style.left = (rect.left + rect.width / 2) + "px";
   }
   resultEl.textContent = "";
   resultEl.className = "judge-result";

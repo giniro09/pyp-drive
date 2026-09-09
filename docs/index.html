@@ -340,12 +340,11 @@
     animation: bustToastAnim 1.4s ease-out forwards;
   }
   #bustJudge {
-    position: fixed; left: 0; right: 0;
-    display: none; flex-direction: column; align-items: center; justify-content: center;
+    position: fixed; left: 50%; transform: translateX(-50%);
+    display: none; text-align: center;
     pointer-events: none; z-index: 96;
-    transition: top 0.3s ease-out;
   }
-  #bustJudge.show { display: flex; }
+  #bustJudge.show { display: block; }
   #bustJudge .judge-result {
     font-size: 36px; font-weight: 900;
     letter-spacing: 0.12em;

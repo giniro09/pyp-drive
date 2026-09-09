@@ -329,7 +329,7 @@
     animation: bustToastAnim 1.4s ease-out forwards;
   }
   #bustJudge {
-    position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
+    position: fixed; top: 40%; left: 0; right: 0;
     text-align: center; pointer-events: none; z-index: 96; display: none;
   }
   #bustJudge .judge-prob {
@@ -2809,7 +2809,6 @@ function updateCruiseDisplay() {
     el.classList.add("pulse");
   }
   lastCruiseTier = tier;
-  subEl.textContent = "";
   if (totalSessionDistM > 0) {
     const tm = Math.floor(totalSessionDistM);
     totalEl.textContent = tm.toLocaleString() + " m";

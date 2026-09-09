@@ -194,6 +194,17 @@
   #junctionHud .hud-unit { font-size: 18px; color: #89AFC0; margin-left: 2px; }
   #junctionHud .hud-speed { font-size: 14px; color: var(--text-secondary); margin-top: 2px; }
 
+  /* ===== Roulette indicator (HTML overlay) ===== */
+  #rouletteIndicator {
+    display: none; position: fixed; z-index: 86;
+    pointer-events: none; text-align: center;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+    transition: top 0.3s ease-out;
+  }
+  #rouletteIndicator.ready { display: block; color: #00C8E8; animation: roulettePulse 2s ease-in-out infinite; }
+  #rouletteIndicator.used { display: block; color: #555; }
+  @keyframes roulettePulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+
   /* ===== Cruise distance counter ===== */
   #cruiseCounter {
     display: none; position: fixed; left: 50%;
@@ -330,29 +341,27 @@
   }
   #bustJudge {
     position: fixed; top: 40%; left: 0; right: 0;
-    text-align: center; pointer-events: none; z-index: 96; display: none;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    pointer-events: none; z-index: 96;
   }
-  #bustJudge .judge-prob {
-    font-size: 16px; color: #EF4444; font-weight: 700;
-    letter-spacing: 0.05em; margin-bottom: 4px;
-  }
-  #bustJudge .judge-roll {
-    font-size: 56px; font-weight: 900; font-variant-numeric: tabular-nums;
-    color: #fff; min-width: 120px; display: inline-block;
-  }
-  @keyframes judgeFlicker {
-    0%,100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-  #bustJudge .judge-roll.rolling {
-    animation: judgeFlicker 0.08s linear infinite;
-  }
+  #bustJudge.show { display: flex; }
   #bustJudge .judge-result {
-    font-size: 28px; font-weight: 900; margin-top: 4px;
-    letter-spacing: 0.1em;
+    font-size: 36px; font-weight: 900;
+    letter-spacing: 0.12em;
   }
-  #bustJudge .judge-result.safe { color: #34D399; text-shadow: 0 0 12px rgba(52,211,153,0.4); }
-  #bustJudge .judge-result.busted { color: #EF4444; text-shadow: 0 0 16px rgba(239,68,68,0.5); }
+  @keyframes judgePop {
+    0% { transform: scale(0.5); opacity: 0; }
+    40% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  #bustJudge .judge-result.safe {
+    color: #34D399; text-shadow: 0 0 16px rgba(52,211,153,0.5);
+    animation: judgePop 0.4s ease-out;
+  }
+  #bustJudge .judge-result.busted {
+    color: #EF4444; text-shadow: 0 0 20px rgba(239,68,68,0.6);
+    animation: judgePop 0.4s ease-out;
+  }
   .cruise-sub.risk { color: #EF4444; font-weight: 700; font-size: 13px; }
 
   .footer {
@@ -639,6 +648,7 @@
     <div><span class="hud-distance" id="hudDistance">---</span><span class="hud-unit">m</span></div>
     <div class="hud-speed" id="hudSpeed"></div>
   </div>
+  <div id="rouletteIndicator"></div>
   <div id="cruiseCounter">
     <div><span class="cruise-value" id="cruiseValue">0</span><span class="cruise-unit">m</span></div>
     <div class="cruise-sub" id="cruiseSub"></div>
@@ -647,8 +657,6 @@
   <div id="stakeToast"></div>
   <div id="bustToast">BUST</div>
   <div id="bustJudge">
-    <div class="judge-prob" id="judgeProb"></div>
-    <div class="judge-roll" id="judgeRoll"></div>
     <div class="judge-result" id="judgeResult"></div>
   </div>
 
@@ -1241,6 +1249,7 @@ function applyDialLayout() {
   wrap.style.setProperty("--dial-oy", settings.dialOffsetY + "px");
   syncCruisePosition();
   syncHudPosition();
+  syncRoulettePosition();
 }
 
 function syncCruisePosition() {
@@ -1250,7 +1259,7 @@ function syncCruisePosition() {
   const jArea = document.getElementById("junctionArea");
   if (wrap && jArea && jArea.style.display !== "none") {
     const rect = wrap.getBoundingClientRect();
-    counter.style.bottom = Math.max(8, window.innerHeight - rect.bottom - 80) + "px";
+    counter.style.bottom = Math.max(8, window.innerHeight - rect.bottom + 8) + "px";
     counter.style.left = (rect.left + rect.width / 2) + "px";
   } else {
     counter.style.bottom = "56px";
@@ -1280,6 +1289,35 @@ function syncHudPosition() {
     const rect = wrap.getBoundingClientRect();
     hud.style.top = Math.max(4, rect.top - 80) + "px";
     hud.style.left = (rect.left + rect.width / 2) + "px";
+  }
+}
+
+function updateRouletteIndicator() {
+  const el = document.getElementById("rouletteIndicator");
+  if (!el) return;
+  if (!settings.roulette || !currentDecision) {
+    el.className = ""; el.style.display = "none"; return;
+  }
+  const tooClose = displayDistanceM !== null && displayDistanceM < 100;
+  if (rouletteUsedThisJunction) {
+    el.textContent = "ROULETTE USED"; el.className = "used";
+  } else if (tooClose) {
+    el.textContent = "ROULETTE LOCKED"; el.className = "used";
+  } else {
+    el.textContent = "ROULETTE READY"; el.className = "ready";
+  }
+  syncRoulettePosition();
+}
+
+function syncRoulettePosition() {
+  const el = document.getElementById("rouletteIndicator");
+  if (!el || el.style.display === "none") return;
+  const wrap = document.getElementById("dialWrap");
+  if (wrap) {
+    const rect = wrap.getBoundingClientRect();
+    el.style.top = Math.max(4, rect.top - 20) + "px";
+    el.style.left = (rect.left + rect.width / 2) + "px";
+    el.style.transform = "translateX(-50%)";
   }
 }
 
@@ -2126,16 +2164,19 @@ function processPosition(lat, lon, heading, speed) {
   }
 
   lastMatchEdgeId = match.edge.id;
-  const decision = findNextDecision(graph, match.edge, match.fraction);
+  let decision = findNextDecision(graph, match.edge, match.fraction);
 
   const maxShowM = settings.junctionFilter === "all" ? 800 : 5000;
   if (decision && decision.distanceM <= maxShowM) {
     let junctionChanged = !lastDecisionNodeId || lastDecisionNodeId !== decision.nodeId;
-    if (junctionChanged && currentDecision && displayDistanceM > 50) {
+    if (junctionChanged && currentDecision && displayDistanceM > 0) {
       junctionChanged = false;
+      const drain = Math.max(Math.round((speed || 1) * 1), 5);
+      displayDistanceM = Math.max(0, displayDistanceM - drain);
       decision = { ...currentDecision, distanceM: displayDistanceM };
     }
     if (junctionChanged) {
+      forceFinishRoulette();
       if (cruiseActive && lastDecisionNodeId) {
         resolveJunctionReward(manuallySelected, lastChoiceWasRoulette);
         lastChoiceWasRoulette = false;
@@ -2189,6 +2230,7 @@ function processPosition(lat, lon, heading, speed) {
     }
   } else {
     const wasShowing = currentDecision !== null;
+    forceFinishRoulette();
     if (wasShowing && lastDecisionNodeId) {
       resolveJunctionReward(manuallySelected, lastChoiceWasRoulette);
       lastChoiceWasRoulette = false;
@@ -2199,6 +2241,7 @@ function processPosition(lat, lon, heading, speed) {
     rouletteUsedThisJunction = false;
     rouletteBranchId = null;
     displayDistanceM = null;
+    updateRouletteIndicator();
     document.getElementById("distance").textContent = "---";
     document.getElementById("distance").classList.remove("mid", "near");
     document.getElementById("distBar").style.width = "0%";
@@ -2290,6 +2333,7 @@ function interpolationLoop(now) {
     syncBgMapPosition();
     syncCruisePosition();
     syncHudPosition();
+    syncRoulettePosition();
   }
 
   // Distance arc on outer ring
@@ -2560,8 +2604,10 @@ function drawJunction(decision) {
       const lx = Math.sin(rad) * tagD, ly = -Math.cos(rad) * tagD;
       const anchor = Math.abs(b.angleDeg) < 30 ? "middle" : b.angleDeg > 0 ? "start" : "end";
       const tx = Math.abs(b.angleDeg) < 30 ? 0 : b.angleDeg > 0 ? (settings.minimalUI ? 10 : 18) : (settings.minimalUI ? -10 : -18);
-      const roadOffset = (b.roadName || b.roadRef) ? 16 : 0;
-      const tagY = ly + (settings.minimalUI ? 24 : 26) + roadOffset;
+      const labelsVisible = settings.showLabels;
+      const roadOffset = labelsVisible && (b.roadName || b.roadRef) ? 16 : 0;
+      const labelOffset = labelsVisible ? (settings.minimalUI ? 24 : 26) : 6;
+      const tagY = ly + labelOffset + roadOffset;
       const slideOx = Math.sin(rad) * 15;
       const slideOy = -Math.cos(rad) * 15;
       let tagText, tagColor, showTag = true;
@@ -2597,19 +2643,7 @@ function drawJunction(decision) {
     </g>`;
   }
 
-  if (settings.roulette) {
-    if (rouletteUsedThisJunction) {
-      html += `<text x="0" y="-190" text-anchor="middle" fill="#555" font-size="11" font-weight="600" style="pointer-events:none;letter-spacing:0.1em">ROULETTE USED</text>`;
-    } else {
-      html += `<circle cx="0" cy="0" r="193" fill="none" stroke="#00C8E8" stroke-width="3" stroke-dasharray="12 6" style="pointer-events:none">
-        <animate attributeName="stroke-dashoffset" values="0;-36" dur="1.5s" repeatCount="indefinite"/>
-        <animate attributeName="stroke-opacity" values="0.4;0.8;0.4" dur="2s" repeatCount="indefinite"/>
-      </circle>`;
-      html += `<text x="0" y="-196" text-anchor="middle" fill="#00C8E8" font-size="12" font-weight="700" style="pointer-events:none;letter-spacing:0.08em">
-        <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite"/>
-        ROULETTE READY</text>`;
-    }
-  }
+  updateRouletteIndicator();
 
   svg.innerHTML = html;
 
@@ -2830,7 +2864,7 @@ function checkDistanceAlerts(distM) {
 //  Cruise Distance Counter (距離 = 賭け金)
 // ============================================================
 let cruiseDistanceM = 0;
-let totalSessionDistM = 0;
+let totalSessionScore = 0;
 let currentStake = 0;
 let cruiseActive = false;
 
@@ -2850,7 +2884,6 @@ function stopCruise() {
 function tickCruiseDistance(deltaM) {
   if (!cruiseActive) return;
   cruiseDistanceM += deltaM;
-  totalSessionDistM += deltaM;
   updateCruiseDisplay();
 }
 
@@ -2861,13 +2894,8 @@ function updateCruiseDisplay() {
   const subEl = document.getElementById("cruiseSub");
   const totalEl = document.getElementById("cruiseTotal");
   const dm = Math.floor(cruiseDistanceM);
-  if (cruiseDistanceM >= 1000) {
-    el.textContent = (cruiseDistanceM / 1000).toFixed(1);
-    unitEl.textContent = "km";
-  } else {
-    el.textContent = dm;
-    unitEl.textContent = "m";
-  }
+  el.textContent = dm.toLocaleString();
+  unitEl.textContent = "m";
   const tier = dm >= 500 ? 3 : dm >= 300 ? 2 : dm >= 100 ? 1 : 0;
   el.classList.remove("tier1","tier2","tier3");
   if (tier >= 1) el.classList.add("tier" + tier);
@@ -2878,10 +2906,9 @@ function updateCruiseDisplay() {
     el.classList.add("pulse");
   }
   lastCruiseTier = tier;
-  if (totalSessionDistM > 0) {
-    const tm = Math.floor(totalSessionDistM);
-    totalEl.textContent = tm.toLocaleString() + " m";
-    totalEl.classList.toggle("glow", totalSessionDistM >= 2000);
+  if (totalSessionScore > 0) {
+    totalEl.textContent = totalSessionScore.toLocaleString() + " pts";
+    totalEl.classList.toggle("glow", totalSessionScore >= 2000);
   }
 }
 
@@ -2942,6 +2969,7 @@ function resolveJunctionReward(wasManual, wasRoulette) {
   const rouletteMult = wasRoulette ? (1.0 + Math.random() * 3.0) : 1.0;
   const totalMult = streakMult * rouletteMult;
   const effectiveStake = Math.floor(stakeM * totalMult);
+  totalSessionScore += effectiveStake;
   showRewardToast(effectiveStake, wasRoulette, streakMult, rouletteMult);
   const rewardTier = effectiveStake >= 500 ? 3 : effectiveStake >= 300 ? 2 : effectiveStake >= 100 ? 1 : 0;
   scheduleRewardContainer(rewardTier, wasRoulette);
@@ -2959,7 +2987,7 @@ function showRewardToast(amount, wasRoulette, streakMult, rouletteMult) {
   let multLabel = "";
   if (streakMult > 1) multLabel += " ×" + streakMult.toFixed(1);
   if (wasRoulette) multLabel += " 🎰×" + rouletteMult.toFixed(1);
-  toast.textContent = "+" + amount + " m" + multLabel;
+  toast.textContent = "+" + amount + " pts" + multLabel;
   toast.style.color = tierColors[tier];
   toast.style.textShadow = tierGlows[tier];
   toast.classList.remove("show");
@@ -2974,40 +3002,29 @@ function showRewardToast(amount, wasRoulette, streakMult, rouletteMult) {
 
 function showBustJudge(prob, isBust) {
   const judge = document.getElementById("bustJudge");
-  const probEl = document.getElementById("judgeProb");
-  const rollEl = document.getElementById("judgeRoll");
   const resultEl = document.getElementById("judgeResult");
-  probEl.textContent = "BUST RISK: " + Math.round(prob * 100) + "%";
   resultEl.textContent = "";
   resultEl.className = "judge-result";
-  rollEl.className = "judge-roll rolling";
-  judge.style.display = "block";
-  const threshold = Math.round(prob * 100);
-  let frame = 0;
-  const ticker = setInterval(() => {
-    rollEl.textContent = String(Math.floor(Math.random() * 100)).padStart(2, "0");
-    frame++;
-  }, 60);
+  judge.classList.add("show");
   setTimeout(() => {
-    clearInterval(ticker);
-    const finalNum = isBust ? Math.floor(Math.random() * threshold) : threshold + Math.floor(Math.random() * (100 - threshold));
-    rollEl.textContent = String(finalNum).padStart(2, "0");
-    rollEl.className = "judge-roll";
     if (isBust) {
       resultEl.textContent = "BUST";
       resultEl.className = "judge-result busted";
-      setTimeout(() => { judge.style.display = "none"; triggerBust(); }, 800);
+      setTimeout(() => { judge.classList.remove("show"); triggerBust(); }, 800);
     } else {
       resultEl.textContent = "SAFE";
       resultEl.className = "judge-result safe";
       updateRiskDisplay();
-      setTimeout(() => { judge.style.display = "none"; }, 1000);
+      setTimeout(() => { judge.classList.remove("show"); }, 800);
     }
-  }, 1200);
+  }, 300);
 }
 
 function triggerBust() {
   consecutiveStraights = 0;
+  cruiseDistanceM = 0;
+  lastCruiseTier = -1;
+  updateCruiseDisplay();
   playBustSound();
   const counter = document.getElementById("cruiseCounter");
   counter.classList.add("bust");
@@ -3018,9 +3035,6 @@ function triggerBust() {
   setTimeout(() => {
     counter.classList.remove("bust");
     bustToast.classList.remove("show");
-    cruiseDistanceM = 0;
-    lastCruiseTier = -1;
-    updateCruiseDisplay();
     updateRiskDisplay();
   }, 1600);
 }
@@ -3394,9 +3408,29 @@ function flashConfirmRoad(branchId) {
 let rouletteAnimId = null;
 let rouletteUsedThisJunction = false;
 let rouletteBranchId = null;
+function forceFinishRoulette() {
+  if (!rouletteAnimId) return;
+  cancelAnimationFrame(rouletteAnimId);
+  rouletteAnimId = null;
+  if (rouletteWinner) {
+    rouletteUsedThisJunction = true;
+    rouletteBranchId = rouletteWinner.id;
+    dialFixedAngle = rouletteWinner.angleDeg;
+    lastChoiceWasRoulette = true;
+    chooseBranch(rouletteWinner.id);
+    const ring = document.getElementById("dialRing");
+    if (ring) ring.setAttribute("transform", `rotate(${rouletteWinner.angleDeg})`);
+  }
+  previewBranchId = null;
+  rouletteWinner = null;
+}
+
+let rouletteWinner = null;
+
 function startRoulette(velocity) {
   if (!currentDecision || currentDecision.branches.length < 2) return false;
   if (rouletteUsedThisJunction) return false;
+  if (displayDistanceM !== null && displayDistanceM < 100) return false;
   const ring = document.getElementById("dialRing");
   if (!ring) return false;
 
@@ -3409,9 +3443,9 @@ function startRoulette(velocity) {
   const startAngle = dialFixedAngle;
   const startTime = performance.now();
 
-  // Pick random winner
   const branches = currentDecision.branches;
   const winner = branches[Math.floor(Math.random() * branches.length)];
+  rouletteWinner = winner;
   const targetAngle = winner.angleDeg;
   // Adjust total rotation to land on winner
   const rawEnd = startAngle + totalAngle;
@@ -3465,6 +3499,7 @@ function startRoulette(velocity) {
       lastChoiceWasRoulette = true;
       chooseBranch(winner.id);
       previewBranchId = null;
+      rouletteWinner = null;
     }
   }
   rouletteAnimId = requestAnimationFrame(tick);

@@ -2543,6 +2543,36 @@ function drawJunction(decision) {
   html += selectedHtml;
   html += bezelHtml;
   if (settings.showLabels) html += labelsHtml;
+  if (cruiseActive) {
+    const defaultBrId = pickDefaultBranch(branches);
+    const bustProb = consecutiveStraights > 0 ? getNextBustProb() : BUST_CHANCES[0];
+    for (const b of resolvedBranches) {
+      const rad = b.angleDeg * Math.PI / 180;
+      const tagD = settings.labelDist;
+      const lx = Math.sin(rad) * tagD, ly = -Math.cos(rad) * tagD;
+      const anchor = Math.abs(b.angleDeg) < 30 ? "middle" : b.angleDeg > 0 ? "start" : "end";
+      const tx = Math.abs(b.angleDeg) < 30 ? 0 : b.angleDeg > 0 ? (settings.minimalUI ? 10 : 18) : (settings.minimalUI ? -10 : -18);
+      const roadOffset = (b.roadName || b.roadRef) ? 16 : 0;
+      const tagY = ly + (settings.minimalUI ? 24 : 26) + roadOffset;
+      const slideOx = Math.sin(rad) * 15;
+      const slideOy = -Math.cos(rad) * 15;
+      let tagText, tagColor;
+      if (b.id === defaultBrId) {
+        tagText = "RISK " + Math.round(bustProb * 100) + "%";
+        tagColor = "#EF4444";
+      } else if (settings.roulette) {
+        tagText = "×1.0 / ×2.5";
+        tagColor = "#34D399";
+      } else {
+        tagText = "×1.0";
+        tagColor = "#34D399";
+      }
+      html += `<text x="${lx+tx}" y="${tagY}" text-anchor="${anchor}"
+        fill="${tagColor}" font-size="13" font-weight="700"
+        style="pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
+        class="branch-label-anim">${tagText}</text>`;
+    }
+  }
 
   if (decision.hasSignal) {
     html += `<g style="filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));pointer-events:none" transform="translate(0,-185)">
@@ -2563,6 +2593,9 @@ function drawJunction(decision) {
         if (lbl) { lbl.style.opacity = "1"; lbl.style.transform = "translate(0,0)"; }
         const rn = document.getElementById("roadname_" + b.id);
         if (rn) { rn.style.opacity = "1"; rn.style.transform = "translate(0,0)"; }
+      }
+      for (const tag of svg.querySelectorAll(".branch-label-anim")) {
+        tag.style.opacity = "1"; tag.style.transform = "translate(0,0)";
       }
     });
   });
@@ -2848,15 +2881,7 @@ function getNextBustProb() {
 }
 
 function updateRiskDisplay() {
-  const subEl = document.getElementById("cruiseSub");
-  if (consecutiveStraights > 0) {
-    const prob = getNextBustProb();
-    subEl.textContent = "RISK " + Math.round(prob * 100) + "%";
-    subEl.className = "cruise-sub risk";
-  } else {
-    subEl.textContent = "";
-    subEl.className = "cruise-sub";
-  }
+  if (currentDecision) drawJunction(currentDecision);
 }
 
 function resolveJunctionReward(wasManual, wasRoulette) {

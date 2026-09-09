@@ -292,9 +292,9 @@
     animation: stakeConvert 0.7s ease-in forwards;
   }
   @keyframes stakeFlash {
-    0% { opacity: 0; transform: translateY(10px); }
-    30% { opacity: 1; transform: translateY(-5px); }
-    100% { opacity: 0; transform: translateY(-30px); }
+    0% { opacity: 0; transform: translate(-50%, -50%) translateY(10px); }
+    30% { opacity: 1; transform: translate(-50%, -50%) translateY(-5px); }
+    100% { opacity: 0; transform: translate(-50%, -50%) translateY(-30px); }
   }
   #stakeToast {
     position: fixed; transform: translate(-50%, -50%);
@@ -372,7 +372,12 @@
     color: #F59E0B; text-shadow: 0 0 24px rgba(245,158,11,0.5);
     letter-spacing: -0.02em;
   }
-  #rouletteMult.show { display: block; animation: judgePop 0.4s ease-out; }
+  @keyframes multPop {
+    0% { transform: translate(-50%,-50%) scale(0.5); opacity: 0; }
+    40% { transform: translate(-50%,-50%) scale(1.2); opacity: 1; }
+    100% { transform: translate(-50%,-50%) scale(1); opacity: 1; }
+  }
+  #rouletteMult.show { display: block; animation: multPop 0.4s ease-out; }
 
   .footer {
     padding: 8px 24px; background: #111827; border-top: 1px solid #252F42;

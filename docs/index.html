@@ -256,13 +256,14 @@
     letter-spacing: 0.04em;
   }
   .cruise-total {
-    font-size: 14px; color: #5B9AB5; margin-top: 4px;
-    font-weight: 600; opacity: 0.9;
+    font-size: 20px; color: #7DD3E8; margin-top: 6px;
+    font-weight: 700; opacity: 1;
+    font-variant-numeric: tabular-nums;
     transition: color 0.4s, text-shadow 0.4s;
   }
   .cruise-total.glow {
-    color: #7DD3E8;
-    text-shadow: 0 0 10px rgba(125,211,232,0.3);
+    color: #A5F3FC;
+    text-shadow: 0 0 12px rgba(165,243,252,0.35);
   }
   @keyframes totalBump {
     0% { transform: scale(1); }
@@ -327,6 +328,32 @@
     display: block;
     animation: bustToastAnim 1.4s ease-out forwards;
   }
+  #bustJudge {
+    position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
+    text-align: center; pointer-events: none; z-index: 96; display: none;
+  }
+  #bustJudge .judge-prob {
+    font-size: 16px; color: #EF4444; font-weight: 700;
+    letter-spacing: 0.05em; margin-bottom: 4px;
+  }
+  #bustJudge .judge-roll {
+    font-size: 56px; font-weight: 900; font-variant-numeric: tabular-nums;
+    color: #fff; min-width: 120px; display: inline-block;
+  }
+  @keyframes judgeFlicker {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  #bustJudge .judge-roll.rolling {
+    animation: judgeFlicker 0.08s linear infinite;
+  }
+  #bustJudge .judge-result {
+    font-size: 28px; font-weight: 900; margin-top: 4px;
+    letter-spacing: 0.1em;
+  }
+  #bustJudge .judge-result.safe { color: #34D399; text-shadow: 0 0 12px rgba(52,211,153,0.4); }
+  #bustJudge .judge-result.busted { color: #EF4444; text-shadow: 0 0 16px rgba(239,68,68,0.5); }
+  .cruise-sub.risk { color: #EF4444; font-weight: 700; font-size: 13px; }
 
   .footer {
     padding: 8px 24px; background: #111827; border-top: 1px solid #252F42;
@@ -619,6 +646,11 @@
   </div>
   <div id="stakeToast"></div>
   <div id="bustToast">BUST</div>
+  <div id="bustJudge">
+    <div class="judge-prob" id="judgeProb"></div>
+    <div class="judge-roll" id="judgeRoll"></div>
+    <div class="judge-result" id="judgeResult"></div>
+  </div>
 
   <!-- Container / Loot overlay -->
   <div id="containerOverlay">
@@ -775,8 +807,20 @@
           <div id="toggleShowLabels" class="s-toggle" onclick="toggleSetting('showLabels','toggleShowLabels')"></div>
         </div>
         <div class="s-toggle-row" style="margin-top:8px;">
-          <span>距離・速度HUD（円盤上部）</span>
-          <div id="toggleShowHeader" class="s-toggle" onclick="toggleSetting('showHeader','toggleShowHeader')"></div>
+          <span>残距離HUD（円盤上部）</span>
+          <div id="toggleShowHudDist" class="s-toggle" onclick="toggleSetting('showHudDist','toggleShowHudDist')"></div>
+        </div>
+        <div id="hudDistThreshArea" style="margin-top:4px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">表示する残距離（0=常時）</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">常時</span>
+            <input type="range" id="hudDistThreshSlider" min="0" max="500" step="50" value="0" oninput="onHudDistThreshChange()">
+            <span id="hudDistThreshVal" class="s-slider-val">常時</span>
+          </div>
+        </div>
+        <div class="s-toggle-row" style="margin-top:8px;">
+          <span>速度HUD（円盤上部）</span>
+          <div id="toggleShowHudSpeed" class="s-toggle" onclick="toggleSetting('showHudSpeed','toggleShowHudSpeed')"></div>
         </div>
         <div style="margin-top:8px;">
           <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">ラベル位置（中心からの距離）</div>
@@ -987,7 +1031,9 @@ let settings = {
   bgMapScope: "dial",
   minimalUI: false,
   showLabels: true,
-  showHeader: true,
+  showHudDist: true,
+  hudDistThresh: 0,
+  showHudSpeed: true,
   labelDist: 120,
 };
 
@@ -1025,7 +1071,10 @@ function applySettingsToUI() {
   document.getElementById("toggleTopDistBar").classList.toggle("on", settings.topDistBar);
   document.getElementById("toggleMinimalUI").classList.toggle("on", settings.minimalUI);
   document.getElementById("toggleShowLabels").classList.toggle("on", settings.showLabels);
-  document.getElementById("toggleShowHeader").classList.toggle("on", settings.showHeader);
+  document.getElementById("toggleShowHudDist").classList.toggle("on", settings.showHudDist);
+  document.getElementById("hudDistThreshSlider").value = settings.hudDistThresh;
+  document.getElementById("hudDistThreshVal").textContent = settings.hudDistThresh > 0 ? settings.hudDistThresh + "m以下" : "常時";
+  document.getElementById("toggleShowHudSpeed").classList.toggle("on", settings.showHudSpeed);
   document.querySelector(".dist-bar-wrap").style.display = settings.topDistBar ? "" : "none";
   document.getElementById("toggleDialRelative").classList.toggle("on", settings.dialRelative);
   document.getElementById("toggleSideBar").classList.toggle("on", settings.sideBar);
@@ -1213,7 +1262,17 @@ function syncHudPosition() {
   const hud = document.getElementById("junctionHud");
   if (!hud) return;
   const jArea = document.getElementById("junctionArea");
-  const visible = settings.showHeader && jArea && jArea.style.display !== "none";
+  const junctionVisible = jArea && jArea.style.display !== "none";
+  const anyHud = settings.showHudDist || settings.showHudSpeed;
+  const distEl = document.getElementById("hudDistance");
+  const unitEl = hud.querySelector(".hud-unit");
+  const speedEl = document.getElementById("hudSpeed");
+  const distM = displayDistanceM !== null ? Math.round(displayDistanceM) : 9999;
+  const distShow = settings.showHudDist && (settings.hudDistThresh === 0 || distM <= settings.hudDistThresh);
+  if (distEl) distEl.style.display = distShow ? "" : "none";
+  if (unitEl) unitEl.style.display = distShow ? "" : "none";
+  if (speedEl) speedEl.style.display = settings.showHudSpeed ? "" : "none";
+  const visible = junctionVisible && anyHud && (distShow || settings.showHudSpeed);
   hud.style.display = visible ? "block" : "none";
   if (!visible) return;
   const wrap = document.getElementById("dialWrap");
@@ -1385,6 +1444,12 @@ function onLabelDistChange() {
   document.getElementById("labelDistVal").textContent = settings.labelDist;
   saveSettings();
   if (currentDecision) drawJunction(currentDecision);
+}
+
+function onHudDistThreshChange() {
+  settings.hudDistThresh = parseInt(document.getElementById("hudDistThreshSlider").value);
+  document.getElementById("hudDistThreshVal").textContent = settings.hudDistThresh > 0 ? settings.hudDistThresh + "m以下" : "常時";
+  saveSettings();
 }
 
 function onFloatParamChange() {
@@ -2746,8 +2811,8 @@ function updateCruiseDisplay() {
   lastCruiseTier = tier;
   subEl.textContent = "";
   if (totalSessionDistM > 0) {
-    const tkm = (totalSessionDistM / 1000).toFixed(1);
-    totalEl.textContent = "session " + tkm + " km";
+    const tm = Math.floor(totalSessionDistM);
+    totalEl.textContent = tm.toLocaleString() + " m";
     totalEl.classList.toggle("glow", totalSessionDistM >= 2000);
   }
 }
@@ -2777,19 +2842,34 @@ function convertStake() {
 }
 
 let consecutiveStraights = 0;
+const BUST_CHANCES = [0.10, 0.25, 0.50, 0.80, 1.0];
+
+function getNextBustProb() {
+  return BUST_CHANCES[Math.min(consecutiveStraights, BUST_CHANCES.length - 1)];
+}
+
+function updateRiskDisplay() {
+  const subEl = document.getElementById("cruiseSub");
+  if (consecutiveStraights > 0) {
+    const prob = getNextBustProb();
+    subEl.textContent = "RISK " + Math.round(prob * 100) + "%";
+    subEl.className = "cruise-sub risk";
+  } else {
+    subEl.textContent = "";
+    subEl.className = "cruise-sub";
+  }
+}
 
 function resolveJunctionReward(wasManual, wasRoulette) {
   if (!wasManual && !wasRoulette) {
     consecutiveStraights++;
-    const bustChances = [0.10, 0.25, 0.50, 0.80, 1.0];
-    const bustProb = bustChances[Math.min(consecutiveStraights - 1, bustChances.length - 1)];
-    if (Math.random() < bustProb) {
-      triggerBust();
-      return;
-    }
+    const bustProb = BUST_CHANCES[Math.min(consecutiveStraights - 1, BUST_CHANCES.length - 1)];
+    const isBust = Math.random() < bustProb;
+    showBustJudge(bustProb, isBust);
     return;
   }
   consecutiveStraights = 0;
+  updateRiskDisplay();
   const stakeM = Math.floor(cruiseDistanceM);
   if (stakeM < 10) { cruiseDistanceM = 0; lastCruiseTier = -1; updateCruiseDisplay(); return; }
   const multiplier = wasRoulette ? 2.5 : 1.0;
@@ -2821,7 +2901,42 @@ function showRewardToast(amount, wasRoulette) {
   totalEl.classList.add("bump");
 }
 
+function showBustJudge(prob, isBust) {
+  const judge = document.getElementById("bustJudge");
+  const probEl = document.getElementById("judgeProb");
+  const rollEl = document.getElementById("judgeRoll");
+  const resultEl = document.getElementById("judgeResult");
+  probEl.textContent = "BUST RISK: " + Math.round(prob * 100) + "%";
+  resultEl.textContent = "";
+  resultEl.className = "judge-result";
+  rollEl.className = "judge-roll rolling";
+  judge.style.display = "block";
+  const threshold = Math.round(prob * 100);
+  let frame = 0;
+  const ticker = setInterval(() => {
+    rollEl.textContent = String(Math.floor(Math.random() * 100)).padStart(2, "0");
+    frame++;
+  }, 60);
+  setTimeout(() => {
+    clearInterval(ticker);
+    const finalNum = isBust ? Math.floor(Math.random() * threshold) : threshold + Math.floor(Math.random() * (100 - threshold));
+    rollEl.textContent = String(finalNum).padStart(2, "0");
+    rollEl.className = "judge-roll";
+    if (isBust) {
+      resultEl.textContent = "BUST";
+      resultEl.className = "judge-result busted";
+      setTimeout(() => { judge.style.display = "none"; triggerBust(); }, 800);
+    } else {
+      resultEl.textContent = "SAFE";
+      resultEl.className = "judge-result safe";
+      updateRiskDisplay();
+      setTimeout(() => { judge.style.display = "none"; }, 1000);
+    }
+  }, 1200);
+}
+
 function triggerBust() {
+  consecutiveStraights = 0;
   playBustSound();
   const counter = document.getElementById("cruiseCounter");
   counter.classList.add("bust");
@@ -2835,6 +2950,7 @@ function triggerBust() {
     cruiseDistanceM = 0;
     lastCruiseTier = -1;
     updateCruiseDisplay();
+    updateRiskDisplay();
   }, 1600);
 }
 

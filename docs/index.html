@@ -293,6 +293,40 @@
     display: block;
     animation: stakeFlash 1.0s ease-out forwards;
   }
+  @keyframes bustShake {
+    0%,100% { transform: translateX(-50%) translateY(0); }
+    10% { transform: translateX(-50%) translateX(-6px); }
+    20% { transform: translateX(-50%) translateX(6px); }
+    30% { transform: translateX(-50%) translateX(-4px); }
+    40% { transform: translateX(-50%) translateX(4px); }
+    50% { transform: translateX(-50%) translateX(-2px); }
+    60% { transform: translateX(-50%) translateX(0); }
+  }
+  @keyframes bustFade {
+    0% { opacity: 1; transform: scale(1); color: #EF4444; }
+    40% { opacity: 1; transform: scale(1.1); color: #EF4444; text-shadow: 0 0 30px rgba(239,68,68,0.6); }
+    100% { opacity: 0; transform: scale(0.3); }
+  }
+  #cruiseCounter.bust .cruise-value {
+    animation: bustShake 0.5s ease-out, bustFade 1.2s 0.4s ease-in forwards;
+  }
+  #bustToast {
+    position: fixed; top: 45%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 42px; font-weight: 900; color: #EF4444;
+    text-shadow: 0 0 30px rgba(239,68,68,0.5);
+    pointer-events: none; z-index: 96; display: none;
+    letter-spacing: 0.05em;
+  }
+  @keyframes bustToastAnim {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+    20% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+    40% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+    100% { opacity: 0; transform: translate(-50%, -50%) translateY(-40px); }
+  }
+  #bustToast.show {
+    display: block;
+    animation: bustToastAnim 1.4s ease-out forwards;
+  }
 
   .footer {
     padding: 8px 24px; background: #111827; border-top: 1px solid #252F42;
@@ -584,6 +618,7 @@
     <div class="cruise-total" id="cruiseTotal"></div>
   </div>
   <div id="stakeToast"></div>
+  <div id="bustToast">BUST</div>
 
   <!-- Container / Loot overlay -->
   <div id="containerOverlay">
@@ -2036,9 +2071,8 @@ function processPosition(lat, lon, heading, speed) {
       decision = { ...currentDecision, distanceM: displayDistanceM };
     }
     if (junctionChanged) {
-      if (cruiseActive) convertStake();
-      if (lastDecisionNodeId && manuallySelected) {
-        scheduleContainer(lastDecisionNodeId, lastChoiceWasRoulette);
+      if (cruiseActive && lastDecisionNodeId) {
+        resolveJunctionReward(manuallySelected, lastChoiceWasRoulette);
         lastChoiceWasRoulette = false;
       }
       selectedBranchId = null;
@@ -2088,8 +2122,8 @@ function processPosition(lat, lon, heading, speed) {
     }
   } else {
     const wasShowing = currentDecision !== null;
-    if (wasShowing && lastDecisionNodeId && manuallySelected) {
-      scheduleContainer(lastDecisionNodeId, lastChoiceWasRoulette);
+    if (wasShowing && lastDecisionNodeId) {
+      resolveJunctionReward(manuallySelected, lastChoiceWasRoulette);
       lastChoiceWasRoulette = false;
     }
     currentDecision = null;
@@ -2740,6 +2774,91 @@ function convertStake() {
   totalEl.classList.remove("bump");
   void totalEl.offsetWidth;
   totalEl.classList.add("bump");
+}
+
+let consecutiveStraights = 0;
+
+function resolveJunctionReward(wasManual, wasRoulette) {
+  if (!wasManual && !wasRoulette) {
+    consecutiveStraights++;
+    const bustChances = [0.10, 0.25, 0.50, 0.80, 1.0];
+    const bustProb = bustChances[Math.min(consecutiveStraights - 1, bustChances.length - 1)];
+    if (Math.random() < bustProb) {
+      triggerBust();
+      return;
+    }
+    return;
+  }
+  consecutiveStraights = 0;
+  const stakeM = Math.floor(cruiseDistanceM);
+  if (stakeM < 10) { cruiseDistanceM = 0; lastCruiseTier = -1; updateCruiseDisplay(); return; }
+  const multiplier = wasRoulette ? 2.5 : 1.0;
+  const effectiveStake = Math.floor(stakeM * multiplier);
+  showRewardToast(effectiveStake, wasRoulette);
+  const rewardTier = effectiveStake >= 500 ? 3 : effectiveStake >= 300 ? 2 : effectiveStake >= 100 ? 1 : 0;
+  scheduleRewardContainer(rewardTier, wasRoulette);
+  cruiseDistanceM = 0;
+  lastCruiseTier = -1;
+  updateCruiseDisplay();
+}
+
+function showRewardToast(amount, wasRoulette) {
+  const tier = amount >= 500 ? 3 : amount >= 300 ? 2 : amount >= 100 ? 1 : 0;
+  const tierColors = ["rgba(137,175,192,0.8)", "#34D399", "#C084FC", "#F59E0B"];
+  const tierGlows = ["none", "0 0 16px rgba(52,211,153,0.3)", "0 0 20px rgba(192,132,252,0.4)", "0 0 24px rgba(245,158,11,0.5)"];
+  playStakeConvert();
+  const toast = document.getElementById("stakeToast");
+  toast.textContent = "+" + amount + " m" + (wasRoulette ? " x2.5" : "");
+  toast.style.color = tierColors[tier];
+  toast.style.textShadow = tierGlows[tier];
+  toast.classList.remove("show");
+  void toast.offsetWidth;
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 1100);
+  const totalEl = document.getElementById("cruiseTotal");
+  totalEl.classList.remove("bump");
+  void totalEl.offsetWidth;
+  totalEl.classList.add("bump");
+}
+
+function triggerBust() {
+  playBustSound();
+  const counter = document.getElementById("cruiseCounter");
+  counter.classList.add("bust");
+  const bustToast = document.getElementById("bustToast");
+  bustToast.classList.remove("show");
+  void bustToast.offsetWidth;
+  bustToast.classList.add("show");
+  setTimeout(() => {
+    counter.classList.remove("bust");
+    bustToast.classList.remove("show");
+    cruiseDistanceM = 0;
+    lastCruiseTier = -1;
+    updateCruiseDisplay();
+  }, 1600);
+}
+
+function playBustSound() {
+  const ctx = ensureAudioCtx();
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(400, t);
+  osc.frequency.exponentialRampToValueAtTime(80, t + 0.4);
+  gain.gain.setValueAtTime(0.08, t);
+  gain.gain.linearRampToValueAtTime(0, t + 0.5);
+  osc.connect(gain).connect(masterGain);
+  osc.start(t); osc.stop(t + 0.5);
+}
+
+function scheduleRewardContainer(rewardTier, wasRoulette) {
+  if (explorationTray.length >= TRAY_MAX) return;
+  const bonus = wasRoulette ? 0.5 : 0;
+  const tierBoost = rewardTier * 0.15;
+  pendingContainer = generateContainer(bonus + tierBoost);
+  containerDistanceTrigger = 100 + Math.random() * 200;
+  distanceSinceLastContainer = 0;
 }
 
 function playStakeConvert() {

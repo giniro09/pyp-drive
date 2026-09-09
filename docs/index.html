@@ -2565,18 +2565,21 @@ function drawJunction(decision) {
       const slideOx = Math.sin(rad) * 15;
       const slideOy = -Math.cos(rad) * 15;
       let tagText, tagColor, showTag = true;
+      const streakMults = [1.0, 1.5, 2.0, 3.0, 4.0, 5.0];
+      const sMult = streakMults[Math.min(consecutiveStraights, streakMults.length - 1)];
       if (rouletteUsedThisJunction) {
         if (b.id === rouletteBranchId) {
-          tagText = "×2.5"; tagColor = "#F59E0B";
+          tagText = "×?? 🎰"; tagColor = "#F59E0B";
         } else {
           showTag = false;
         }
       } else if (b.id === defaultBrId) {
         tagText = "RISK " + Math.round(bustProb * 100) + "%";
+        if (sMult > 1) tagText += " (×" + sMult.toFixed(1) + "育成中)";
         tagColor = "#EF4444";
       } else {
-        tagText = "×1.0";
-        tagColor = "#34D399";
+        tagText = "×" + sMult.toFixed(1);
+        tagColor = sMult > 1 ? "#F59E0B" : "#34D399";
       }
       if (showTag) html += `<text x="${lx+tx}" y="${tagY}" text-anchor="${anchor}"
         fill="${tagColor}" font-size="13" font-weight="700"
@@ -2930,13 +2933,16 @@ function resolveJunctionReward(wasManual, wasRoulette) {
     showBustJudge(bustProb, isBust);
     return;
   }
+  const streakMultipliers = [1.0, 1.5, 2.0, 3.0, 4.0, 5.0];
+  const streakMult = streakMultipliers[Math.min(consecutiveStraights, streakMultipliers.length - 1)];
   consecutiveStraights = 0;
   updateRiskDisplay();
   const stakeM = Math.floor(cruiseDistanceM);
   if (stakeM < 10) { cruiseDistanceM = 0; lastCruiseTier = -1; updateCruiseDisplay(); return; }
-  const multiplier = wasRoulette ? 2.5 : 1.0;
-  const effectiveStake = Math.floor(stakeM * multiplier);
-  showRewardToast(effectiveStake, wasRoulette);
+  const rouletteMult = wasRoulette ? (1.0 + Math.random() * 3.0) : 1.0;
+  const totalMult = streakMult * rouletteMult;
+  const effectiveStake = Math.floor(stakeM * totalMult);
+  showRewardToast(effectiveStake, wasRoulette, streakMult, rouletteMult);
   const rewardTier = effectiveStake >= 500 ? 3 : effectiveStake >= 300 ? 2 : effectiveStake >= 100 ? 1 : 0;
   scheduleRewardContainer(rewardTier, wasRoulette);
   cruiseDistanceM = 0;
@@ -2944,13 +2950,16 @@ function resolveJunctionReward(wasManual, wasRoulette) {
   updateCruiseDisplay();
 }
 
-function showRewardToast(amount, wasRoulette) {
+function showRewardToast(amount, wasRoulette, streakMult, rouletteMult) {
   const tier = amount >= 500 ? 3 : amount >= 300 ? 2 : amount >= 100 ? 1 : 0;
   const tierColors = ["rgba(137,175,192,0.8)", "#34D399", "#C084FC", "#F59E0B"];
   const tierGlows = ["none", "0 0 16px rgba(52,211,153,0.3)", "0 0 20px rgba(192,132,252,0.4)", "0 0 24px rgba(245,158,11,0.5)"];
   playStakeConvert();
   const toast = document.getElementById("stakeToast");
-  toast.textContent = "+" + amount + " m" + (wasRoulette ? " x2.5" : "");
+  let multLabel = "";
+  if (streakMult > 1) multLabel += " ×" + streakMult.toFixed(1);
+  if (wasRoulette) multLabel += " 🎰×" + rouletteMult.toFixed(1);
+  toast.textContent = "+" + amount + " m" + multLabel;
   toast.style.color = tierColors[tier];
   toast.style.textShadow = tierGlows[tier];
   toast.classList.remove("show");

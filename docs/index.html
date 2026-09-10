@@ -1621,6 +1621,11 @@ function startDemoSim() {
   document.getElementById("demoBadge").style.display = "";
   gpsActive = true;
   startCruise();
+  mapNodes = {};
+  mapEdges = [];
+  mapCurrentNodeId = null;
+  mapLastNodeId = null;
+  renderAutoMap();
   if (!demoEdgeId) {
     const edgeIds = Array.from(graph.edges.keys());
     demoEdgeId = edgeIds[Math.floor(Math.random() * edgeIds.length)];
@@ -3128,6 +3133,7 @@ function loadAutoMap() {
 }
 
 function saveAutoMap() {
+  if (settings.demoMode) return;
   try {
     localStorage.setItem("pyp_automap", JSON.stringify({ nodes: mapNodes, edges: mapEdges }));
   } catch(e) {}

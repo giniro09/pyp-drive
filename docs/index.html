@@ -908,6 +908,41 @@
       </div>
     </details>
 
+    <!-- ===== マッピング ===== -->
+    <details class="s-section">
+      <summary class="s-section-title">マッピング</summary>
+      <div class="s-section-body">
+        <div style="margin-bottom:10px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">サイズ</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">小</span>
+            <input type="range" id="mapSizeSlider" min="100" max="400" step="10" value="160" oninput="onMapLayoutChange()">
+            <span id="mapSizeVal" class="s-slider-val">160</span>
+          </div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">右端からの距離</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">右</span>
+            <input type="range" id="mapRightSlider" min="0" max="400" step="5" value="16" oninput="onMapLayoutChange()">
+            <span id="mapRightVal" class="s-slider-val">16</span>
+          </div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div class="s-radio-desc" style="margin-left:0;margin-bottom:4px;">下端からの距離</div>
+          <div class="s-slider-row" style="margin-left:0;">
+            <span style="font-size:12px;color:#657186;">下</span>
+            <input type="range" id="mapBottomSlider" min="0" max="400" step="5" value="16" oninput="onMapLayoutChange()">
+            <span id="mapBottomVal" class="s-slider-val">16</span>
+          </div>
+        </div>
+        <div class="s-toggle-row" style="margin-bottom:6px;">
+          <span>マップデータをリセット</span>
+          <button style="background:#EF4444;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px;" onclick="if(confirm('マッピングデータを全て消去しますか？'))resetAutoMap()">リセット</button>
+        </div>
+      </div>
+    </details>
+
     <!-- ===== サウンド ===== -->
     <details class="s-section">
       <summary class="s-section-title">サウンド</summary>
@@ -1068,6 +1103,9 @@ let settings = {
   hudDistThresh: 0,
   showHudSpeed: true,
   labelDist: 120,
+  mapSize: 160,
+  mapRight: 16,
+  mapBottom: 16,
 };
 
 function loadSettings() {
@@ -1139,6 +1177,13 @@ function applySettingsToUI() {
   document.getElementById("toggleBgMapScope").classList.toggle("on", settings.bgMapScope === "full");
   applyBgMapOpacity();
   applyBgMapScope();
+  document.getElementById("mapSizeSlider").value = settings.mapSize;
+  document.getElementById("mapSizeVal").textContent = settings.mapSize;
+  document.getElementById("mapRightSlider").value = settings.mapRight;
+  document.getElementById("mapRightVal").textContent = settings.mapRight;
+  document.getElementById("mapBottomSlider").value = settings.mapBottom;
+  document.getElementById("mapBottomVal").textContent = settings.mapBottom;
+  applyMapLayout();
 }
 
 function toggleSettings() {
@@ -1479,6 +1524,35 @@ function onLabelDistChange() {
   document.getElementById("labelDistVal").textContent = settings.labelDist;
   saveSettings();
   if (currentDecision) drawJunction(currentDecision);
+}
+
+function applyMapLayout() {
+  const el = document.getElementById("autoMap");
+  if (!el) return;
+  el.style.width = settings.mapSize + "px";
+  el.style.height = settings.mapSize + "px";
+  el.style.right = settings.mapRight + "px";
+  el.style.bottom = settings.mapBottom + "px";
+}
+
+function onMapLayoutChange() {
+  settings.mapSize = parseInt(document.getElementById("mapSizeSlider").value);
+  settings.mapRight = parseInt(document.getElementById("mapRightSlider").value);
+  settings.mapBottom = parseInt(document.getElementById("mapBottomSlider").value);
+  document.getElementById("mapSizeVal").textContent = settings.mapSize;
+  document.getElementById("mapRightVal").textContent = settings.mapRight;
+  document.getElementById("mapBottomVal").textContent = settings.mapBottom;
+  applyMapLayout();
+  saveSettings();
+}
+
+function resetAutoMap() {
+  mapNodes = {};
+  mapEdges = [];
+  mapCurrentNodeId = null;
+  mapLastNodeId = null;
+  saveAutoMap();
+  renderAutoMap();
 }
 
 function onHudDistThreshChange() {

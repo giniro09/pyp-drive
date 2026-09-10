@@ -3115,6 +3115,7 @@ let mapNodes = {};
 let mapEdges = [];
 let mapCurrentNodeId = null;
 let mapLastNodeId = null;
+let mapCurrentDir = 0;
 
 function loadAutoMap() {
   try {
@@ -3165,6 +3166,7 @@ function recordJunction(nodeId, inBearing) {
   }
 
   mapCurrentNodeId = nodeId;
+  mapCurrentDir = dir;
   saveAutoMap();
   renderAutoMap();
 }
@@ -3190,12 +3192,16 @@ function renderAutoMap() {
 
   let html = "";
 
-  // Grid lines
+  // Grid lines (orthogonal + diagonal)
+  const gridColor = "rgba(60,75,95,0.2)";
+  const diagColor = "rgba(60,75,95,0.1)";
   for (let i = -viewR; i <= viewR; i++) {
     const p = i * cellSize;
-    html += `<line x1="${-half}" y1="${p}" x2="${half}" y2="${p}" stroke="rgba(60,75,95,0.25)" stroke-width="0.5"/>`;
-    html += `<line x1="${p}" y1="${-half}" x2="${p}" y2="${half}" stroke="rgba(60,75,95,0.25)" stroke-width="0.5"/>`;
+    html += `<line x1="${-half}" y1="${p}" x2="${half}" y2="${p}" stroke="${gridColor}" stroke-width="0.5"/>`;
+    html += `<line x1="${p}" y1="${-half}" x2="${p}" y2="${half}" stroke="${gridColor}" stroke-width="0.5"/>`;
   }
+  html += `<line x1="${-half}" y1="${-half}" x2="${half}" y2="${half}" stroke="${diagColor}" stroke-width="0.3"/>`;
+  html += `<line x1="${half}" y1="${-half}" x2="${-half}" y2="${half}" stroke="${diagColor}" stroke-width="0.3"/>`;
 
   // Edges
   for (const e of mapEdges) {
@@ -3218,7 +3224,10 @@ function renderAutoMap() {
     if (Math.abs(x) > half + cellSize || Math.abs(y) > half + cellSize) continue;
     const isCurrent = n.id === mapCurrentNodeId;
     if (isCurrent) {
-      html += `<circle cx="${x}" cy="${y}" r="4" fill="#67E8F9" style="filter:drop-shadow(0 0 6px rgba(103,232,249,0.7))"/>`;
+      const angleDeg = mapCurrentDir * 45;
+      html += `<polygon points="0,-5 3.5,4 -3.5,4" fill="#67E8F9"
+        transform="translate(${x},${y}) rotate(${angleDeg})"
+        style="filter:drop-shadow(0 0 6px rgba(103,232,249,0.7))"/>`;
     } else {
       html += `<circle cx="${x}" cy="${y}" r="2.5" fill="#4B8CA8"/>`;
     }

@@ -3577,11 +3577,11 @@ function startRoulette(velocity) {
   function tick(now) {
     const elapsed = now - startTime;
     const t = Math.min(elapsed / duration, 1);
-    // Ease-out cubic for natural deceleration
     const ease = 1 - Math.pow(1 - t, 3);
     const angle = startAngle + finalTotalAngle * ease;
 
-    ring.setAttribute("transform", `rotate(${angle})`);
+    const liveRing = document.getElementById("dialRing");
+    if (liveRing) liveRing.setAttribute("transform", `rotate(${angle})`);
 
     // Notch clicks during spin
     const delta = Math.abs(normalize180(angle - lastTickAngle));
@@ -3615,7 +3615,8 @@ function startRoulette(velocity) {
       rerollBranchMults(currentDecision.branches);
       const winnerMult = branchMults[winner.id] || 1.0;
       dialFixedAngle = targetAngle;
-      animateDialSnap(ring, targetAngle);
+      const freshRing = document.getElementById("dialRing");
+      if (freshRing) animateDialSnap(freshRing, targetAngle);
       if (settings.soundConfirm) playConfirm();
       flashConfirmRoad(winner.id);
       showRouletteMultOverlay(winnerMult);
@@ -3623,11 +3624,11 @@ function startRoulette(velocity) {
       chooseBranch(winner.id);
       previewBranchId = null;
       rouletteWinner = null;
-      if (currentDecision) drawJunction(currentDecision);
     }
   }
   rouletteAnimId = requestAnimationFrame(tick);
-  if (currentDecision) drawJunction(currentDecision);
+  const svg = document.getElementById("junctionSvg");
+  if (svg) svg.querySelectorAll(".branch-label-anim").forEach(el => el.setAttribute("opacity", "0"));
   return true;
 }
 

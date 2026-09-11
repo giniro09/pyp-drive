@@ -3220,7 +3220,7 @@ function computeMapLayout() {
     if (adj[e.to]) adj[e.to].push(e.from);
   }
 
-  const refId = mapCurrentNodeId || mapLastPassedNodeId || nodeList[0].id;
+  const refId = (mapEdges.length > 0 ? mapEdges[0].from : null) || nodeList[0].id;
   const linkLen = 20;
   const pos = {};
   pos[refId] = { x: 0, y: 0 };

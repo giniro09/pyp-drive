@@ -3332,14 +3332,25 @@ function renderAutoMap() {
   let selfX = 0, selfY = 0;
   let selfAngleDeg = 0;
   const lastId = mapLastPassedNodeId;
-  const nextId = currentDecision && currentDecision.nodeId;
   const lastPos = lastId && pos[lastId];
-  const nextPos = nextId && pos[nextId];
-  if (lastPos && nextPos) {
-    selfX = (lastPos.x + nextPos.x) / 2;
-    selfY = (lastPos.y + nextPos.y) / 2;
-    const edgeDx = nextPos.x - lastPos.x;
-    const edgeDy = nextPos.y - lastPos.y;
+  const nextDecNode = currentDecision;
+  let nextLayoutXY = null;
+  if (lastPos && nextDecNode && nextDecNode.lat != null && mapNodes[lastId]) {
+    const fromN = mapNodes[lastId];
+    const dx = (nextDecNode.lon - fromN.lon) * mPerDegLon;
+    const dy = -(nextDecNode.lat - fromN.lat) * mPerDegLat;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const linkLen = 20;
+    nextLayoutXY = {
+      x: lastPos.x + (dx / dist) * linkLen,
+      y: lastPos.y + (dy / dist) * linkLen
+    };
+  }
+  if (lastPos && nextLayoutXY) {
+    selfX = (lastPos.x + nextLayoutXY.x) / 2;
+    selfY = (lastPos.y + nextLayoutXY.y) / 2;
+    const edgeDx = nextLayoutXY.x - lastPos.x;
+    const edgeDy = nextLayoutXY.y - lastPos.y;
     if (edgeDx !== 0 || edgeDy !== 0) {
       selfAngleDeg = Math.atan2(edgeDx, -edgeDy) * 180 / Math.PI;
     }

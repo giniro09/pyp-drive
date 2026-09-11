@@ -3153,12 +3153,12 @@ function renderAutoMap() {
   if (!svg || !container) return;
 
   const nodeList = Object.values(mapNodes);
-  if (nodeList.length === 0) { container.style.display = "none"; return; }
+  const cur = mapNodes[mapCurrentNodeId];
+  if (nodeList.length === 0 || !cur) { container.style.display = "none"; return; }
   container.style.display = "block";
 
-  const cur = mapNodes[mapCurrentNodeId];
-  const cLat = cur ? cur.lat : nodeList[0].lat;
-  const cLon = cur ? cur.lon : nodeList[0].lon;
+  const cLat = cur.lat;
+  const cLon = cur.lon;
 
   const cosLat = Math.cos(cLat * Math.PI / 180);
   const mPerDegLat = 111320;

@@ -2268,9 +2268,9 @@ function processPosition(lat, lon, heading, speed) {
       lastAlertThreshold = null;
       carMaxDistM = Math.max(decision.distanceM, 50);
       generateBranchMults(decision.branches);
-      mapCurrentNodeId = decision.nodeId;
       mapCurrentHeading = decision.inBearing || 0;
-      renderAutoMap();
+      recordMapNode(decision.nodeId, decision.lat, decision.lon);
+      mapCurrentNodeId = decision.nodeId;
     }
     lastDecisionNodeId = decision.nodeId;
     lastAcceptedDecisionNodeId = decision.nodeId;
@@ -3112,8 +3112,15 @@ function loadAutoMap() {
     const saved = localStorage.getItem("pyp_automap");
     if (saved) {
       const d = JSON.parse(saved);
-      mapNodes = d.nodes || {};
+      const raw = d.nodes || {};
+      mapNodes = {};
+      for (const [k, v] of Object.entries(raw)) {
+        if (v.lat != null && v.lon != null) mapNodes[k] = v;
+      }
       mapEdges = d.edges || [];
+      if (Object.keys(mapNodes).length === 0 && mapEdges.length > 0) {
+        mapEdges = [];
+      }
     }
   } catch(e) {}
 }

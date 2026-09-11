@@ -3330,6 +3330,7 @@ function renderAutoMap() {
 
   // Compute self position on edge between last passed node and next decision node
   let selfX = 0, selfY = 0;
+  let selfAngleDeg = mapCurrentHeading;
   const lastId = mapLastPassedNodeId;
   const nextId = currentDecision && currentDecision.nodeId;
   const lastPos = lastId && pos[lastId];
@@ -3346,6 +3347,12 @@ function renderAutoMap() {
     t = Math.max(0, Math.min(1, t));
     selfX = lastPos.x + (nextPos.x - lastPos.x) * t;
     selfY = lastPos.y + (nextPos.y - lastPos.y) * t;
+    // Heading from edge direction in layout space
+    const edgeDx = nextPos.x - lastPos.x;
+    const edgeDy = nextPos.y - lastPos.y;
+    if (edgeDx !== 0 || edgeDy !== 0) {
+      selfAngleDeg = Math.atan2(edgeDx, -edgeDy) * 180 / Math.PI;
+    }
   } else if (lastPos) {
     selfX = lastPos.x;
     selfY = lastPos.y;
@@ -3407,9 +3414,9 @@ function renderAutoMap() {
       ${isNew ? 'style="animation:mapRevealNode 0.8s ease-out"' : ''}/>`;
   }
 
-  // Self always at center (0,0 after camera offset)
+  // Self always at center, oriented along current edge
   html += `<polygon points="0,-5 3.5,4 -3.5,4" fill="#67E8F9"
-    transform="rotate(${mapCurrentHeading})"
+    transform="rotate(${selfAngleDeg})"
     style="filter:drop-shadow(0 0 6px rgba(103,232,249,0.7))"/>`;
 
   svg.innerHTML = html;

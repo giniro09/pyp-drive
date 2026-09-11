@@ -3328,58 +3328,23 @@ function renderAutoMap() {
 
   const pos = getMapLayout();
 
-  // Self sits at the midpoint of the link it's currently traveling on.
-  // Find the two endpoints: lastPassedNode and the next node ahead.
-  // The next node may be currentDecision (if visible) or we infer
-  // direction from the most recent mapEdge leaving lastPassedNode.
+  // Self sits at the midpoint of the last traversed edge (= a visible blue line)
   let selfX = 0, selfY = 0;
   let selfAngleDeg = 0;
-  const lastId = mapLastPassedNodeId;
-  const lastPos = lastId && pos[lastId];
-  let linkEndXY = null;
-
-  if (lastPos) {
-    // Try 1: currentDecision gives us exact next node coords
-    if (currentDecision && currentDecision.lat != null && mapNodes[lastId]) {
-      const fromN = mapNodes[lastId];
-      const dx = (currentDecision.lon - fromN.lon) * mPerDegLon;
-      const dy = -(currentDecision.lat - fromN.lat) * mPerDegLat;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const linkLen = 20;
-      linkEndXY = { x: lastPos.x + (dx / dist) * linkLen, y: lastPos.y + (dy / dist) * linkLen };
-    }
-    // Try 2: find the last edge from lastPassedNode and use that neighbor
-    if (!linkEndXY) {
-      for (let i = mapEdges.length - 1; i >= 0; i--) {
-        const e = mapEdges[i];
-        if (e.from === lastId && pos[e.to]) {
-          linkEndXY = pos[e.to];
-          break;
-        }
-        if (e.to === lastId && pos[e.from]) {
-          linkEndXY = pos[e.from];
-          break;
-        }
-      }
-    }
-    // Try 3: use GPS heading to project a direction
-    if (!linkEndXY) {
-      const hRad = mapCurrentHeading * Math.PI / 180;
-      linkEndXY = { x: lastPos.x + Math.sin(hRad) * 20, y: lastPos.y - Math.cos(hRad) * 20 };
-    }
-  }
-
-  if (lastPos && linkEndXY) {
-    selfX = (lastPos.x + linkEndXY.x) / 2;
-    selfY = (lastPos.y + linkEndXY.y) / 2;
-    const edgeDx = linkEndXY.x - lastPos.x;
-    const edgeDy = linkEndXY.y - lastPos.y;
+  const lastEdge = mapEdges.length > 0 ? mapEdges[mapEdges.length - 1] : null;
+  if (lastEdge && pos[lastEdge.from] && pos[lastEdge.to]) {
+    const p1 = pos[lastEdge.from];
+    const p2 = pos[lastEdge.to];
+    selfX = (p1.x + p2.x) / 2;
+    selfY = (p1.y + p2.y) / 2;
+    const edgeDx = p2.x - p1.x;
+    const edgeDy = p2.y - p1.y;
     if (edgeDx !== 0 || edgeDy !== 0) {
       selfAngleDeg = Math.atan2(edgeDx, -edgeDy) * 180 / Math.PI;
     }
-  } else if (lastPos) {
-    selfX = lastPos.x;
-    selfY = lastPos.y;
+  } else if (mapLastPassedNodeId && pos[mapLastPassedNodeId]) {
+    selfX = pos[mapLastPassedNodeId].x;
+    selfY = pos[mapLastPassedNodeId].y;
   }
 
   const camX = selfX;
@@ -3392,15 +3357,6 @@ function renderAutoMap() {
   }
 
   let html = "";
-
-  // Current link (the one self is traveling on)
-  if (lastPos && linkEndXY) {
-    const lp = { x: lastPos.x - camX, y: lastPos.y - camY };
-    const np = { x: linkEndXY.x - camX, y: linkEndXY.y - camY };
-    html += `<line x1="${lp.x}" y1="${lp.y}" x2="${np.x}" y2="${np.y}"
-      stroke="#67E8F9" stroke-width="1.5" stroke-linecap="round" opacity="0.5"
-      stroke-dasharray="4 3"/>`;
-  }
 
   // Explored edges
   for (const e of mapEdges) {

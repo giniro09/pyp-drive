@@ -3210,7 +3210,6 @@ function computeMapLayout() {
   const mPerDegLat = 111320;
   const mPerDegLon = 111320 * cosLat;
 
-  // Build adjacency
   const adj = {};
   for (const n of nodeList) adj[n.id] = [];
   for (const e of mapEdges) {
@@ -3218,81 +3217,76 @@ function computeMapLayout() {
     if (adj[e.to]) adj[e.to].push(e.from);
   }
 
-  // BFS from current node (or nearest visited) to get hop distance
   const refId = mapCurrentNodeId || mapLastPassedNodeId || nodeList[0].id;
-  const hopDist = {};
-  hopDist[refId] = 0;
+  const linkLen = 20;
+  const pos = {};
+  pos[refId] = { x: 0, y: 0 };
+
+  // BFS: place each node at parent's position + local bearing * linkLen
+  const visited = new Set([refId]);
   const queue = [refId];
   let qi = 0;
   while (qi < queue.length) {
     const cur = queue[qi++];
+    const curNode = mapNodes[cur];
+    if (!curNode) continue;
     for (const nb of (adj[cur] || [])) {
-      if (hopDist[nb] === undefined) {
-        hopDist[nb] = hopDist[cur] + 1;
-        queue.push(nb);
-      }
+      if (visited.has(nb)) continue;
+      visited.add(nb);
+      queue.push(nb);
+      const nbNode = mapNodes[nb];
+      if (!nbNode) continue;
+      const dx = (nbNode.lon - curNode.lon) * mPerDegLon;
+      const dy = -(nbNode.lat - curNode.lat) * mPerDegLat;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      pos[nb] = {
+        x: pos[cur].x + (dx / dist) * linkLen,
+        y: pos[cur].y + (dy / dist) * linkLen
+      };
     }
   }
-  // Disconnected nodes get large hop
-  for (const n of nodeList) {
-    if (hopDist[n.id] === undefined) hopDist[n.id] = 999;
-  }
-
-  const linkLen = 20;
-  const pos = {};
-
-  // Place each node: preserve real bearing from its BFS parent, but normalize distance to linkLen per hop
-  // First pass: place by angle from reference, distance = hop * linkLen
+  // Disconnected nodes: place by global bearing
   const refNode = mapNodes[refId];
-  if (!refNode) return {};
   for (const n of nodeList) {
-    if (n.id === refId) { pos[n.id] = { x: 0, y: 0 }; continue; }
+    if (pos[n.id]) continue;
+    if (!refNode) { pos[n.id] = { x: 0, y: 0 }; continue; }
     const dx = (n.lon - refNode.lon) * mPerDegLon;
     const dy = -(n.lat - refNode.lat) * mPerDegLat;
-    const angle = Math.atan2(dy, dx);
-    const d = hopDist[n.id] * linkLen;
-    pos[n.id] = { x: Math.cos(angle) * d, y: Math.sin(angle) * d };
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    pos[n.id] = { x: (dx / dist) * linkLen * 3, y: (dy / dist) * linkLen * 3 };
   }
 
-  // Simple force relaxation: push edges toward linkLen, repel close nodes
-  for (let iter = 0; iter < 30; iter++) {
+  // Force relaxation: equalize edge lengths, repel close nodes
+  for (let iter = 0; iter < 40; iter++) {
     const forces = {};
     for (const n of nodeList) forces[n.id] = { fx: 0, fy: 0 };
-
-    // Edge spring: pull/push to linkLen
     for (const e of mapEdges) {
       const a = pos[e.from], b = pos[e.to];
       if (!a || !b) continue;
       const dx = b.x - a.x, dy = b.y - a.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
-      const diff = (dist - linkLen) / dist * 0.3;
-      const mx = dx * diff, my = dy * diff;
-      forces[e.from].fx += mx; forces[e.from].fy += my;
-      forces[e.to].fx -= mx; forces[e.to].fy -= my;
+      const diff = (dist - linkLen) / dist * 0.25;
+      forces[e.from].fx += dx * diff; forces[e.from].fy += dy * diff;
+      forces[e.to].fx -= dx * diff; forces[e.to].fy -= dy * diff;
     }
-
-    // Node repulsion (short range)
     for (let i = 0; i < nodeList.length; i++) {
       for (let j = i + 1; j < nodeList.length; j++) {
         const a = pos[nodeList[i].id], b = pos[nodeList[j].id];
         if (!a || !b) continue;
         const dx = b.x - a.x, dy = b.y - a.y;
         const dist2 = dx * dx + dy * dy;
-        if (dist2 > linkLen * linkLen * 4) continue;
+        if (dist2 > linkLen * linkLen * 9) continue;
         const dist = Math.sqrt(dist2) || 0.1;
-        const rep = linkLen * linkLen / dist2 * 2;
+        const rep = linkLen * linkLen / dist2 * 1.5;
         const rx = (dx / dist) * rep, ry = (dy / dist) * rep;
         forces[nodeList[i].id].fx -= rx; forces[nodeList[i].id].fy -= ry;
         forces[nodeList[j].id].fx += rx; forces[nodeList[j].id].fy += ry;
       }
     }
-
-    // Apply (pin reference node)
     for (const n of nodeList) {
       if (n.id === refId) continue;
-      const f = forces[n.id];
-      pos[n.id].x += f.fx;
-      pos[n.id].y += f.fy;
+      pos[n.id].x += forces[n.id].fx;
+      pos[n.id].y += forces[n.id].fy;
     }
   }
 
@@ -3334,10 +3328,31 @@ function renderAutoMap() {
 
   const pos = getMapLayout();
 
-  // Camera offset: center on self (reference node is at 0,0 which is close to current position)
-  const refId = mapCurrentNodeId || mapLastPassedNodeId || (nodeList[0] && nodeList[0].id);
-  const camX = (pos[refId] && pos[refId].x) || 0;
-  const camY = (pos[refId] && pos[refId].y) || 0;
+  // Compute self position on edge between last passed node and next decision node
+  let selfX = 0, selfY = 0;
+  const lastId = mapLastPassedNodeId;
+  const nextId = currentDecision && currentDecision.nodeId;
+  const lastPos = lastId && pos[lastId];
+  const nextNode = nextId && mapNodes[nextId];
+  const nextPos = nextId && pos[nextId];
+  if (lastPos && nextPos && mapLiveLat != null) {
+    const lastNode = mapNodes[lastId];
+    const realDx = (nextNode.lon - lastNode.lon) * mPerDegLon;
+    const realDy = -(nextNode.lat - lastNode.lat) * mPerDegLat;
+    const realTotal = Math.sqrt(realDx * realDx + realDy * realDy) || 1;
+    const selfDx = (mapLiveLon - lastNode.lon) * mPerDegLon;
+    const selfDy = -(mapLiveLat - lastNode.lat) * mPerDegLat;
+    let t = (selfDx * realDx + selfDy * realDy) / (realTotal * realTotal);
+    t = Math.max(0, Math.min(1, t));
+    selfX = lastPos.x + (nextPos.x - lastPos.x) * t;
+    selfY = lastPos.y + (nextPos.y - lastPos.y) * t;
+  } else if (lastPos) {
+    selfX = lastPos.x;
+    selfY = lastPos.y;
+  }
+
+  const camX = selfX;
+  const camY = selfY;
 
   function screenXY(nId) {
     const p = pos[nId];
@@ -3361,7 +3376,7 @@ function renderAutoMap() {
       ${isNew ? 'style="animation:mapRevealEdge 0.8s ease-out"' : ''}/>`;
   }
 
-  // Unexplored hints (faint stubs from visited nodes toward unknown neighbors)
+  // Unexplored hints (stubs from visited nodes toward unknown neighbors)
   const hints = getUnexploredHints();
   for (const h of hints) {
     const fromNode = mapNodes[h.fromId];
@@ -3373,12 +3388,13 @@ function renderAutoMap() {
     const dyReal = -(h.lat - fromNode.lat) * mPerDegLat;
     const dLen = Math.sqrt(dxReal * dxReal + dyReal * dyReal);
     if (dLen < 0.5) continue;
-    const stubLen = 8;
+    const stubLen = 10;
     const sx = p.x + (dxReal / dLen) * stubLen;
     const sy = p.y + (dyReal / dLen) * stubLen;
     html += `<line x1="${p.x}" y1="${p.y}" x2="${sx}" y2="${sy}"
-      stroke="#F59E0B" stroke-width="1" stroke-linecap="round" opacity="0.35"
-      stroke-dasharray="2 2"/>`;
+      stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round" opacity="0.6"
+      stroke-dasharray="3 2"/>`;
+    html += `<circle cx="${sx}" cy="${sy}" r="1.5" fill="#F59E0B" opacity="0.5"/>`;
   }
 
   // Explored nodes
@@ -3391,7 +3407,7 @@ function renderAutoMap() {
       ${isNew ? 'style="animation:mapRevealNode 0.8s ease-out"' : ''}/>`;
   }
 
-  // Self always at center
+  // Self always at center (0,0 after camera offset)
   html += `<polygon points="0,-5 3.5,4 -3.5,4" fill="#67E8F9"
     transform="rotate(${mapCurrentHeading})"
     style="filter:drop-shadow(0 0 6px rgba(103,232,249,0.7))"/>`;

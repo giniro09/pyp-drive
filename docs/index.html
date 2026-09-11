@@ -262,6 +262,21 @@
   #autoMapSvg {
     width: 100%; height: 100%;
   }
+  #autoMapStats {
+    position: absolute; bottom: 4px; left: 0; right: 0;
+    text-align: center; font-size: 10px; color: rgba(103,232,249,0.6);
+    letter-spacing: 0.05em; pointer-events: none;
+  }
+  @keyframes mapRevealEdge {
+    0% { stroke-opacity: 0; stroke-width: 4; }
+    50% { stroke-opacity: 1; stroke-width: 3; }
+    100% { stroke-opacity: 1; stroke-width: 1.8; }
+  }
+  @keyframes mapRevealNode {
+    0% { r: 0; opacity: 0; }
+    50% { r: 5; opacity: 1; }
+    100% { r: 2.5; opacity: 0.8; }
+  }
   .cruise-streak {
     font-size: 16px; font-weight: 700; color: #F59E0B; margin-top: 2px;
     letter-spacing: 0.02em; opacity: 0; transition: opacity 0.3s;
@@ -677,6 +692,7 @@
   </div>
   <div id="autoMap" style="display:none;">
     <svg id="autoMapSvg" viewBox="-100 -100 200 200"></svg>
+    <div id="autoMapStats"></div>
   </div>
   <div id="stakeToast"></div>
   <div id="bustToast">BUST</div>
@@ -1552,6 +1568,11 @@ function resetAutoMap() {
   mapCurrentNodeId = null;
   mapLastPassedNodeId = null;
   mapCurrentHeading = 0;
+  mapNewNodeId = null;
+  mapNewEdgeKey = null;
+  mapLayoutCache = null;
+  mapLayoutNodeCount = -1;
+  mapLayoutEdgeCount = -1;
   saveAutoMap();
   renderAutoMap();
 }
@@ -3098,7 +3119,7 @@ const BUST_CHANCES = [0.10, 0.25, 0.50, 0.80, 1.0];
 let branchMults = {};
 
 // ============================================================
-//  Auto-mapping (real-coordinate abstract map)
+//  Auto-mapping (fog-of-war dungeon cartography)
 // ============================================================
 let mapNodes = {};
 let mapEdges = [];
@@ -3107,6 +3128,8 @@ let mapLastPassedNodeId = null;
 let mapCurrentHeading = 0;
 let mapLiveLat = null;
 let mapLiveLon = null;
+let mapNewNodeId = null;
+let mapNewEdgeKey = null;
 
 function loadAutoMap() {
   try {
@@ -3134,16 +3157,22 @@ function saveAutoMap() {
 
 function recordMapNode(nodeId, lat, lon) {
   if (!nodeId || lat == null || lon == null) return;
-  if (!mapNodes[nodeId]) {
+  const isNew = !mapNodes[nodeId];
+  if (isNew) {
     mapNodes[nodeId] = { id: nodeId, lat, lon };
+    mapNewNodeId = nodeId;
+    setTimeout(() => { mapNewNodeId = null; }, 800);
   }
   if (mapLastPassedNodeId && mapLastPassedNodeId !== nodeId) {
+    const edgeKey = [mapLastPassedNodeId, nodeId].sort().join("-");
     const hasEdge = mapEdges.some(e =>
       (e.from === mapLastPassedNodeId && e.to === nodeId) ||
       (e.from === nodeId && e.to === mapLastPassedNodeId)
     );
     if (!hasEdge) {
       mapEdges.push({ from: mapLastPassedNodeId, to: nodeId });
+      mapNewEdgeKey = edgeKey;
+      setTimeout(() => { mapNewEdgeKey = null; }, 800);
     }
   }
   mapLastPassedNodeId = nodeId;
@@ -3151,57 +3180,231 @@ function recordMapNode(nodeId, lat, lon) {
   renderAutoMap();
 }
 
+function getUnexploredHints() {
+  if (!graph) return [];
+  const hints = [];
+  const visitedEdgeSet = new Set();
+  for (const e of mapEdges) {
+    visitedEdgeSet.add(e.from + "-" + e.to);
+    visitedEdgeSet.add(e.to + "-" + e.from);
+  }
+  for (const nodeId of Object.keys(mapNodes)) {
+    const outIds = graph.outgoing.get(nodeId) || [];
+    for (const eid of outIds) {
+      const edge = graph.edges.get(eid);
+      if (!edge) continue;
+      const toId = edge.toNodeId;
+      if (visitedEdgeSet.has(nodeId + "-" + toId)) continue;
+      const node = graph.nodes.get(toId);
+      if (!node) continue;
+      hints.push({ fromId: nodeId, lat: node.lat, lon: node.lon });
+    }
+  }
+  return hints;
+}
+
+function computeMapLayout() {
+  const nodeList = Object.values(mapNodes);
+  if (nodeList.length === 0) return {};
+  const cosLat = Math.cos((mapLiveLat || nodeList[0].lat) * Math.PI / 180);
+  const mPerDegLat = 111320;
+  const mPerDegLon = 111320 * cosLat;
+
+  // Build adjacency
+  const adj = {};
+  for (const n of nodeList) adj[n.id] = [];
+  for (const e of mapEdges) {
+    if (adj[e.from]) adj[e.from].push(e.to);
+    if (adj[e.to]) adj[e.to].push(e.from);
+  }
+
+  // BFS from current node (or nearest visited) to get hop distance
+  const refId = mapCurrentNodeId || mapLastPassedNodeId || nodeList[0].id;
+  const hopDist = {};
+  hopDist[refId] = 0;
+  const queue = [refId];
+  let qi = 0;
+  while (qi < queue.length) {
+    const cur = queue[qi++];
+    for (const nb of (adj[cur] || [])) {
+      if (hopDist[nb] === undefined) {
+        hopDist[nb] = hopDist[cur] + 1;
+        queue.push(nb);
+      }
+    }
+  }
+  // Disconnected nodes get large hop
+  for (const n of nodeList) {
+    if (hopDist[n.id] === undefined) hopDist[n.id] = 999;
+  }
+
+  const linkLen = 20;
+  const pos = {};
+
+  // Place each node: preserve real bearing from its BFS parent, but normalize distance to linkLen per hop
+  // First pass: place by angle from reference, distance = hop * linkLen
+  const refNode = mapNodes[refId];
+  if (!refNode) return {};
+  for (const n of nodeList) {
+    if (n.id === refId) { pos[n.id] = { x: 0, y: 0 }; continue; }
+    const dx = (n.lon - refNode.lon) * mPerDegLon;
+    const dy = -(n.lat - refNode.lat) * mPerDegLat;
+    const angle = Math.atan2(dy, dx);
+    const d = hopDist[n.id] * linkLen;
+    pos[n.id] = { x: Math.cos(angle) * d, y: Math.sin(angle) * d };
+  }
+
+  // Simple force relaxation: push edges toward linkLen, repel close nodes
+  for (let iter = 0; iter < 30; iter++) {
+    const forces = {};
+    for (const n of nodeList) forces[n.id] = { fx: 0, fy: 0 };
+
+    // Edge spring: pull/push to linkLen
+    for (const e of mapEdges) {
+      const a = pos[e.from], b = pos[e.to];
+      if (!a || !b) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+      const diff = (dist - linkLen) / dist * 0.3;
+      const mx = dx * diff, my = dy * diff;
+      forces[e.from].fx += mx; forces[e.from].fy += my;
+      forces[e.to].fx -= mx; forces[e.to].fy -= my;
+    }
+
+    // Node repulsion (short range)
+    for (let i = 0; i < nodeList.length; i++) {
+      for (let j = i + 1; j < nodeList.length; j++) {
+        const a = pos[nodeList[i].id], b = pos[nodeList[j].id];
+        if (!a || !b) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist2 = dx * dx + dy * dy;
+        if (dist2 > linkLen * linkLen * 4) continue;
+        const dist = Math.sqrt(dist2) || 0.1;
+        const rep = linkLen * linkLen / dist2 * 2;
+        const rx = (dx / dist) * rep, ry = (dy / dist) * rep;
+        forces[nodeList[i].id].fx -= rx; forces[nodeList[i].id].fy -= ry;
+        forces[nodeList[j].id].fx += rx; forces[nodeList[j].id].fy += ry;
+      }
+    }
+
+    // Apply (pin reference node)
+    for (const n of nodeList) {
+      if (n.id === refId) continue;
+      const f = forces[n.id];
+      pos[n.id].x += f.fx;
+      pos[n.id].y += f.fy;
+    }
+  }
+
+  return pos;
+}
+
+let mapLayoutCache = null;
+let mapLayoutNodeCount = -1;
+let mapLayoutEdgeCount = -1;
+
+function getMapLayout() {
+  const nc = Object.keys(mapNodes).length;
+  const ec = mapEdges.length;
+  if (mapLayoutCache && mapLayoutNodeCount === nc && mapLayoutEdgeCount === ec) {
+    return mapLayoutCache;
+  }
+  mapLayoutCache = computeMapLayout();
+  mapLayoutNodeCount = nc;
+  mapLayoutEdgeCount = ec;
+  return mapLayoutCache;
+}
 
 function renderAutoMap() {
   const svg = document.getElementById("autoMapSvg");
   const container = document.getElementById("autoMap");
+  const statsEl = document.getElementById("autoMapStats");
   if (!svg || !container) return;
 
   if (mapLiveLat == null || mapLiveLon == null) { container.style.display = "none"; return; }
   container.style.display = "block";
   const nodeList = Object.values(mapNodes);
 
-  const cLat = mapLiveLat;
-  const cLon = mapLiveLon;
-
-  const cosLat = Math.cos(cLat * Math.PI / 180);
+  const cosLat = Math.cos(mapLiveLat * Math.PI / 180);
   const mPerDegLat = 111320;
   const mPerDegLon = 111320 * cosLat;
-  const viewRadiusM = 500;
+
   const half = 90;
   svg.setAttribute("viewBox", `${-half} ${-half} ${half * 2} ${half * 2}`);
-  const scale = half / viewRadiusM;
+
+  const pos = getMapLayout();
+
+  // Camera offset: center on self (reference node is at 0,0 which is close to current position)
+  const refId = mapCurrentNodeId || mapLastPassedNodeId || (nodeList[0] && nodeList[0].id);
+  const camX = (pos[refId] && pos[refId].x) || 0;
+  const camY = (pos[refId] && pos[refId].y) || 0;
+
+  function screenXY(nId) {
+    const p = pos[nId];
+    if (!p) return null;
+    return { x: p.x - camX, y: p.y - camY };
+  }
 
   let html = "";
 
-  // Edges
+  // Explored edges
   for (const e of mapEdges) {
-    const nFrom = mapNodes[e.from];
-    const nTo = mapNodes[e.to];
-    if (!nFrom || !nTo) continue;
-    const x1 = (nFrom.lon - cLon) * mPerDegLon * scale;
-    const y1 = -(nFrom.lat - cLat) * mPerDegLat * scale;
-    const x2 = (nTo.lon - cLon) * mPerDegLon * scale;
-    const y2 = -(nTo.lat - cLat) * mPerDegLat * scale;
-    if (Math.abs(x1) > half * 1.3 && Math.abs(x2) > half * 1.3) continue;
-    if (Math.abs(y1) > half * 1.3 && Math.abs(y2) > half * 1.3) continue;
-    html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#4B8CA8" stroke-width="1.8" stroke-linecap="round"/>`;
+    const p1 = screenXY(e.from);
+    const p2 = screenXY(e.to);
+    if (!p1 || !p2) continue;
+    if (Math.abs(p1.x) > half * 1.5 && Math.abs(p2.x) > half * 1.5) continue;
+    if (Math.abs(p1.y) > half * 1.5 && Math.abs(p2.y) > half * 1.5) continue;
+    const eKey = [e.from, e.to].sort().join("-");
+    const isNew = eKey === mapNewEdgeKey;
+    html += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}"
+      stroke="#4B8CA8" stroke-width="1.8" stroke-linecap="round"
+      ${isNew ? 'style="animation:mapRevealEdge 0.8s ease-out"' : ''}/>`;
   }
 
-  // Nodes
+  // Unexplored hints (faint stubs from visited nodes toward unknown neighbors)
+  const hints = getUnexploredHints();
+  for (const h of hints) {
+    const fromNode = mapNodes[h.fromId];
+    if (!fromNode) continue;
+    const p = screenXY(h.fromId);
+    if (!p) continue;
+    if (Math.abs(p.x) > half * 1.3 || Math.abs(p.y) > half * 1.3) continue;
+    const dxReal = (h.lon - fromNode.lon) * mPerDegLon;
+    const dyReal = -(h.lat - fromNode.lat) * mPerDegLat;
+    const dLen = Math.sqrt(dxReal * dxReal + dyReal * dyReal);
+    if (dLen < 0.5) continue;
+    const stubLen = 8;
+    const sx = p.x + (dxReal / dLen) * stubLen;
+    const sy = p.y + (dyReal / dLen) * stubLen;
+    html += `<line x1="${p.x}" y1="${p.y}" x2="${sx}" y2="${sy}"
+      stroke="#F59E0B" stroke-width="1" stroke-linecap="round" opacity="0.35"
+      stroke-dasharray="2 2"/>`;
+  }
+
+  // Explored nodes
   for (const n of nodeList) {
-    const x = (n.lon - cLon) * mPerDegLon * scale;
-    const y = -(n.lat - cLat) * mPerDegLat * scale;
-    if (Math.abs(x) > half * 1.2 || Math.abs(y) > half * 1.2) continue;
-    html += `<circle cx="${x}" cy="${y}" r="2" fill="#4B8CA8" opacity="0.7"/>`;
+    const p = screenXY(n.id);
+    if (!p) continue;
+    if (Math.abs(p.x) > half * 1.3 || Math.abs(p.y) > half * 1.3) continue;
+    const isNew = n.id === mapNewNodeId;
+    html += `<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="#4B8CA8" opacity="0.8"
+      ${isNew ? 'style="animation:mapRevealNode 0.8s ease-out"' : ''}/>`;
   }
 
-  // Self (always at center)
+  // Self always at center
   html += `<polygon points="0,-5 3.5,4 -3.5,4" fill="#67E8F9"
     transform="rotate(${mapCurrentHeading})"
     style="filter:drop-shadow(0 0 6px rgba(103,232,249,0.7))"/>`;
 
   svg.innerHTML = html;
+
+  // Stats
+  if (statsEl) {
+    const nCount = nodeList.length;
+    const eCount = mapEdges.length;
+    const hCount = hints.length;
+    statsEl.textContent = nCount > 0 ? `${nCount} nodes  ${eCount} paths  ${hCount} unknown` : "";
+  }
 }
 
 function generateBranchMults(branches) {

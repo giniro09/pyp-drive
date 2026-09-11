@@ -1570,6 +1570,7 @@ function resetAutoMap() {
   mapCurrentHeading = 0;
   mapNewNodeId = null;
   mapNewEdgeKey = null;
+  mapCurrentEdge = null;
   mapLayoutCache = null;
   mapLayoutNodeCount = -1;
   mapLayoutEdgeCount = -1;
@@ -3130,6 +3131,7 @@ let mapLiveLat = null;
 let mapLiveLon = null;
 let mapNewNodeId = null;
 let mapNewEdgeKey = null;
+let mapCurrentEdge = null; // {from, to} of the edge self is currently on
 
 function loadAutoMap() {
   try {
@@ -3164,6 +3166,7 @@ function recordMapNode(nodeId, lat, lon) {
     setTimeout(() => { mapNewNodeId = null; }, 800);
   }
   if (mapLastPassedNodeId && mapLastPassedNodeId !== nodeId) {
+    mapCurrentEdge = { from: mapLastPassedNodeId, to: nodeId };
     const edgeKey = [mapLastPassedNodeId, nodeId].sort().join("-");
     const hasEdge = mapEdges.some(e =>
       (e.from === mapLastPassedNodeId && e.to === nodeId) ||
@@ -3328,13 +3331,13 @@ function renderAutoMap() {
 
   const pos = getMapLayout();
 
-  // Self sits at the midpoint of the last traversed edge (= a visible blue line)
+  // Self sits at the midpoint of the edge it last traversed
   let selfX = 0, selfY = 0;
   let selfAngleDeg = 0;
-  const lastEdge = mapEdges.length > 0 ? mapEdges[mapEdges.length - 1] : null;
-  if (lastEdge && pos[lastEdge.from] && pos[lastEdge.to]) {
-    const p1 = pos[lastEdge.from];
-    const p2 = pos[lastEdge.to];
+  const ce = mapCurrentEdge;
+  if (ce && pos[ce.from] && pos[ce.to]) {
+    const p1 = pos[ce.from];
+    const p2 = pos[ce.to];
     selfX = (p1.x + p2.x) / 2;
     selfY = (p1.y + p2.y) / 2;
     const edgeDx = p2.x - p1.x;

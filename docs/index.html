@@ -2235,10 +2235,6 @@ function processPosition(lat, lon, heading, speed) {
     return;
   }
 
-  if (lastMatchEdgeId && lastMatchEdgeId !== match.edge.id) {
-    const prevEdge = graph.edges.get(lastMatchEdgeId);
-    if (prevEdge) checkMapPassthrough(prevEdge);
-  }
   lastMatchEdgeId = match.edge.id;
   let decision = findNextDecision(graph, match.edge, match.fraction);
 
@@ -3150,18 +3146,6 @@ function recordMapNode(nodeId, lat, lon) {
   renderAutoMap();
 }
 
-function checkMapPassthrough(edge) {
-  if (!edge || !graph) return;
-  const nodeId = edge.toNodeId;
-  const outIds = (graph.outgoing.get(nodeId) || []).filter(eid => {
-    const e = graph.edges.get(eid);
-    return e.toNodeId !== edge.fromNodeId || e.osmWayId !== edge.osmWayId;
-  });
-  if (outIds.length >= 2) {
-    const node = graph.nodes.get(nodeId);
-    if (node) recordMapNode(nodeId, node.lat, node.lon);
-  }
-}
 
 function renderAutoMap() {
   const svg = document.getElementById("autoMapSvg");

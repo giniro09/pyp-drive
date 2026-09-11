@@ -3328,26 +3328,16 @@ function renderAutoMap() {
 
   const pos = getMapLayout();
 
-  // Compute self position on edge between last passed node and next decision node
+  // Self sits at the midpoint of the current link (lastPassedNode → nextDecisionNode)
   let selfX = 0, selfY = 0;
-  let selfAngleDeg = mapCurrentHeading;
+  let selfAngleDeg = 0;
   const lastId = mapLastPassedNodeId;
   const nextId = currentDecision && currentDecision.nodeId;
   const lastPos = lastId && pos[lastId];
-  const nextNode = nextId && mapNodes[nextId];
   const nextPos = nextId && pos[nextId];
-  if (lastPos && nextPos && mapLiveLat != null) {
-    const lastNode = mapNodes[lastId];
-    const realDx = (nextNode.lon - lastNode.lon) * mPerDegLon;
-    const realDy = -(nextNode.lat - lastNode.lat) * mPerDegLat;
-    const realTotal = Math.sqrt(realDx * realDx + realDy * realDy) || 1;
-    const selfDx = (mapLiveLon - lastNode.lon) * mPerDegLon;
-    const selfDy = -(mapLiveLat - lastNode.lat) * mPerDegLat;
-    let t = (selfDx * realDx + selfDy * realDy) / (realTotal * realTotal);
-    t = Math.max(0, Math.min(1, t));
-    selfX = lastPos.x + (nextPos.x - lastPos.x) * t;
-    selfY = lastPos.y + (nextPos.y - lastPos.y) * t;
-    // Heading from edge direction in layout space
+  if (lastPos && nextPos) {
+    selfX = (lastPos.x + nextPos.x) / 2;
+    selfY = (lastPos.y + nextPos.y) / 2;
     const edgeDx = nextPos.x - lastPos.x;
     const edgeDy = nextPos.y - lastPos.y;
     if (edgeDx !== 0 || edgeDy !== 0) {

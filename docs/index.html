@@ -3370,6 +3370,15 @@ function renderAutoMap() {
 
   let html = "";
 
+  // Current link (the one self is traveling on — not yet in mapEdges)
+  if (lastPos && nextLayoutXY) {
+    const lp = { x: lastPos.x - camX, y: lastPos.y - camY };
+    const np = { x: nextLayoutXY.x - camX, y: nextLayoutXY.y - camY };
+    html += `<line x1="${lp.x}" y1="${lp.y}" x2="${np.x}" y2="${np.y}"
+      stroke="#67E8F9" stroke-width="1.5" stroke-linecap="round" opacity="0.5"
+      stroke-dasharray="4 3"/>`;
+  }
+
   // Explored edges
   for (const e of mapEdges) {
     const p1 = screenXY(e.from);

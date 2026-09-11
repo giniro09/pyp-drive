@@ -2226,6 +2226,9 @@ function startGps() {
 }
 
 function processPosition(lat, lon, heading, speed) {
+  mapLiveLat = lat;
+  mapLiveLon = lon;
+  mapCurrentHeading = heading || 0;
   const match = matchPosition(graph, lat, lon, heading, speed||0, lastMatchEdgeId);
   if (!match) {
     currentDecision = null;
@@ -2264,7 +2267,6 @@ function processPosition(lat, lon, heading, speed) {
       lastAlertThreshold = null;
       carMaxDistM = Math.max(decision.distanceM, 50);
       generateBranchMults(decision.branches);
-      mapCurrentHeading = decision.inBearing || 0;
       recordMapNode(decision.nodeId, decision.lat, decision.lon);
       mapCurrentNodeId = decision.nodeId;
     }
@@ -2345,6 +2347,7 @@ function processPosition(lat, lon, heading, speed) {
     document.getElementById("stateLabel").textContent = "走行中";
     setBadge("ok","走行中");
   }
+  renderAutoMap();
 }
 
 function chooseBranch(branchId) {
@@ -3102,6 +3105,8 @@ let mapEdges = [];
 let mapCurrentNodeId = null;
 let mapLastPassedNodeId = null;
 let mapCurrentHeading = 0;
+let mapLiveLat = null;
+let mapLiveLon = null;
 
 function loadAutoMap() {
   try {
@@ -3152,13 +3157,12 @@ function renderAutoMap() {
   const container = document.getElementById("autoMap");
   if (!svg || !container) return;
 
-  const nodeList = Object.values(mapNodes);
-  const cur = mapNodes[mapCurrentNodeId];
-  if (nodeList.length === 0 || !cur) { container.style.display = "none"; return; }
+  if (mapLiveLat == null || mapLiveLon == null) { container.style.display = "none"; return; }
   container.style.display = "block";
+  const nodeList = Object.values(mapNodes);
 
-  const cLat = cur.lat;
-  const cLon = cur.lon;
+  const cLat = mapLiveLat;
+  const cLon = mapLiveLon;
 
   const cosLat = Math.cos(cLat * Math.PI / 180);
   const mPerDegLat = 111320;
@@ -3189,15 +3193,13 @@ function renderAutoMap() {
     const x = (n.lon - cLon) * mPerDegLon * scale;
     const y = -(n.lat - cLat) * mPerDegLat * scale;
     if (Math.abs(x) > half * 1.2 || Math.abs(y) > half * 1.2) continue;
-    const isCurrent = n.id === mapCurrentNodeId;
-    if (isCurrent) {
-      html += `<polygon points="0,-5 3.5,4 -3.5,4" fill="#67E8F9"
-        transform="translate(${x},${y}) rotate(${mapCurrentHeading})"
-        style="filter:drop-shadow(0 0 6px rgba(103,232,249,0.7))"/>`;
-    } else {
-      html += `<circle cx="${x}" cy="${y}" r="2" fill="#4B8CA8" opacity="0.7"/>`;
-    }
+    html += `<circle cx="${x}" cy="${y}" r="2" fill="#4B8CA8" opacity="0.7"/>`;
   }
+
+  // Self (always at center)
+  html += `<polygon points="0,-5 3.5,4 -3.5,4" fill="#67E8F9"
+    transform="rotate(${mapCurrentHeading})"
+    style="filter:drop-shadow(0 0 6px rgba(103,232,249,0.7))"/>`;
 
   svg.innerHTML = html;
 }

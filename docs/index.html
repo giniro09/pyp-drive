@@ -385,6 +385,15 @@
   }
   .cruise-sub.risk { color: #EF4444; font-weight: 700; font-size: 13px; }
 
+  @keyframes areaFadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes areaSlideIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
   #rouletteMult {
     position: fixed; transform: translate(-50%, -50%);
     display: none; text-align: center;
@@ -744,7 +753,7 @@
       <span>出撃コスト <strong id="tripDeployCost" style="color:#FF6257;">500</strong> G</span>
     </div>
     <div id="tripCargoPreview" style="margin-bottom:12px;"></div>
-    <div style="margin-bottom:12px;font-size:12px;color:var(--text-muted);">Trip #<span id="tripNum">0</span> &nbsp; 総走行 <span id="tripTotalDist">0</span> km</div>
+    <div style="margin-bottom:12px;font-size:12px;color:var(--text-muted);">Trip #<span id="tripNum">0</span> &nbsp; 総走行 <span id="tripTotalDist">0</span> km &nbsp; エリア <span id="tripAreaCount">0</span></div>
     <button class="trip-depart-btn" onclick="departTrip()">出発</button>
   </div>
 </div>
@@ -803,6 +812,11 @@
     <div class="notice-icon">&#128225;</div>
     <div id="noticeText" class="notice-text">GPS信号を待っています</div>
     <div id="noticeSub" class="notice-sub">ブラウザの位置情報を許可してください</div>
+  </div>
+  <div id="areaHud" style="display:none;position:fixed;top:42px;left:50%;transform:translateX(-50%);z-index:92;background:rgba(0,0,0,0.6);border-radius:10px;padding:3px 14px;font-size:12px;color:var(--text-secondary);white-space:nowrap;pointer-events:none;">
+    <span id="areaHudEmoji" style="margin-right:4px;"></span>
+    <span id="areaHudName"></span>
+    <span id="areaHudBiome" style="margin-left:6px;font-size:10px;letter-spacing:1px;opacity:0.7;"></span>
   </div>
   <div id="junctionHud">
     <div><span class="hud-distance" id="hudDistance">---</span><span class="hud-unit">m</span></div>
@@ -1083,6 +1097,45 @@
       </div>
     </details>
 
+    <!-- ===== Cargo / 所持品 ===== -->
+    <details class="s-section">
+      <summary class="s-section-title">Cargo / 所持品</summary>
+      <div class="s-section-body">
+        <div style="margin-bottom:8px;font-size:14px;color:var(--text-secondary);">
+          所持金 <strong id="settingsMoney" style="color:#F59E0B;">0</strong> G &nbsp;
+          Cargo <strong id="settingsCargoCount">0</strong> / <strong id="settingsCargoMax">8</strong>
+        </div>
+        <div id="settingsCargoGrid" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;"></div>
+        <button style="background:rgba(255,255,255,0.08);color:var(--text-secondary);border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px;" onclick="sellAllCargo()">全アイテム売却</button>
+        <button style="background:#EF4444;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px;margin-left:8px;" onclick="if(confirm('全データをリセットしますか？'))resetPlayerData()">プレイヤーデータリセット</button>
+      </div>
+    </details>
+
+    <!-- ===== Area / エリア ===== -->
+    <details class="s-section">
+      <summary class="s-section-title">Area / エリア</summary>
+      <div class="s-section-body">
+        <div style="margin-bottom:8px;font-size:14px;color:var(--text-secondary);">
+          発見済み <strong id="settingsAreaCount" style="color:#8ecae6;">0</strong> エリア
+        </div>
+        <div id="settingsAreaList" style="max-height:200px;overflow-y:auto;font-size:12px;"></div>
+        <button style="background:#EF4444;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px;margin-top:8px;" onclick="if(confirm('エリアデータをリセットしますか？')){localStorage.removeItem('pyp_areas');areaData={};currentAreaId=null;updateSettingsArea();}">エリアデータリセット</button>
+      </div>
+    </details>
+
+    <!-- ===== Skill / スキル ===== -->
+    <details class="s-section">
+      <summary class="s-section-title">Skill / スキル</summary>
+      <div class="s-section-body">
+        <div style="margin-bottom:8px;font-size:14px;color:var(--text-secondary);">
+          発見済み <strong id="settingsSkillCount" style="color:#a855f7;">0</strong> ノード
+          &nbsp; SP <strong id="settingsSkillPoints" style="color:#ffd60a;">0</strong>
+        </div>
+        <div id="settingsSkillList" style="max-height:200px;overflow-y:auto;font-size:12px;"></div>
+        <button style="background:#EF4444;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px;margin-top:8px;" onclick="if(confirm('スキルデータをリセットしますか？')){localStorage.removeItem('pyp_skills');skillData={};playerData.skillPoints=0;savePlayerData(playerData);updateSettingsSkill();}">スキルデータリセット</button>
+      </div>
+    </details>
+
     <!-- ===== サウンド ===== -->
     <details class="s-section">
       <summary class="s-section-title">サウンド</summary>
@@ -1330,7 +1383,97 @@ function toggleSettings() {
   const el = document.getElementById("settingsOverlay");
   const show = el.style.display !== "flex";
   el.style.display = show ? "flex" : "none";
-  if (show) renderPresetList();
+  if (show) {
+    renderPresetList();
+    updateSettingsCargo();
+    updateSettingsArea();
+    updateSettingsSkill();
+  }
+}
+
+function updateSettingsCargo() {
+  const pd = loadPlayerData();
+  const moneyEl = document.getElementById("settingsMoney");
+  const countEl = document.getElementById("settingsCargoCount");
+  const maxEl = document.getElementById("settingsCargoMax");
+  const grid = document.getElementById("settingsCargoGrid");
+  if (moneyEl) moneyEl.textContent = pd.money.toLocaleString();
+  if (countEl) countEl.textContent = pd.cargo.length;
+  if (maxEl) maxEl.textContent = pd.cargoMax;
+  if (grid) {
+    if (pd.cargo.length > 0) {
+      grid.innerHTML = pd.cargo.map(it =>
+        `<span style="font-size:11px;background:var(--surface);border-radius:6px;padding:2px 6px;border:1px solid rgba(91,154,181,0.2);">${it.emoji} ${it.name}</span>`
+      ).join('');
+    } else {
+      grid.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">アイテムなし</span>';
+    }
+  }
+}
+
+function updateSettingsSkill() {
+  const countEl = document.getElementById("settingsSkillCount");
+  const spEl = document.getElementById("settingsSkillPoints");
+  const listEl = document.getElementById("settingsSkillList");
+  if (!countEl || !listEl) return;
+  const entries = Object.values(skillData);
+  countEl.textContent = entries.length;
+  spEl.textContent = playerData.skillPoints || 0;
+  if (entries.length === 0) {
+    listEl.innerHTML = '<span style="color:var(--text-muted);">未発見</span>';
+    return;
+  }
+  entries.sort((a, b) => (b.discoveredAt || 0) - (a.discoveredAt || 0));
+  listEl.innerHTML = entries.map(sd => {
+    const cat = SKILL_CATEGORIES.find(c => c.key === sd.category) || SKILL_CATEGORIES[0];
+    return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+      <span>${cat.emoji}</span>
+      <span style="color:#fff;font-weight:600;">${sd.name || cat.label}</span>
+      <span style="font-size:10px;color:#a855f7;">${cat.label}</span>
+      <span style="margin-left:auto;font-size:10px;color:var(--text-muted);">Lv.${sd.level}</span>
+    </div>`;
+  }).join('');
+}
+
+function updateSettingsArea() {
+  const countEl = document.getElementById("settingsAreaCount");
+  const listEl = document.getElementById("settingsAreaList");
+  if (!countEl || !listEl) return;
+  const entries = Object.values(areaData);
+  countEl.textContent = entries.length;
+  if (entries.length === 0) {
+    listEl.innerHTML = '<span style="color:var(--text-muted);">未発見</span>';
+    return;
+  }
+  entries.sort((a, b) => (b.discoveredAt || 0) - (a.discoveredAt || 0));
+  listEl.innerHTML = entries.map(ad => {
+    const biome = BIOME_TYPES[ad.primaryBiome] || BIOME_TYPES.rural;
+    return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+      <span>${biome.emoji}</span>
+      <span style="color:#fff;font-weight:600;">${ad.name}</span>
+      <span style="color:${biome.color};font-size:10px;letter-spacing:1px;">${biome.label.toUpperCase()}</span>
+      <span style="margin-left:auto;font-size:10px;color:var(--text-muted);">${ad.stage}</span>
+    </div>`;
+  }).join('');
+}
+
+function sellAllCargo() {
+  const pd = loadPlayerData();
+  if (pd.cargo.length === 0) return;
+  let total = 0;
+  for (const it of pd.cargo) total += SCRAP_VALUES[it.rarity] || 5;
+  if (!confirm(`${pd.cargo.length}個のアイテムを${total}Gで売却しますか？`)) return;
+  pd.money += total;
+  pd.cargo = [];
+  savePlayerData(pd);
+  playerData = pd;
+  updateSettingsCargo();
+}
+
+function resetPlayerData() {
+  localStorage.removeItem("pyp_player");
+  playerData = loadPlayerData();
+  updateSettingsCargo();
 }
 
 function getPresets() {
@@ -1922,7 +2065,7 @@ function buildGraph(data) {
     if (el.type==="node" && el.lat!=null) {
       osmNodes.set(el.id, {lat:el.lat, lon:el.lon, tags:el.tags||{}});
       if (el.tags && el.tags.highway === "traffic_signals") {
-        signalPositions.push({lat:el.lat, lon:el.lon});
+        signalPositions.push({lat:el.lat, lon:el.lon, name:el.tags.name||null, id:el.id});
       }
     }
     else if (el.type==="way" && el.tags?.highway) ways.push(el);
@@ -1994,6 +2137,7 @@ function buildGraph(data) {
         for (const sp of sigs) {
           if (haversineM(node.lat, node.lon, sp.lat, sp.lon) <= SIG_RANGE_M) {
             node.hasSignal = true;
+            if (sp.name) node.signalName = sp.name;
             break outer;
           }
         }
@@ -2001,7 +2145,419 @@ function buildGraph(data) {
     }
   }
 
-  return {nodes,edges,outgoing,incoming};
+  return {nodes,edges,outgoing,incoming,signalPositions};
+}
+
+// ============================================================
+//  Area / Biome System
+// ============================================================
+const AREA_RADIUS_M = 500;
+const BIOME_TYPES = {
+  residential: { label: "Residential", emoji: "🏘️", color: "#8ecae6" },
+  commercial:  { label: "Commercial",  emoji: "🏪", color: "#ffb703" },
+  industrial:  { label: "Industrial",  emoji: "🏭", color: "#e63946" },
+  arterial:    { label: "Arterial",    emoji: "🛤️", color: "#457b9d" },
+  rural:       { label: "Rural",       emoji: "🌾", color: "#606c38" },
+  highway:     { label: "Highway",     emoji: "🛣️", color: "#6c757d" },
+};
+const AREA_STAGES = ["DISCOVERED", "EXPLORED", "DEVELOPED", "MASTERED"];
+const AREA_EXPLORE_THRESHOLD_M = 2000;
+
+let areaIndex = null;
+let currentAreaId = null;
+let areaData = {};
+
+function loadAreaData() {
+  try {
+    const raw = localStorage.getItem("pyp_areas");
+    if (raw) areaData = JSON.parse(raw);
+  } catch(e) { areaData = {}; }
+  return areaData;
+}
+function saveAreaData() {
+  localStorage.setItem("pyp_areas", JSON.stringify(areaData));
+}
+
+function buildAreaIndex(g) {
+  const EDGE_CELL = 0.005;
+  const edgeGrid = new Map();
+  for (const edge of g.edges.values()) {
+    const mid = edge.geometry[0];
+    const key = Math.floor(mid[1] / EDGE_CELL) + "," + Math.floor(mid[0] / EDGE_CELL);
+    if (!edgeGrid.has(key)) edgeGrid.set(key, []);
+    edgeGrid.get(key).push(edge);
+  }
+
+  const areas = new Map();
+  for (const node of g.nodes.values()) {
+    if (!node.hasSignal || !node.signalName) continue;
+    const areaId = "area_" + node.id;
+    if (areas.has(areaId)) continue;
+
+    const cLat = Math.floor(node.lat / EDGE_CELL);
+    const cLon = Math.floor(node.lon / EDGE_CELL);
+    const nearbyEdges = [];
+    for (let dLat = -1; dLat <= 1; dLat++) {
+      for (let dLon = -1; dLon <= 1; dLon++) {
+        const edges = edgeGrid.get((cLat + dLat) + "," + (cLon + dLon));
+        if (!edges) continue;
+        for (const edge of edges) {
+          const mid = edge.geometry[0];
+          if (haversineM(node.lat, node.lon, mid[1], mid[0]) <= AREA_RADIUS_M) {
+            nearbyEdges.push(edge);
+          }
+        }
+      }
+    }
+
+    const hwCount = {};
+    let totalLen = 0;
+    for (const e of nearbyEdges) {
+      const hw = e.highway || "unclassified";
+      hwCount[hw] = (hwCount[hw] || 0) + e.lengthM;
+      totalLen += e.lengthM;
+    }
+
+    const biomeProfile = {};
+    if (totalLen > 0) {
+      const resRatio = ((hwCount.residential || 0) + (hwCount.living_street || 0)) / totalLen;
+      const commRatio = ((hwCount.primary || 0) + (hwCount.secondary || 0)) / totalLen;
+      const indRatio = ((hwCount.service || 0) + (hwCount.unclassified || 0)) / totalLen;
+      const artRatio = ((hwCount.tertiary || 0)) / totalLen;
+      const hwyRatio = ((hwCount.trunk || 0) + (hwCount.motorway || 0) + (hwCount.trunk_link || 0) + (hwCount.motorway_link || 0)) / totalLen;
+
+      if (resRatio > 0.1) biomeProfile.residential = Math.round(resRatio * 100) / 100;
+      if (commRatio > 0.1) biomeProfile.commercial = Math.round(commRatio * 100) / 100;
+      if (artRatio > 0.1) biomeProfile.arterial = Math.round(artRatio * 100) / 100;
+      if (hwyRatio > 0.1) biomeProfile.highway = Math.round(hwyRatio * 100) / 100;
+      if (indRatio > 0.3 && resRatio < 0.2) biomeProfile.industrial = Math.round(indRatio * 100) / 100;
+      if (Object.keys(biomeProfile).length === 0) biomeProfile.rural = 1.0;
+    } else {
+      biomeProfile.rural = 1.0;
+    }
+
+    const primaryBiome = Object.entries(biomeProfile).sort((a,b) => b[1] - a[1])[0][0];
+
+    areas.set(areaId, {
+      id: areaId,
+      name: node.signalName,
+      lat: node.lat,
+      lon: node.lon,
+      nodeId: node.id,
+      biomeProfile,
+      primaryBiome,
+      roadLengthM: totalLen,
+    });
+  }
+
+  const areaSpatial = new Map();
+  const AREA_CELL = 0.005;
+  for (const area of areas.values()) {
+    const key = Math.floor(area.lat / AREA_CELL) + "," + Math.floor(area.lon / AREA_CELL);
+    if (!areaSpatial.has(key)) areaSpatial.set(key, []);
+    areaSpatial.get(key).push(area);
+  }
+
+  areaIndex = { areas, spatial: areaSpatial, cellSize: AREA_CELL };
+  return areaIndex;
+}
+
+function findNearestArea(lat, lon) {
+  if (!areaIndex) return null;
+  const AREA_CELL = areaIndex.cellSize;
+  const cLat = Math.floor(lat / AREA_CELL);
+  const cLon = Math.floor(lon / AREA_CELL);
+  let best = null, bestDist = AREA_RADIUS_M;
+  for (let dLat = -1; dLat <= 1; dLat++) {
+    for (let dLon = -1; dLon <= 1; dLon++) {
+      const areas = areaIndex.spatial.get((cLat + dLat) + "," + (cLon + dLon));
+      if (!areas) continue;
+      for (const a of areas) {
+        const d = haversineM(lat, lon, a.lat, a.lon);
+        if (d < bestDist) { bestDist = d; best = a; }
+      }
+    }
+  }
+  return best;
+}
+
+function checkAreaTransition(lat, lon) {
+  const area = findNearestArea(lat, lon);
+  const newId = area ? area.id : null;
+  if (newId === currentAreaId) {
+    if (currentAreaId && currentTrip) {
+      const ad = areaData[currentAreaId];
+      if (ad && ad.stage === "DISCOVERED") {
+        ad.exploredM = (ad.exploredM || 0) + 5;
+        if (ad.exploredM >= AREA_EXPLORE_THRESHOLD_M) {
+          ad.stage = "EXPLORED";
+          saveAreaData();
+          showAreaStageUp(area, "EXPLORED");
+        }
+      }
+    }
+    return;
+  }
+
+  const prevId = currentAreaId;
+  currentAreaId = newId;
+
+  if (!area) {
+    const hud = document.getElementById("areaHud");
+    if (hud) hud.style.display = "none";
+    return;
+  }
+
+  updateAreaHud(area);
+
+  if (!areaData[area.id]) {
+    areaData[area.id] = {
+      id: area.id,
+      name: area.name,
+      primaryBiome: area.primaryBiome,
+      stage: "DISCOVERED",
+      discoveredAt: Date.now(),
+      exploredM: 0,
+    };
+    saveAreaData();
+    playerData.skillPoints = (playerData.skillPoints || 0) + 2;
+    savePlayerData(playerData);
+    showAreaDiscovery(area);
+    if (currentTrip) {
+      currentTrip.areasDiscovered = (currentTrip.areasDiscovered || 0) + 1;
+    }
+  } else {
+    showAreaEntry(area);
+  }
+}
+
+function showAreaDiscovery(area) {
+  const biome = BIOME_TYPES[area.primaryBiome] || BIOME_TYPES.rural;
+  const overlay = document.createElement("div");
+  overlay.style.cssText = `
+    position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(0,0,0,0.85);animation:areaFadeIn 0.3s ease-out;
+    pointer-events:auto;
+  `;
+  overlay.innerHTML = `
+    <div style="font-size:14px;color:${biome.color};letter-spacing:4px;margin-bottom:12px;opacity:0.8;">NEW AREA</div>
+    <div style="font-size:36px;margin-bottom:8px;">${biome.emoji}</div>
+    <div style="font-size:24px;font-weight:700;color:#fff;margin-bottom:6px;">${area.name}</div>
+    <div style="font-size:14px;color:${biome.color};letter-spacing:2px;">${biome.label.toUpperCase()}</div>
+    <div style="margin-top:16px;font-size:12px;color:var(--text-muted);">DISCOVERED</div>
+  `;
+  document.body.appendChild(overlay);
+  setTimeout(() => {
+    overlay.style.transition = "opacity 0.5s";
+    overlay.style.opacity = "0";
+    setTimeout(() => overlay.remove(), 500);
+  }, 2500);
+}
+
+function showAreaEntry(area) {
+  const biome = BIOME_TYPES[area.primaryBiome] || BIOME_TYPES.rural;
+  const ad = areaData[area.id];
+  const stage = ad ? ad.stage : "DISCOVERED";
+  const toast = document.createElement("div");
+  toast.style.cssText = `
+    position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:9998;
+    background:rgba(0,0,0,0.8);border:1px solid ${biome.color}40;border-radius:12px;
+    padding:8px 20px;display:flex;align-items:center;gap:8px;
+    animation:areaSlideIn 0.3s ease-out;
+  `;
+  toast.innerHTML = `
+    <span style="font-size:18px;">${biome.emoji}</span>
+    <span style="font-size:14px;color:#fff;font-weight:600;">${area.name}</span>
+    <span style="font-size:10px;color:${biome.color};letter-spacing:1px;">${stage}</span>
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = "opacity 0.4s";
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 400);
+  }, 1800);
+}
+
+function showAreaStageUp(area, newStage) {
+  const biome = BIOME_TYPES[area.primaryBiome] || BIOME_TYPES.rural;
+  const overlay = document.createElement("div");
+  overlay.style.cssText = `
+    position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(0,0,0,0.85);animation:areaFadeIn 0.3s ease-out;
+  `;
+  overlay.innerHTML = `
+    <div style="font-size:14px;color:#ffd60a;letter-spacing:4px;margin-bottom:12px;">STAGE UP</div>
+    <div style="font-size:28px;margin-bottom:8px;">${biome.emoji}</div>
+    <div style="font-size:22px;font-weight:700;color:#fff;margin-bottom:6px;">${area.name}</div>
+    <div style="font-size:16px;color:#ffd60a;letter-spacing:2px;">${newStage}</div>
+  `;
+  document.body.appendChild(overlay);
+  setTimeout(() => {
+    overlay.style.transition = "opacity 0.5s";
+    overlay.style.opacity = "0";
+    setTimeout(() => overlay.remove(), 500);
+  }, 2200);
+}
+
+function updateAreaHud(area) {
+  const hud = document.getElementById("areaHud");
+  if (!hud) return;
+  const biome = BIOME_TYPES[area.primaryBiome] || BIOME_TYPES.rural;
+  document.getElementById("areaHudEmoji").textContent = biome.emoji;
+  document.getElementById("areaHudName").textContent = area.name;
+  document.getElementById("areaHudBiome").textContent = biome.label.toUpperCase();
+  hud.style.borderColor = biome.color + "40";
+  hud.style.display = "block";
+}
+
+function getDiscoveredAreaCount() {
+  return Object.keys(areaData).length;
+}
+
+// ============================================================
+//  Skill Graph
+// ============================================================
+const SKILL_MIN_SPACING_M = 300;
+const SKILL_CATEGORIES = [
+  { key: "scanner",  label: "Scanner",  emoji: "📡", desc: "探索範囲を広げる" },
+  { key: "cargo",    label: "Cargo",    emoji: "🎒", desc: "積載量を増やす" },
+  { key: "roulette", label: "Roulette", emoji: "🎰", desc: "ルーレット効果を強化" },
+  { key: "mapping",  label: "Mapping",  emoji: "🗺️", desc: "マッピング精度を上げる" },
+  { key: "stake",    label: "Stake",    emoji: "💰", desc: "賭け報酬を強化" },
+  { key: "survival", label: "Survival", emoji: "🛡️", desc: "BUST耐性を高める" },
+];
+
+let skillGraph = null;
+let skillData = {};
+
+function loadSkillData() {
+  try {
+    const raw = localStorage.getItem("pyp_skills");
+    if (raw) skillData = JSON.parse(raw);
+  } catch(e) { skillData = {}; }
+  return skillData;
+}
+function saveSkillData() {
+  localStorage.setItem("pyp_skills", JSON.stringify(skillData));
+}
+
+function buildSkillGraph(g) {
+  const candidates = [];
+  for (const node of g.nodes.values()) {
+    if (!node.hasSignal) continue;
+    const out = g.outgoing.get(node.id) || [];
+    const inc = g.incoming.get(node.id) || [];
+    const degree = new Set([...out.map(e => g.edges.get(e).toNodeId), ...inc.map(e => g.edges.get(e).fromNodeId)]).size;
+
+    let importance = 0;
+    if (node.signalName) importance += 3;
+    if (degree >= 4) importance += 2;
+    else if (degree >= 3) importance += 1;
+
+    const nearbyEdges = [...out, ...inc].map(eid => g.edges.get(eid)).filter(Boolean);
+    const hasHighway = nearbyEdges.some(e => e.highway === "trunk" || e.highway === "primary" || e.highway === "motorway");
+    if (hasHighway) importance += 2;
+    const hasTertiary = nearbyEdges.some(e => e.highway === "tertiary" || e.highway === "secondary");
+    if (hasTertiary) importance += 1;
+
+    if (importance >= 3) {
+      candidates.push({ nodeId: node.id, lat: node.lat, lon: node.lon, importance, degree, name: node.signalName || null });
+    }
+  }
+
+  candidates.sort((a, b) => b.importance - a.importance);
+
+  const selected = [];
+  for (const c of candidates) {
+    const tooClose = selected.some(s => haversineM(c.lat, c.lon, s.lat, s.lon) < SKILL_MIN_SPACING_M);
+    if (tooClose) continue;
+    const cat = SKILL_CATEGORIES[selected.length % SKILL_CATEGORIES.length];
+    const nearArea = findNearestArea(c.lat, c.lon);
+    selected.push({
+      ...c,
+      skillId: "sk_" + c.nodeId,
+      category: cat.key,
+      areaId: nearArea ? nearArea.id : null,
+    });
+  }
+
+  const skillSpatial = new Map();
+  const SK_CELL = 0.003;
+  for (const sk of selected) {
+    const key = Math.floor(sk.lat / SK_CELL) + "," + Math.floor(sk.lon / SK_CELL);
+    if (!skillSpatial.has(key)) skillSpatial.set(key, []);
+    skillSpatial.get(key).push(sk);
+  }
+
+  skillGraph = { nodes: selected, spatial: skillSpatial, cellSize: SK_CELL };
+  return skillGraph;
+}
+
+function findNearbySkillNodes(lat, lon, radiusM) {
+  if (!skillGraph) return [];
+  const SK_CELL = skillGraph.cellSize;
+  const cLat = Math.floor(lat / SK_CELL);
+  const cLon = Math.floor(lon / SK_CELL);
+  const results = [];
+  for (let dLat = -1; dLat <= 1; dLat++) {
+    for (let dLon = -1; dLon <= 1; dLon++) {
+      const nodes = skillGraph.spatial.get((cLat + dLat) + "," + (cLon + dLon));
+      if (!nodes) continue;
+      for (const sk of nodes) {
+        const d = haversineM(lat, lon, sk.lat, sk.lon);
+        if (d <= radiusM) results.push({ ...sk, distance: d });
+      }
+    }
+  }
+  return results.sort((a, b) => a.distance - b.distance);
+}
+
+function checkSkillNodeDiscovery(lat, lon) {
+  const nearby = findNearbySkillNodes(lat, lon, 50);
+  for (const sk of nearby) {
+    if (skillData[sk.skillId]) continue;
+    const cat = SKILL_CATEGORIES.find(c => c.key === sk.category) || SKILL_CATEGORIES[0];
+    skillData[sk.skillId] = {
+      skillId: sk.skillId,
+      category: sk.category,
+      name: sk.name,
+      level: 0,
+      discoveredAt: Date.now(),
+    };
+    saveSkillData();
+    playerData.skillPoints = (playerData.skillPoints || 0) + 1;
+    savePlayerData(playerData);
+    showSkillDiscovery(sk, cat);
+    if (currentTrip) {
+      currentTrip.skillsDiscovered = (currentTrip.skillsDiscovered || 0) + 1;
+    }
+  }
+}
+
+function showSkillDiscovery(sk, cat) {
+  const toast = document.createElement("div");
+  toast.style.cssText = `
+    position:fixed;bottom:120px;left:50%;transform:translateX(-50%);z-index:9998;
+    background:rgba(0,0,0,0.85);border:1px solid #a855f740;border-radius:12px;
+    padding:10px 20px;display:flex;align-items:center;gap:10px;
+    animation:areaSlideIn 0.3s ease-out;
+  `;
+  toast.innerHTML = `
+    <span style="font-size:24px;">${cat.emoji}</span>
+    <div>
+      <div style="font-size:10px;color:#a855f7;letter-spacing:2px;">SKILL NODE</div>
+      <div style="font-size:14px;color:#fff;font-weight:600;">${sk.name || cat.label}</div>
+      <div style="font-size:11px;color:var(--text-muted);">${cat.desc}</div>
+    </div>
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = "opacity 0.4s";
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 400);
+  }, 2500);
 }
 
 // ============================================================
@@ -2325,6 +2881,20 @@ async function startApp() {
     await new Promise(r => setTimeout(r, 10));
     buildSpatialIndex(graph);
     prog.textContent = `グリッドセル: ${gridIndex.size}`;
+    await new Promise(r => setTimeout(r, 100));
+
+    prog.textContent = "エリアマップ構築中...";
+    await new Promise(r => setTimeout(r, 10));
+    buildAreaIndex(graph);
+    loadAreaData();
+    prog.textContent = `${areaIndex.areas.size} エリア検出`;
+    await new Promise(r => setTimeout(r, 100));
+
+    prog.textContent = "スキルグラフ構築中...";
+    await new Promise(r => setTimeout(r, 10));
+    buildSkillGraph(graph);
+    loadSkillData();
+    prog.textContent = `${skillGraph.nodes.length} スキルノード`;
     await new Promise(r => setTimeout(r, 200));
   } catch(e) {
     prog.textContent = "読み込み失敗: " + e.message;
@@ -2416,6 +2986,8 @@ function processPosition(lat, lon, heading, speed) {
       recordMapNode(decision.nodeId, decision.lat, decision.lon);
       mapCurrentNodeId = decision.nodeId;
       tripTrackJunction();
+      checkAreaTransition(decision.lat, decision.lon);
+      checkSkillNodeDiscovery(decision.lat, decision.lon);
     }
     lastDecisionNodeId = decision.nodeId;
     lastAcceptedDecisionNodeId = decision.nodeId;
@@ -3532,6 +4104,23 @@ function renderAutoMap() {
       ${isNew ? 'style="animation:mapRevealNode 0.8s ease-out"' : ''}/>`;
   }
 
+  // Nearby skill nodes on map
+  if (skillGraph && mapLiveLat != null) {
+    const skNearby = findNearbySkillNodes(mapLiveLat, mapLiveLon, 500);
+    for (const sk of skNearby) {
+      const skNode = mapNodes[sk.nodeId];
+      if (!skNode) continue;
+      const sp = screenXY(sk.nodeId);
+      if (!sp) continue;
+      if (Math.abs(sp.x) > half * 1.3 || Math.abs(sp.y) > half * 1.3) continue;
+      const discovered = !!skillData[sk.skillId];
+      const cat = SKILL_CATEGORIES.find(c => c.key === sk.category);
+      const color = discovered ? "#a855f7" : "#a855f740";
+      html += `<circle cx="${sp.x}" cy="${sp.y}" r="4" fill="none" stroke="${color}" stroke-width="1.2"/>`;
+      html += `<circle cx="${sp.x}" cy="${sp.y}" r="1.5" fill="${color}"/>`;
+    }
+  }
+
   // Self always at center, oriented along current edge
   html += `<polygon points="0,-5 3.5,4 -3.5,4" fill="#67E8F9"
     transform="rotate(${selfAngleDeg})"
@@ -3737,14 +4326,16 @@ function playStakeConvert() {
 // ============================================================
 
 const CONTAINER_TYPES = [
-  { key: "river",   label: "河川",   emoji: "🌊", items: ["丸石","流木","水草","小魚","苔石"] },
-  { key: "factory", label: "工業",   emoji: "🏭", items: ["ネジ","オイル缶","ケーブル","基盤","配管"] },
-  { key: "town",    label: "商店街", emoji: "🏪", items: ["古本","手拭い","シール","煎餅","一輪挿し"] },
-  { key: "shrine",  label: "神社",   emoji: "⛩️", items: ["お守り","絵馬","おみくじ","御朱印","鈴"] },
-  { key: "farm",    label: "田園",   emoji: "🌾", items: ["稲穂","カエル","トンボ","菜の花","土偶片"] },
-  { key: "city",    label: "都市",   emoji: "🏙️", items: ["電池","USBケーブル","イヤホン","ステッカー","キーホルダー"] },
-  { key: "coast",   label: "海岸",   emoji: "🏖️", items: ["貝殻","流木","砂","シーグラス","漂着物"] },
-  { key: "mountain",label: "山岳",   emoji: "⛰️", items: ["鉱石","苔","木の実","羽根","水晶片"] },
+  { key: "river",   label: "河川",   emoji: "🌊", items: ["丸石","流木","水草","小魚","苔石"], biomes: ["rural"] },
+  { key: "factory", label: "工業",   emoji: "🏭", items: ["ネジ","オイル缶","ケーブル","基盤","配管"], biomes: ["industrial"] },
+  { key: "town",    label: "商店街", emoji: "🏪", items: ["古本","手拭い","シール","煎餅","一輪挿し"], biomes: ["commercial"] },
+  { key: "shrine",  label: "神社",   emoji: "⛩️", items: ["お守り","絵馬","おみくじ","御朱印","鈴"], biomes: ["residential","rural"] },
+  { key: "farm",    label: "田園",   emoji: "🌾", items: ["稲穂","カエル","トンボ","菜の花","土偶片"], biomes: ["rural"] },
+  { key: "city",    label: "都市",   emoji: "🏙️", items: ["電池","USBケーブル","イヤホン","ステッカー","キーホルダー"], biomes: ["commercial","arterial"] },
+  { key: "road",    label: "路傍",   emoji: "🛤️", items: ["標識片","反射板","道標","マイル石","ガードレール片"], biomes: ["arterial","highway"] },
+  { key: "house",   label: "住宅街", emoji: "🏘️", items: ["植木鉢","猫の首輪","手紙","ビー玉","傘"], biomes: ["residential"] },
+  { key: "coast",   label: "海岸",   emoji: "🏖️", items: ["貝殻","流木","砂","シーグラス","漂着物"], biomes: [] },
+  { key: "mountain",label: "山岳",   emoji: "⛰️", items: ["鉱石","苔","木の実","羽根","水晶片"], biomes: ["rural"] },
 ];
 
 const RARITY_TABLE = [
@@ -3777,9 +4368,27 @@ function rollRarity(rouletteBonus) {
   return table[0];
 }
 
+function getBiomeWeightedContainers() {
+  if (!currentAreaId || !areaIndex) return CONTAINER_TYPES;
+  const area = areaIndex.areas.get(currentAreaId);
+  if (!area) return CONTAINER_TYPES;
+
+  const profile = area.biomeProfile;
+  const weighted = [];
+  for (const ct of CONTAINER_TYPES) {
+    let w = 1;
+    for (const b of ct.biomes) {
+      if (profile[b]) w += profile[b] * 5;
+    }
+    for (let i = 0; i < Math.ceil(w); i++) weighted.push(ct);
+  }
+  return weighted;
+}
+
 function generateContainer(rouletteBonus) {
-  const ctype = CONTAINER_TYPES[Math.floor(Math.random() * CONTAINER_TYPES.length)];
-  const slotCount = 1 + Math.floor(Math.random() * 3); // 1-3 slots
+  const pool = getBiomeWeightedContainers();
+  const ctype = pool[Math.floor(Math.random() * pool.length)];
+  const slotCount = 1 + Math.floor(Math.random() * 3);
   const slots = [];
   for (let i = 0; i < slotCount; i++) {
     const rarity = rollRarity(rouletteBonus);
@@ -4465,9 +5074,10 @@ function loadPlayerData() {
       cargoMax: CARGO_MAX_DEFAULT,
       tripCount: 0,
       totalDistance: 0,
+      skillPoints: 0,
     };
   } catch(e) {
-    return { money: 0, cargo: [], cargoMax: CARGO_MAX_DEFAULT, tripCount: 0, totalDistance: 0 };
+    return { money: 0, cargo: [], cargoMax: CARGO_MAX_DEFAULT, tripCount: 0, totalDistance: 0, skillPoints: 0 };
   }
 }
 
@@ -4504,6 +5114,10 @@ function showTripStart() {
   } else {
     preview.innerHTML = '';
   }
+
+  const areaCount = getDiscoveredAreaCount();
+  const areaEl = document.getElementById("tripAreaCount");
+  if (areaEl) areaEl.textContent = areaCount;
 }
 
 const DEPLOYMENT_COST = 500;
@@ -4528,6 +5142,8 @@ function departTrip() {
     junctionsPassed: 0,
     bustCount: 0,
     rouletteCount: 0,
+    areasDiscovered: 0,
+    skillsDiscovered: 0,
   };
   totalSessionScore = 0;
   explorationTray = [];
@@ -4605,6 +5221,8 @@ function showTripEnd() {
   summaryHtml += row("交差点通過", trip.junctionsPassed + " 回");
   summaryHtml += row("BUST", trip.bustCount + " 回");
   summaryHtml += row("Roulette", trip.rouletteCount + " 回");
+  if (trip.areasDiscovered) summaryHtml += row("新エリア発見", trip.areasDiscovered + " 箇所", "positive");
+  if (trip.skillsDiscovered) summaryHtml += row("Skill Node発見", trip.skillsDiscovered + " 個", "positive");
   summaryHtml += '<div class="trip-summary-row" style="margin-top:8px;"><span class="label">出撃コスト</span><span class="value negative">-' + trip.deploymentCost.toLocaleString() + ' G</span></div>';
   summaryHtml += row("Stake収入", "+" + trip.money.toLocaleString() + " G", "positive");
   summaryHtml += row("戦利品", trip.haul.length + " 個（推定 " + estScrap.toLocaleString() + " G）");

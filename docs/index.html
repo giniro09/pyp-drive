@@ -621,6 +621,89 @@
     transition: opacity 0.5s;
   }
   .container-approach.visible { opacity: 1; }
+
+  /* ===== Trip Start Screen ===== */
+  #tripStartScreen {
+    flex: 1; display: none; align-items: center; justify-content: center;
+    flex-direction: column;
+  }
+  .trip-card {
+    background: var(--surface-raised); border-radius: 16px; padding: 36px 32px;
+    text-align: center; max-width: 400px; width: 92%;
+  }
+  .trip-card h2 { font-size: 20px; margin-bottom: 4px; letter-spacing: 0.04em; }
+  .trip-wallet {
+    font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;
+  }
+  .trip-wallet .money-val { color: #F59E0B; font-weight: 700; font-size: 18px; }
+  .trip-mode-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+  .trip-mode-btn {
+    background: var(--surface); border: 2px solid rgba(91,154,181,0.25);
+    border-radius: 12px; padding: 14px 16px; cursor: pointer;
+    text-align: left; transition: border-color 0.2s, background 0.2s;
+  }
+  .trip-mode-btn:hover { border-color: var(--route); }
+  .trip-mode-btn.selected { border-color: var(--route); background: rgba(0,200,232,0.08); }
+  .trip-mode-btn .mode-name { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+  .trip-mode-btn .mode-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .trip-cargo-info {
+    font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;
+    display: flex; justify-content: center; gap: 20px;
+  }
+  .trip-cargo-info span { display: flex; align-items: center; gap: 4px; }
+  .trip-depart-btn {
+    background: var(--route); color: var(--bg-0); border: none; border-radius: 12px;
+    padding: 14px 48px; font-size: 18px; font-weight: 700; cursor: pointer;
+    letter-spacing: 0.04em; transition: background 0.2s;
+  }
+  .trip-depart-btn:hover { background: var(--route-bright); }
+
+  /* ===== Trip End Screen ===== */
+  #tripEndScreen {
+    flex: 1; display: none; align-items: center; justify-content: center;
+    flex-direction: column; overflow-y: auto; padding: 20px;
+  }
+  .trip-end-card {
+    background: var(--surface-raised); border-radius: 16px; padding: 28px 24px;
+    max-width: 420px; width: 92%;
+  }
+  .trip-end-card h2 { font-size: 20px; text-align: center; margin-bottom: 16px; }
+  .trip-summary { margin-bottom: 16px; }
+  .trip-summary-row {
+    display: flex; justify-content: space-between; padding: 6px 0;
+    font-size: 14px; border-bottom: 1px solid rgba(101,113,134,0.15);
+  }
+  .trip-summary-row .label { color: var(--text-secondary); }
+  .trip-summary-row .value { font-weight: 700; }
+  .trip-summary-row .value.positive { color: #34D399; }
+  .trip-summary-row .value.negative { color: #FF6257; }
+  .trip-summary-row.total { border-top: 2px solid rgba(101,113,134,0.3); border-bottom: none; font-size: 16px; padding-top: 10px; }
+  .haul-section { margin-bottom: 16px; }
+  .haul-section h3 { font-size: 14px; color: var(--text-muted); margin-bottom: 8px; }
+  .haul-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    gap: 6px;
+  }
+  .haul-item {
+    background: var(--surface); border-radius: 8px; padding: 6px 4px;
+    text-align: center; font-size: 11px; border: 1px solid rgba(91,154,181,0.2);
+    cursor: pointer; transition: border-color 0.2s, background 0.2s;
+  }
+  .haul-item.selected { border-color: var(--route); background: rgba(0,200,232,0.1); }
+  .haul-item .item-emoji { font-size: 20px; display: block; }
+  .haul-item .item-name { color: var(--text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .haul-item.rarity-uncommon { border-color: rgba(91,154,181,0.4); }
+  .haul-item.rarity-rare { border-color: rgba(255,159,67,0.5); }
+  .haul-item.rarity-epic { border-color: rgba(168,85,247,0.5); }
+  .haul-actions {
+    display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+  }
+  .haul-actions button {
+    border: none; border-radius: 10px; padding: 12px 24px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  .btn-confirm-haul { background: var(--route); color: var(--bg-0); }
+  .btn-scrap-haul { background: rgba(255,255,255,0.08); color: var(--text-secondary); }
 </style>
 </head>
 <body>
@@ -641,11 +724,50 @@
   </div>
 </div>
 
+<!-- ===== Trip Start Screen ===== -->
+<div id="tripStartScreen">
+  <div class="trip-card">
+    <h2>EXPEDITION</h2>
+    <div class="trip-wallet">所持金 <span class="money-val" id="tripMoney">0</span> G</div>
+    <div class="trip-mode-list">
+      <div class="trip-mode-btn selected" data-mode="expedition">
+        <div class="mode-name">Expedition</div>
+        <div class="mode-desc">探索に出発。Stake / Roulette / BUST / Loot がフル有効</div>
+      </div>
+      <div class="trip-mode-btn" data-mode="atob" style="opacity:0.4;pointer-events:none;">
+        <div class="mode-name">A to B</div>
+        <div class="mode-desc">日常移動用（準備中）</div>
+      </div>
+    </div>
+    <div class="trip-cargo-info">
+      <span>Cargo <strong id="tripCargoUsed">0</strong> / <strong id="tripCargoMax">8</strong></span>
+      <span>Haul <strong id="tripHaulCount">0</strong></span>
+    </div>
+    <button class="trip-depart-btn" onclick="departTrip()">出発</button>
+  </div>
+</div>
+
 <!-- ===== Loading Screen ===== -->
 <div id="loadScreen">
   <div class="load-spinner"></div>
   <div class="load-text">道路データを読み込み中...</div>
   <div id="loadProgress"></div>
+</div>
+
+<!-- ===== Trip End Screen ===== -->
+<div id="tripEndScreen">
+  <div class="trip-end-card">
+    <h2>TRIP REPORT</h2>
+    <div class="trip-summary" id="tripSummary"></div>
+    <div class="haul-section">
+      <h3>HAUL（戦利品）— Cargo に入れるアイテムを選択</h3>
+      <div class="haul-grid" id="haulGrid"></div>
+    </div>
+    <div class="haul-actions">
+      <button class="btn-scrap-haul" onclick="scrapAllHaul()">全て換金</button>
+      <button class="btn-confirm-haul" onclick="confirmHaul()">確定して帰還</button>
+    </div>
+  </div>
 </div>
 
 <!-- ===== Drive Screen ===== -->
@@ -715,6 +837,7 @@
 
   <div class="footer">
     <span id="gpsStatus">GPS: 待機中</span>
+    <button id="endTripBtn" onclick="endTrip()" style="background:rgba(255,98,87,0.15);color:#FF6257;border:1px solid rgba(255,98,87,0.3);border-radius:8px;padding:4px 14px;font-size:12px;font-weight:600;cursor:pointer;">帰還</button>
     <span>Map data &copy; OpenStreetMap contributors</span>
   </div>
   <div id="minimap"></div>
@@ -1071,7 +1194,7 @@ async function submitPin() {
   const hash = await sha256(getPin());
   if (hash === PIN_HASH) {
     sessionStorage.setItem("jnav_auth", "1");
-    startApp();
+    showTripStart();
   } else {
     pinError.textContent = "PINが違います";
     digits.forEach(d => d.value = "");
@@ -1080,7 +1203,7 @@ async function submitPin() {
   }
 }
 pinSubmit.addEventListener("click", submitPin);
-if (sessionStorage.getItem("jnav_auth") === "1") startApp();
+if (sessionStorage.getItem("jnav_auth") === "1") showTripStart();
 
 // ============================================================
 //  Settings state
@@ -2291,6 +2414,7 @@ function processPosition(lat, lon, heading, speed) {
       generateBranchMults(decision.branches);
       recordMapNode(decision.nodeId, decision.lat, decision.lon);
       mapCurrentNodeId = decision.nodeId;
+      tripTrackJunction();
     }
     lastDecisionNodeId = decision.nodeId;
     lastAcceptedDecisionNodeId = decision.nodeId;
@@ -3052,6 +3176,7 @@ function stopCruise() {
 function tickCruiseDistance(deltaM) {
   if (!cruiseActive) return;
   cruiseDistanceM += deltaM;
+  tripTrackDistance(deltaM);
   updateCruiseDisplay();
 }
 
@@ -3539,6 +3664,7 @@ function showBustJudge(prob, isBust) {
 }
 
 function triggerBust() {
+  tripTrackBust();
   consecutiveStraights = 0;
   cruiseDistanceM = 0;
   lastCruiseTier = -1;
@@ -3971,6 +4097,7 @@ function hideRouletteMultOverlay() {
 function startRoulette(velocity) {
   if (!currentDecision || currentDecision.branches.length < 2) return false;
   if (rouletteUsedThisJunction) return false;
+  tripTrackRoulette();
   if (displayDistanceM !== null && displayDistanceM < 100) return false;
   const ring = document.getElementById("dialRing");
   if (!ring) return false;
@@ -4320,6 +4447,192 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("mousemove", (ev) => { if (sidebarActive) sidebarMove(ev.clientY); });
   document.addEventListener("mouseup", () => { if (sidebarActive) sidebarEnd(); });
 });
+
+// ============================================================
+//  Trip Lifecycle + Money Persistence + Cargo / Haul
+// ============================================================
+
+const CARGO_MAX_DEFAULT = 8;
+const SCRAP_VALUES = { common: 5, uncommon: 15, rare: 50, epic: 200 };
+
+function loadPlayerData() {
+  try {
+    return JSON.parse(localStorage.getItem("pyp_player") || "null") || {
+      money: 0,
+      cargo: [],
+      cargoMax: CARGO_MAX_DEFAULT,
+      tripCount: 0,
+      totalDistance: 0,
+    };
+  } catch(e) {
+    return { money: 0, cargo: [], cargoMax: CARGO_MAX_DEFAULT, tripCount: 0, totalDistance: 0 };
+  }
+}
+
+function savePlayerData(pd) {
+  localStorage.setItem("pyp_player", JSON.stringify(pd));
+}
+
+let playerData = loadPlayerData();
+let currentTrip = null;
+
+function showTripStart() {
+  playerData = loadPlayerData();
+  document.getElementById("pinScreen").style.display = "none";
+  document.getElementById("loadScreen").style.display = "none";
+  document.getElementById("driveScreen").style.display = "none";
+  document.getElementById("tripEndScreen").style.display = "none";
+  document.getElementById("tripStartScreen").style.display = "flex";
+
+  document.getElementById("tripMoney").textContent = playerData.money.toLocaleString();
+  document.getElementById("tripCargoUsed").textContent = playerData.cargo.length;
+  document.getElementById("tripCargoMax").textContent = playerData.cargoMax;
+  document.getElementById("tripHaulCount").textContent = "0";
+}
+
+function departTrip() {
+  currentTrip = {
+    mode: "expedition",
+    startTime: Date.now(),
+    money: 0,
+    distanceM: 0,
+    haul: [],
+    nodesDiscovered: 0,
+    edgesDiscovered: 0,
+    junctionsPassed: 0,
+    bustCount: 0,
+    rouletteCount: 0,
+  };
+  totalSessionScore = 0;
+  explorationTray = [];
+  cruiseDistanceM = 0;
+  consecutiveStraights = 0;
+  updateTrayUI();
+
+  document.getElementById("tripStartScreen").style.display = "none";
+  startApp();
+}
+
+// Patch: track trip distance in processPosition
+const _origProcessPosition = typeof processPosition === "function" ? processPosition : null;
+
+// Override totalSessionScore setter to sync with trip
+let _tripDistAccum = 0;
+
+function tripTrackDistance(deltaM) {
+  if (currentTrip) {
+    currentTrip.distanceM += deltaM;
+  }
+}
+
+function tripTrackJunction() {
+  if (currentTrip) currentTrip.junctionsPassed++;
+}
+
+function tripTrackBust() {
+  if (currentTrip) currentTrip.bustCount++;
+}
+
+function tripTrackRoulette() {
+  if (currentTrip) currentTrip.rouletteCount++;
+}
+
+// Move loot from explorationTray into trip haul
+function flushTrayToHaul() {
+  if (!currentTrip) return;
+  for (const item of explorationTray) {
+    currentTrip.haul.push(item);
+  }
+  explorationTray = [];
+  updateTrayUI();
+}
+
+function endTrip() {
+  if (!currentTrip) return;
+  if (!confirm("帰還しますか？")) return;
+
+  flushTrayToHaul();
+  currentTrip.money = totalSessionScore;
+
+  // Stop demo
+  if (demoInterval) { clearInterval(demoInterval); demoInterval = null; }
+
+  showTripEnd();
+}
+
+function showTripEnd() {
+  document.getElementById("driveScreen").style.display = "none";
+  document.getElementById("tripEndScreen").style.display = "flex";
+
+  const trip = currentTrip;
+  const elapsed = Math.round((Date.now() - trip.startTime) / 60000);
+  const distKm = (trip.distanceM / 1000).toFixed(1);
+
+  let summaryHtml = "";
+  summaryHtml += row("走行時間", elapsed + " 分");
+  summaryHtml += row("走行距離", distKm + " km");
+  summaryHtml += row("交差点通過", trip.junctionsPassed + " 回");
+  summaryHtml += row("BUST", trip.bustCount + " 回");
+  summaryHtml += row("Roulette", trip.rouletteCount + " 回");
+  summaryHtml += row("獲得Money", "+" + trip.money.toLocaleString() + " G", "positive");
+  summaryHtml += row("戦利品", trip.haul.length + " 個");
+  document.getElementById("tripSummary").innerHTML = summaryHtml;
+
+  renderHaulGrid();
+
+  function row(label, value, cls) {
+    return `<div class="trip-summary-row"><span class="label">${label}</span><span class="value ${cls||''}">${value}</span></div>`;
+  }
+}
+
+function renderHaulGrid() {
+  const grid = document.getElementById("haulGrid");
+  const haul = currentTrip ? currentTrip.haul : [];
+  const cargoSpace = playerData.cargoMax - playerData.cargo.length;
+  grid.innerHTML = "";
+  haul.forEach((item, i) => {
+    const div = document.createElement("div");
+    div.className = "haul-item rarity-" + item.rarity;
+    if (i < cargoSpace) div.classList.add("selected");
+    div.innerHTML = `<span class="item-emoji">${item.emoji}</span><span class="item-name">${item.name}</span>`;
+    div.onclick = () => div.classList.toggle("selected");
+    grid.appendChild(div);
+  });
+}
+
+function scrapAllHaul() {
+  const grid = document.getElementById("haulGrid");
+  grid.querySelectorAll(".haul-item").forEach(el => el.classList.remove("selected"));
+}
+
+function confirmHaul() {
+  if (!currentTrip) return;
+  const grid = document.getElementById("haulGrid");
+  const items = grid.querySelectorAll(".haul-item");
+  const haul = currentTrip.haul;
+  let scrapMoney = 0;
+
+  items.forEach((el, i) => {
+    if (i >= haul.length) return;
+    if (el.classList.contains("selected")) {
+      if (playerData.cargo.length < playerData.cargoMax) {
+        playerData.cargo.push(haul[i]);
+      } else {
+        scrapMoney += SCRAP_VALUES[haul[i].rarity] || 5;
+      }
+    } else {
+      scrapMoney += SCRAP_VALUES[haul[i].rarity] || 5;
+    }
+  });
+
+  playerData.money += currentTrip.money + scrapMoney;
+  playerData.tripCount++;
+  playerData.totalDistance += currentTrip.distanceM;
+  savePlayerData(playerData);
+
+  currentTrip = null;
+  showTripStart();
+}
 </script>
 </body>
 </html>

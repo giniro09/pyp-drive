@@ -741,8 +741,10 @@
     </div>
     <div class="trip-cargo-info">
       <span>Cargo <strong id="tripCargoUsed">0</strong> / <strong id="tripCargoMax">8</strong></span>
-      <span>Haul <strong id="tripHaulCount">0</strong></span>
+      <span>出撃コスト <strong id="tripDeployCost" style="color:#FF6257;">500</strong> G</span>
     </div>
+    <div id="tripCargoPreview" style="margin-bottom:12px;"></div>
+    <div style="margin-bottom:12px;font-size:12px;color:var(--text-muted);">Trip #<span id="tripNum">0</span> &nbsp; 総走行 <span id="tripTotalDist">0</span> km</div>
     <button class="trip-depart-btn" onclick="departTrip()">出発</button>
   </div>
 </div>
@@ -832,7 +834,6 @@
     <span class="tray-icon">&#128218;</span>
     <span>トレイ</span>
     <span class="tray-count" id="trayCount">0</span>
-    <span>/ 12</span>
   </div>
 
   <div class="footer">
@@ -3753,7 +3754,7 @@ const RARITY_TABLE = [
   { tier: "epic",     weight: 4,  color: "#A855F7", cssClass: "epic" },
 ];
 
-const TRAY_MAX = 12;
+const TRAY_MAX = 999;
 let explorationTray = [];
 let pendingContainer = null;
 let containerRevealing = false;
@@ -3875,6 +3876,7 @@ function addToTray(container) {
       rarity: slot.rarity.tier,
       containerType: container.type.key,
       wasRoulette: container.rouletteBonus > 0,
+      appraised: false,
     });
   }
   updateTrayUI();
@@ -4487,13 +4489,37 @@ function showTripStart() {
   document.getElementById("tripMoney").textContent = playerData.money.toLocaleString();
   document.getElementById("tripCargoUsed").textContent = playerData.cargo.length;
   document.getElementById("tripCargoMax").textContent = playerData.cargoMax;
-  document.getElementById("tripHaulCount").textContent = "0";
+  document.getElementById("tripDeployCost").textContent = DEPLOYMENT_COST;
+  document.getElementById("tripNum").textContent = playerData.tripCount + 1;
+  document.getElementById("tripTotalDist").textContent = (playerData.totalDistance / 1000).toFixed(1);
+
+  // Cargo preview
+  const preview = document.getElementById("tripCargoPreview");
+  if (playerData.cargo.length > 0) {
+    preview.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">所持アイテム</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;">' +
+      playerData.cargo.map(it =>
+        `<span style="font-size:11px;background:var(--surface);border-radius:6px;padding:2px 6px;border:1px solid rgba(91,154,181,0.2);">${it.emoji} ${it.name}</span>`
+      ).join('') + '</div>';
+  } else {
+    preview.innerHTML = '';
+  }
 }
 
+const DEPLOYMENT_COST = 500;
+
 function departTrip() {
+  const cost = DEPLOYMENT_COST;
+  if (playerData.money < cost) {
+    if (!confirm(`所持金 ${playerData.money}G で出撃コスト ${cost}G に足りません。借金して出発しますか？`)) return;
+  }
+  playerData.money -= cost;
+  savePlayerData(playerData);
+
   currentTrip = {
     mode: "expedition",
     startTime: Date.now(),
+    deploymentCost: cost,
     money: 0,
     distanceM: 0,
     haul: [],
@@ -4568,14 +4594,23 @@ function showTripEnd() {
   const elapsed = Math.round((Date.now() - trip.startTime) / 60000);
   const distKm = (trip.distanceM / 1000).toFixed(1);
 
+  // Estimate scrap value of haul
+  let estScrap = 0;
+  for (const it of trip.haul) estScrap += SCRAP_VALUES[it.rarity] || 5;
+  const netProfit = trip.money - trip.deploymentCost + estScrap;
+
   let summaryHtml = "";
   summaryHtml += row("走行時間", elapsed + " 分");
   summaryHtml += row("走行距離", distKm + " km");
   summaryHtml += row("交差点通過", trip.junctionsPassed + " 回");
   summaryHtml += row("BUST", trip.bustCount + " 回");
   summaryHtml += row("Roulette", trip.rouletteCount + " 回");
-  summaryHtml += row("獲得Money", "+" + trip.money.toLocaleString() + " G", "positive");
-  summaryHtml += row("戦利品", trip.haul.length + " 個");
+  summaryHtml += '<div class="trip-summary-row" style="margin-top:8px;"><span class="label">出撃コスト</span><span class="value negative">-' + trip.deploymentCost.toLocaleString() + ' G</span></div>';
+  summaryHtml += row("Stake収入", "+" + trip.money.toLocaleString() + " G", "positive");
+  summaryHtml += row("戦利品", trip.haul.length + " 個（推定 " + estScrap.toLocaleString() + " G）");
+  const netCls = netProfit >= 0 ? "positive" : "negative";
+  const netSign = netProfit >= 0 ? "+" : "";
+  summaryHtml += '<div class="trip-summary-row total"><span class="label">推定損益</span><span class="value ' + netCls + '">' + netSign + netProfit.toLocaleString() + ' G</span></div>';
   document.getElementById("tripSummary").innerHTML = summaryHtml;
 
   renderHaulGrid();
@@ -4592,12 +4627,33 @@ function renderHaulGrid() {
   grid.innerHTML = "";
   haul.forEach((item, i) => {
     const div = document.createElement("div");
-    div.className = "haul-item rarity-" + item.rarity;
+    if (item.appraised) {
+      div.className = "haul-item rarity-" + item.rarity;
+      div.innerHTML = `<span class="item-emoji">${item.emoji}</span><span class="item-name">${item.name}</span>`;
+    } else {
+      div.className = "haul-item";
+      div.innerHTML = `<span class="item-emoji" style="filter:grayscale(1) brightness(0.6)">📦</span><span class="item-name">未鑑定</span>`;
+    }
     if (i < cargoSpace) div.classList.add("selected");
-    div.innerHTML = `<span class="item-emoji">${item.emoji}</span><span class="item-name">${item.name}</span>`;
-    div.onclick = () => div.classList.toggle("selected");
+    div.onclick = () => {
+      if (!item.appraised) {
+        item.appraised = true;
+        renderHaulGrid();
+        return;
+      }
+      div.classList.toggle("selected");
+    };
     grid.appendChild(div);
   });
+  // Appraise all button
+  const unappraisedCount = haul.filter(it => !it.appraised).length;
+  if (unappraisedCount > 0) {
+    const btn = document.createElement("div");
+    btn.style.cssText = "grid-column:1/-1;text-align:center;padding:8px;cursor:pointer;color:var(--route);font-size:13px;font-weight:600;";
+    btn.textContent = `全て鑑定する（${unappraisedCount}個）`;
+    btn.onclick = () => { haul.forEach(it => it.appraised = true); renderHaulGrid(); };
+    grid.appendChild(btn);
+  }
 }
 
 function scrapAllHaul() {

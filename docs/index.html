@@ -753,7 +753,8 @@
       <span>出撃コスト <strong id="tripDeployCost" style="color:#FF6257;">500</strong> G</span>
     </div>
     <div id="tripCargoPreview" style="margin-bottom:12px;"></div>
-    <div style="margin-bottom:12px;font-size:12px;color:var(--text-muted);">Trip #<span id="tripNum">0</span> &nbsp; 総走行 <span id="tripTotalDist">0</span> km &nbsp; エリア <span id="tripAreaCount">0</span></div>
+    <div style="margin-bottom:8px;font-size:12px;color:var(--text-muted);">Trip #<span id="tripNum">0</span> &nbsp; 総走行 <span id="tripTotalDist">0</span> km &nbsp; エリア <span id="tripAreaCount">0</span> &nbsp; SP <span id="tripSP">0</span></div>
+    <div id="tripQuestPreview" style="margin-bottom:12px;text-align:left;"></div>
     <button class="trip-depart-btn" onclick="departTrip()">出発</button>
   </div>
 </div>
@@ -813,6 +814,7 @@
     <div id="noticeText" class="notice-text">GPS信号を待っています</div>
     <div id="noticeSub" class="notice-sub">ブラウザの位置情報を許可してください</div>
   </div>
+  <div id="signalHud" style="display:none;position:fixed;top:66px;left:50%;transform:translateX(-50%);z-index:92;background:rgba(0,0,0,0.6);border:1px solid rgba(168,85,247,0.2);border-radius:10px;padding:3px 14px;align-items:center;gap:6px;white-space:nowrap;pointer-events:none;"></div>
   <div id="areaHud" style="display:none;position:fixed;top:42px;left:50%;transform:translateX(-50%);z-index:92;background:rgba(0,0,0,0.6);border-radius:10px;padding:3px 14px;font-size:12px;color:var(--text-secondary);white-space:nowrap;pointer-events:none;">
     <span id="areaHudEmoji" style="margin-right:4px;"></span>
     <span id="areaHudName"></span>
@@ -1136,6 +1138,14 @@
       </div>
     </details>
 
+    <!-- ===== Base / 拠点 ===== -->
+    <details class="s-section">
+      <summary class="s-section-title">Base / 拠点</summary>
+      <div class="s-section-body">
+        <div id="settingsBaseList" style="font-size:12px;"></div>
+      </div>
+    </details>
+
     <!-- ===== サウンド ===== -->
     <details class="s-section">
       <summary class="s-section-title">サウンド</summary>
@@ -1388,6 +1398,7 @@ function toggleSettings() {
     updateSettingsCargo();
     updateSettingsArea();
     updateSettingsSkill();
+    updateSettingsBase();
   }
 }
 
@@ -1409,6 +1420,28 @@ function updateSettingsCargo() {
       grid.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">アイテムなし</span>';
     }
   }
+}
+
+function updateSettingsBase() {
+  const listEl = document.getElementById("settingsBaseList");
+  if (!listEl) return;
+  loadBaseData();
+  listEl.innerHTML = BASE_FACILITIES.map(fac => {
+    const lv = getBaseFacilityLevel(fac.key);
+    const cost = lv < fac.maxLevel ? fac.costBase * (lv + 1) : null;
+    const bar = Array.from({length: fac.maxLevel}, (_, i) => i < lv ? "▓" : "░").join("");
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+      <span style="font-size:18px;">${fac.emoji}</span>
+      <div style="flex:1;">
+        <div style="color:#fff;font-weight:600;">${fac.label} <span style="color:var(--text-muted);font-size:10px;">Lv.${lv}</span></div>
+        <div style="font-size:10px;color:var(--text-muted);">${fac.desc}</div>
+        <div style="font-size:10px;color:#a855f7;letter-spacing:1px;">${bar}</div>
+      </div>
+      ${lv < fac.maxLevel
+        ? `<button style="background:rgba(91,154,181,0.2);color:#5B9AB5;border:1px solid rgba(91,154,181,0.3);border-radius:6px;padding:3px 10px;cursor:pointer;font-size:11px;white-space:nowrap;" onclick="upgradeFacility('${fac.key}')">${cost}G</button>`
+        : `<span style="font-size:10px;color:#34D399;">MAX</span>`}
+    </div>`;
+  }).join('');
 }
 
 function updateSettingsSkill() {
@@ -2325,6 +2358,7 @@ function checkAreaTransition(lat, lon) {
     showAreaDiscovery(area);
     if (currentTrip) {
       currentTrip.areasDiscovered = (currentTrip.areasDiscovered || 0) + 1;
+      updateQuestProgress("area", 1);
     }
   } else {
     showAreaEntry(area);
@@ -2532,6 +2566,7 @@ function checkSkillNodeDiscovery(lat, lon) {
     showSkillDiscovery(sk, cat);
     if (currentTrip) {
       currentTrip.skillsDiscovered = (currentTrip.skillsDiscovered || 0) + 1;
+      updateQuestProgress("skill", 1);
     }
   }
 }
@@ -2558,6 +2593,58 @@ function showSkillDiscovery(sk, cat) {
     toast.style.opacity = "0";
     setTimeout(() => toast.remove(), 400);
   }, 2500);
+}
+
+// ============================================================
+//  Scanner / Signal System
+// ============================================================
+const SCANNER_RANGE_M = 800;
+let lastSignalCheck = 0;
+
+function checkSignals(lat, lon) {
+  const now = Date.now();
+  if (now - lastSignalCheck < 5000) return;
+  lastSignalCheck = now;
+
+  const signals = [];
+  const range = getEffectiveScannerRange();
+
+  if (skillGraph) {
+    for (const sk of skillGraph.nodes) {
+      if (skillData[sk.skillId]) continue;
+      const d = haversineM(lat, lon, sk.lat, sk.lon);
+      if (d <= range) {
+        const cat = SKILL_CATEGORIES.find(c => c.key === sk.category);
+        signals.push({ type: "skill", distance: d, emoji: cat ? cat.emoji : "📡", label: "Skill Signal" });
+      }
+    }
+  }
+
+  if (areaIndex) {
+    for (const [id, area] of areaIndex.areas) {
+      if (areaData[id]) continue;
+      const d = haversineM(lat, lon, area.lat, area.lon);
+      if (d <= range) {
+        const biome = BIOME_TYPES[area.primaryBiome] || BIOME_TYPES.rural;
+        signals.push({ type: "area", distance: d, emoji: biome.emoji, label: "Area Signal" });
+      }
+    }
+  }
+
+  updateSignalHud(signals);
+}
+
+function updateSignalHud(signals) {
+  const el = document.getElementById("signalHud");
+  if (!el) return;
+  if (signals.length === 0) {
+    el.style.display = "none";
+    return;
+  }
+  el.style.display = "flex";
+  const closest = signals.sort((a, b) => a.distance - b.distance)[0];
+  const strength = closest.distance < 200 ? "▓▓▓" : closest.distance < 400 ? "▓▓░" : closest.distance < 600 ? "▓░░" : "░░░";
+  el.innerHTML = `<span style="font-size:14px;">${closest.emoji}</span> <span style="font-size:11px;color:#a855f7;letter-spacing:1px;">${strength}</span> <span style="font-size:10px;color:var(--text-muted);">${closest.label}</span>`;
 }
 
 // ============================================================
@@ -2894,6 +2981,7 @@ async function startApp() {
     await new Promise(r => setTimeout(r, 10));
     buildSkillGraph(graph);
     loadSkillData();
+    loadBaseData();
     prog.textContent = `${skillGraph.nodes.length} スキルノード`;
     await new Promise(r => setTimeout(r, 200));
   } catch(e) {
@@ -2970,6 +3058,7 @@ function processPosition(lat, lon, heading, speed) {
       forceFinishRoulette();
       if (cruiseActive && lastDecisionNodeId) {
         resolveJunctionReward(manuallySelected, lastChoiceWasRoulette);
+        resolveEncounter();
         lastChoiceWasRoulette = false;
       }
       selectedBranchId = null;
@@ -2983,11 +3072,13 @@ function processPosition(lat, lon, heading, speed) {
       lastAlertThreshold = null;
       carMaxDistM = Math.max(decision.distanceM, 50);
       generateBranchMults(decision.branches);
+      maybeStartEncounter();
       recordMapNode(decision.nodeId, decision.lat, decision.lon);
       mapCurrentNodeId = decision.nodeId;
       tripTrackJunction();
       checkAreaTransition(decision.lat, decision.lon);
       checkSkillNodeDiscovery(decision.lat, decision.lon);
+      checkSignals(decision.lat, decision.lon);
     }
     lastDecisionNodeId = decision.nodeId;
     lastAcceptedDecisionNodeId = decision.nodeId;
@@ -4322,6 +4413,300 @@ function playStakeConvert() {
 }
 
 // ============================================================
+//  Base System
+// ============================================================
+const BASE_FACILITIES = [
+  { key: "garage",    label: "Garage",         emoji: "🏗️",  desc: "出撃コスト軽減",           maxLevel: 5, costBase: 500, effect: (lv) => ({ deployCostReduction: lv * 50 }) },
+  { key: "storage",   label: "Storage",        emoji: "📦",  desc: "Cargo容量+2/Lv",           maxLevel: 5, costBase: 400, effect: (lv) => ({ cargoBonus: lv * 2 }) },
+  { key: "scanner",   label: "Scanner Room",   emoji: "📡",  desc: "Scanner探知範囲拡大",       maxLevel: 3, costBase: 800, effect: (lv) => ({ scannerRangeBonus: lv * 200 }) },
+  { key: "workshop",  label: "Workshop",       emoji: "🔧",  desc: "スクラップ売値+20%/Lv",    maxLevel: 3, costBase: 600, effect: (lv) => ({ scrapBonus: lv * 0.2 }) },
+  { key: "cartography", label: "Cartography",  emoji: "🗺️",  desc: "マッピング経験ボーナス",    maxLevel: 3, costBase: 700, effect: (lv) => ({ mappingBonus: lv * 0.15 }) },
+  { key: "trading",   label: "Trading Post",   emoji: "🏪",  desc: "クエスト報酬+25%/Lv",      maxLevel: 3, costBase: 600, effect: (lv) => ({ questRewardBonus: lv * 0.25 }) },
+];
+
+let baseData = {};
+
+function loadBaseData() {
+  try {
+    const raw = localStorage.getItem("pyp_base");
+    if (raw) baseData = JSON.parse(raw);
+  } catch(e) { baseData = {}; }
+  return baseData;
+}
+function saveBaseData() {
+  localStorage.setItem("pyp_base", JSON.stringify(baseData));
+}
+
+function getBaseFacilityLevel(key) {
+  return (baseData[key] || {}).level || 0;
+}
+
+function getBaseEffect(effectKey) {
+  let total = 0;
+  for (const fac of BASE_FACILITIES) {
+    const lv = getBaseFacilityLevel(fac.key);
+    if (lv > 0) {
+      const effects = fac.effect(lv);
+      if (effects[effectKey]) total += effects[effectKey];
+    }
+  }
+  return total;
+}
+
+function upgradeFacility(key) {
+  const fac = BASE_FACILITIES.find(f => f.key === key);
+  if (!fac) return;
+  const lv = getBaseFacilityLevel(key);
+  if (lv >= fac.maxLevel) return;
+  const cost = fac.costBase * (lv + 1);
+  if (playerData.money < cost) {
+    alert(`資金不足（必要: ${cost}G, 所持: ${playerData.money}G）`);
+    return;
+  }
+  if (!confirm(`${fac.label} をLv.${lv+1}に強化しますか？（${cost}G）`)) return;
+  playerData.money -= cost;
+  savePlayerData(playerData);
+  if (!baseData[key]) baseData[key] = { level: 0 };
+  baseData[key].level = lv + 1;
+  saveBaseData();
+  updateSettingsBase();
+  updateSettingsCargo();
+}
+
+// Apply base effects
+function getEffectiveDeploymentCost() {
+  return Math.max(100, DEPLOYMENT_COST - getBaseEffect("deployCostReduction"));
+}
+
+function getEffectiveCargoMax() {
+  return CARGO_MAX_DEFAULT + getBaseEffect("cargoBonus");
+}
+
+function getEffectiveScannerRange() {
+  return SCANNER_RANGE_M + getBaseEffect("scannerRangeBonus");
+}
+
+function getEffectiveScrapMultiplier() {
+  return 1.0 + getBaseEffect("scrapBonus");
+}
+
+// ============================================================
+//  Quest System
+// ============================================================
+const QUEST_TEMPLATES = [
+  { id: "q_dist_1k",     type: "distance",  target: 1000,  label: "1km走行せよ",            reward: 100,  rewardSP: 0 },
+  { id: "q_dist_5k",     type: "distance",  target: 5000,  label: "5km走行せよ",            reward: 300,  rewardSP: 1 },
+  { id: "q_dist_10k",    type: "distance",  target: 10000, label: "10km走行せよ",           reward: 600,  rewardSP: 2 },
+  { id: "q_junction_10", type: "junction",   target: 10,    label: "10交差点を通過せよ",     reward: 150,  rewardSP: 0 },
+  { id: "q_junction_30", type: "junction",   target: 30,    label: "30交差点を通過せよ",     reward: 400,  rewardSP: 1 },
+  { id: "q_area_1",      type: "area",       target: 1,     label: "新エリアを1つ発見せよ",  reward: 200,  rewardSP: 1 },
+  { id: "q_area_3",      type: "area",       target: 3,     label: "新エリアを3つ発見せよ",  reward: 500,  rewardSP: 2 },
+  { id: "q_skill_1",     type: "skill",      target: 1,     label: "Skill Nodeを1つ発見せよ", reward: 200,  rewardSP: 1 },
+  { id: "q_loot_5",      type: "loot",       target: 5,     label: "アイテムを5個収集せよ",  reward: 150,  rewardSP: 0 },
+  { id: "q_loot_15",     type: "loot",       target: 15,    label: "アイテムを15個収集せよ", reward: 400,  rewardSP: 1 },
+  { id: "q_encounter_1", type: "encounter",  target: 1,     label: "Encounterに1回勝利せよ", reward: 250,  rewardSP: 1 },
+  { id: "q_roulette_3",  type: "roulette",   target: 3,     label: "Rouletteを3回回せ",      reward: 200,  rewardSP: 0 },
+];
+
+let activeQuests = [];
+let questData = {};
+
+function loadQuestData() {
+  try {
+    const raw = localStorage.getItem("pyp_quests");
+    if (raw) questData = JSON.parse(raw);
+  } catch(e) { questData = {}; }
+  return questData;
+}
+function saveQuestData() {
+  localStorage.setItem("pyp_quests", JSON.stringify(questData));
+}
+
+function assignTripQuests() {
+  const completed = new Set(Object.keys(questData).filter(k => questData[k].completed));
+  const available = QUEST_TEMPLATES.filter(q => !completed.has(q.id));
+  const shuffled = available.sort(() => Math.random() - 0.5);
+  activeQuests = shuffled.slice(0, 3).map(q => ({
+    ...q,
+    progress: 0,
+    completed: false,
+  }));
+}
+
+function updateQuestProgress(type, delta) {
+  for (const q of activeQuests) {
+    if (q.completed) continue;
+    if (q.type !== type) continue;
+    q.progress = Math.min(q.progress + delta, q.target);
+    if (q.progress >= q.target) {
+      q.completed = true;
+      questData[q.id] = { completed: true, completedAt: Date.now() };
+      saveQuestData();
+      if (currentTrip) {
+        currentTrip.money += q.reward;
+        playerData.skillPoints = (playerData.skillPoints || 0) + (q.rewardSP || 0);
+        savePlayerData(playerData);
+        totalSessionScore += q.reward;
+      }
+      showQuestComplete(q);
+    }
+  }
+}
+
+function showQuestComplete(q) {
+  const toast = document.createElement("div");
+  toast.style.cssText = `
+    position:fixed;top:90px;left:50%;transform:translateX(-50%);z-index:9999;
+    background:rgba(0,0,0,0.9);border:1px solid #ffd60a40;border-radius:12px;
+    padding:10px 20px;display:flex;align-items:center;gap:10px;
+    animation:areaSlideIn 0.3s ease-out;
+  `;
+  toast.innerHTML = `
+    <span style="font-size:24px;">📜</span>
+    <div>
+      <div style="font-size:10px;color:#ffd60a;letter-spacing:2px;">QUEST COMPLETE</div>
+      <div style="font-size:13px;color:#fff;">${q.label}</div>
+      <div style="font-size:11px;color:#34D399;">+${q.reward}G${q.rewardSP ? " +" + q.rewardSP + "SP" : ""}</div>
+    </div>
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = "opacity 0.4s";
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 400);
+  }, 3000);
+}
+
+// ============================================================
+//  Encounter System (Auto Battle Prototype)
+// ============================================================
+const ENCOUNTER_RATE = 0.15;
+const ENCOUNTER_ENEMIES = [
+  { name: "Shadow Scout",  emoji: "👁️",  power: [10, 25], loot: "common" },
+  { name: "Road Phantom",  emoji: "👻",  power: [15, 35], loot: "uncommon" },
+  { name: "Iron Sentinel", emoji: "🤖",  power: [25, 50], loot: "uncommon" },
+  { name: "Dust Stalker",  emoji: "🦎",  power: [30, 55], loot: "rare" },
+  { name: "Void Walker",   emoji: "🌀",  power: [40, 70], loot: "rare" },
+  { name: "Storm Herald",  emoji: "⚡",   power: [50, 80], loot: "epic" },
+];
+
+let activeEncounter = null;
+let encounterTimer = null;
+
+function maybeStartEncounter() {
+  if (activeEncounter) return;
+  if (!currentTrip) return;
+  if (Math.random() > ENCOUNTER_RATE) return;
+
+  const biome = currentAreaId && areaIndex ? areaIndex.areas.get(currentAreaId) : null;
+  const biomeBonus = biome ? (biome.primaryBiome === "industrial" ? 1 : biome.primaryBiome === "highway" ? 0.5 : 0) : 0;
+
+  const pool = ENCOUNTER_ENEMIES.filter(e => {
+    if (biomeBonus > 0 && e.power[1] > 40) return true;
+    return e.power[1] <= 55 + biomeBonus * 20;
+  });
+  const enemy = pool[Math.floor(Math.random() * pool.length)];
+  const enemyPower = enemy.power[0] + Math.floor(Math.random() * (enemy.power[1] - enemy.power[0]));
+  const playerPower = 20 + (playerData.tripCount || 0) * 2 + Math.floor(Math.random() * 15);
+
+  activeEncounter = {
+    enemy,
+    enemyPower,
+    playerPower,
+    phase: "start",
+    startTime: Date.now(),
+  };
+
+  showEncounterStart(enemy);
+
+  encounterTimer = setTimeout(() => {
+    if (!activeEncounter) return;
+    activeEncounter.phase = "battle";
+    showEncounterProgress();
+  }, 4000);
+}
+
+function resolveEncounter() {
+  if (!activeEncounter) return;
+  if (encounterTimer) { clearTimeout(encounterTimer); encounterTimer = null; }
+
+  const { enemy, enemyPower, playerPower } = activeEncounter;
+  const won = playerPower >= enemyPower || Math.random() < 0.4;
+  const reward = won ? (SCRAP_VALUES[enemy.loot] || 5) * 2 : 0;
+
+  if (won && currentTrip) {
+    currentTrip.money += reward;
+    currentTrip.encountersWon = (currentTrip.encountersWon || 0) + 1;
+    updateQuestProgress("encounter", 1);
+  }
+  if (currentTrip) {
+    currentTrip.encounterCount = (currentTrip.encounterCount || 0) + 1;
+  }
+
+  showEncounterResult(enemy, won, reward);
+  activeEncounter = null;
+}
+
+function showEncounterStart(enemy) {
+  const toast = document.createElement("div");
+  toast.id = "encounterToast";
+  toast.style.cssText = `
+    position:fixed;bottom:180px;left:50%;transform:translateX(-50%);z-index:9998;
+    background:rgba(20,0,0,0.9);border:1px solid #ef444440;border-radius:12px;
+    padding:10px 20px;display:flex;align-items:center;gap:10px;
+    animation:areaSlideIn 0.3s ease-out;
+  `;
+  toast.innerHTML = `
+    <span style="font-size:28px;">${enemy.emoji}</span>
+    <div>
+      <div style="font-size:10px;color:#ef4444;letter-spacing:2px;">ENCOUNTER</div>
+      <div style="font-size:14px;color:#fff;font-weight:600;">${enemy.name}</div>
+    </div>
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    const el = document.getElementById("encounterToast");
+    if (el) { el.style.transition = "opacity 0.3s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }
+  }, 3000);
+}
+
+function showEncounterProgress() {
+  if (!activeEncounter) return;
+  const el = document.getElementById("encounterToast");
+  if (el) el.remove();
+  const toast = document.createElement("div");
+  toast.id = "encounterToast";
+  toast.style.cssText = `
+    position:fixed;bottom:180px;left:50%;transform:translateX(-50%);z-index:9998;
+    background:rgba(20,0,0,0.85);border:1px solid #ef444430;border-radius:10px;
+    padding:6px 16px;font-size:12px;color:#ef4444;letter-spacing:1px;
+  `;
+  toast.textContent = `⚔️ ${activeEncounter.enemy.name} と交戦中...`;
+  document.body.appendChild(toast);
+}
+
+function showEncounterResult(enemy, won, reward) {
+  const el = document.getElementById("encounterToast");
+  if (el) el.remove();
+  const toast = document.createElement("div");
+  toast.style.cssText = `
+    position:fixed;bottom:180px;left:50%;transform:translateX(-50%);z-index:9998;
+    background:rgba(0,0,0,0.9);border:1px solid ${won ? "#34D39940" : "#ef444440"};border-radius:12px;
+    padding:10px 20px;display:flex;align-items:center;gap:10px;
+    animation:areaSlideIn 0.3s ease-out;
+  `;
+  toast.innerHTML = won
+    ? `<span style="font-size:24px;">🏆</span><div><div style="font-size:10px;color:#34D399;letter-spacing:2px;">VICTORY</div><div style="font-size:13px;color:#fff;">${enemy.name} を撃破 +${reward}G</div></div>`
+    : `<span style="font-size:24px;">💀</span><div><div style="font-size:10px;color:#ef4444;letter-spacing:2px;">DEFEAT</div><div style="font-size:13px;color:#fff;">${enemy.name} に敗北</div></div>`;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = "opacity 0.4s";
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 400);
+  }, 2500);
+}
+
+// ============================================================
 //  Container / Loot System (Wayfaring game prototype)
 // ============================================================
 
@@ -4477,6 +4862,7 @@ function hideContainer() {
 }
 
 function addToTray(container) {
+  let added = 0;
   for (const slot of container.slots) {
     if (explorationTray.length >= TRAY_MAX) break;
     explorationTray.push({
@@ -4487,7 +4873,9 @@ function addToTray(container) {
       wasRoulette: container.rouletteBonus > 0,
       appraised: false,
     });
+    added++;
   }
+  if (added > 0) updateQuestProgress("loot", added);
   updateTrayUI();
 }
 
@@ -5096,10 +5484,12 @@ function showTripStart() {
   document.getElementById("tripEndScreen").style.display = "none";
   document.getElementById("tripStartScreen").style.display = "flex";
 
+  loadBaseData();
+  playerData.cargoMax = getEffectiveCargoMax();
   document.getElementById("tripMoney").textContent = playerData.money.toLocaleString();
   document.getElementById("tripCargoUsed").textContent = playerData.cargo.length;
   document.getElementById("tripCargoMax").textContent = playerData.cargoMax;
-  document.getElementById("tripDeployCost").textContent = DEPLOYMENT_COST;
+  document.getElementById("tripDeployCost").textContent = getEffectiveDeploymentCost();
   document.getElementById("tripNum").textContent = playerData.tripCount + 1;
   document.getElementById("tripTotalDist").textContent = (playerData.totalDistance / 1000).toFixed(1);
 
@@ -5118,12 +5508,22 @@ function showTripStart() {
   const areaCount = getDiscoveredAreaCount();
   const areaEl = document.getElementById("tripAreaCount");
   if (areaEl) areaEl.textContent = areaCount;
+  const spEl = document.getElementById("tripSP");
+  if (spEl) spEl.textContent = playerData.skillPoints || 0;
+
+  loadQuestData();
+  const completedCount = Object.keys(questData).filter(k => questData[k].completed).length;
+  const qPreview = document.getElementById("tripQuestPreview");
+  if (qPreview) {
+    qPreview.innerHTML = `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📜 Quest（${completedCount}/${QUEST_TEMPLATES.length} 完了）</div>`;
+  }
 }
 
 const DEPLOYMENT_COST = 500;
 
 function departTrip() {
-  const cost = DEPLOYMENT_COST;
+  loadBaseData();
+  const cost = getEffectiveDeploymentCost();
   if (playerData.money < cost) {
     if (!confirm(`所持金 ${playerData.money}G で出撃コスト ${cost}G に足りません。借金して出発しますか？`)) return;
   }
@@ -5144,12 +5544,17 @@ function departTrip() {
     rouletteCount: 0,
     areasDiscovered: 0,
     skillsDiscovered: 0,
+    encounterCount: 0,
+    encountersWon: 0,
   };
   totalSessionScore = 0;
   explorationTray = [];
   cruiseDistanceM = 0;
   consecutiveStraights = 0;
   updateTrayUI();
+
+  loadQuestData();
+  assignTripQuests();
 
   document.getElementById("tripStartScreen").style.display = "none";
   startApp();
@@ -5164,11 +5569,15 @@ let _tripDistAccum = 0;
 function tripTrackDistance(deltaM) {
   if (currentTrip) {
     currentTrip.distanceM += deltaM;
+    updateQuestProgress("distance", deltaM);
   }
 }
 
 function tripTrackJunction() {
-  if (currentTrip) currentTrip.junctionsPassed++;
+  if (currentTrip) {
+    currentTrip.junctionsPassed++;
+    updateQuestProgress("junction", 1);
+  }
 }
 
 function tripTrackBust() {
@@ -5176,7 +5585,10 @@ function tripTrackBust() {
 }
 
 function tripTrackRoulette() {
-  if (currentTrip) currentTrip.rouletteCount++;
+  if (currentTrip) {
+    currentTrip.rouletteCount++;
+    updateQuestProgress("roulette", 1);
+  }
 }
 
 // Move loot from explorationTray into trip haul
@@ -5195,6 +5607,9 @@ function endTrip() {
 
   flushTrayToHaul();
   currentTrip.money = totalSessionScore;
+
+  if (activeEncounter) resolveEncounter();
+  if (encounterTimer) { clearTimeout(encounterTimer); encounterTimer = null; }
 
   // Stop demo
   if (demoInterval) { clearInterval(demoInterval); demoInterval = null; }
@@ -5223,6 +5638,9 @@ function showTripEnd() {
   summaryHtml += row("Roulette", trip.rouletteCount + " 回");
   if (trip.areasDiscovered) summaryHtml += row("新エリア発見", trip.areasDiscovered + " 箇所", "positive");
   if (trip.skillsDiscovered) summaryHtml += row("Skill Node発見", trip.skillsDiscovered + " 個", "positive");
+  if (trip.encounterCount) summaryHtml += row("Encounter", (trip.encountersWon || 0) + "/" + trip.encounterCount + " 勝利");
+  const questsDone = activeQuests.filter(q => q.completed).length;
+  if (activeQuests.length > 0) summaryHtml += row("Quest", questsDone + "/" + activeQuests.length + " 完了");
   summaryHtml += '<div class="trip-summary-row" style="margin-top:8px;"><span class="label">出撃コスト</span><span class="value negative">-' + trip.deploymentCost.toLocaleString() + ' G</span></div>';
   summaryHtml += row("Stake収入", "+" + trip.money.toLocaleString() + " G", "positive");
   summaryHtml += row("戦利品", trip.haul.length + " 個（推定 " + estScrap.toLocaleString() + " G）");

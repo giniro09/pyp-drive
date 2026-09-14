@@ -2411,6 +2411,7 @@ function checkAreaTransition(lat, lon) {
       exploredM: 0,
     };
     saveAreaData();
+    discoveryVersion++;
     playerData.skillPoints = (playerData.skillPoints || 0) + 2;
     savePlayerData(playerData);
     showAreaDiscovery(area);
@@ -2626,6 +2627,7 @@ function checkSkillNodeDiscovery(lat, lon) {
       discoveredAt: Date.now(),
     };
     saveSkillData();
+    discoveryVersion++;
     playerData.skillPoints = (playerData.skillPoints || 0) + 1;
     savePlayerData(playerData);
     showSkillDiscovery(sk, cat);
@@ -2893,19 +2895,8 @@ function findNextDecision(graph, startEdge, startFraction) {
             roadName:oe.name, roadRef:oe.ref, selected:false, intel:null };
         }).sort((a,b) => a.angleDeg - b.angleDeg);
 
-        for (const b of branches) {
-          const eid = b.id.replace("br_", "");
-          b.intel = getBranchIntel(eid, nodeId);
-        }
-        suppressCommonIntel(branches);
-
-        console.log(`[branchIntel] node=${nodeId} signal=${hasSignal}`);
-        for (const b of branches) {
-          const i = b.intel;
-          console.log(`  ${b.label}(${b.roadName||"?"}) expl=${i.exploration} area=${i.areaSignal}${i._areaSignalSuppressed?"[S]":""} skill=${i.skillSignal}${i._skillSignalSuppressed?"[S]":""} loot=${i.lootSignal} areas=${JSON.stringify(i._nearAreas?.slice(0,3))} skills=${JSON.stringify(i._nearSkills?.slice(0,3))}`);
-        }
-
-        const decision = { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal, inBearing };
+        const decision = { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal, inBearing,
+          intelVersion: null };
         return { decision, stopReason: null };
       } else {
         skippedJunctions++;
@@ -2935,8 +2926,8 @@ function pickStraightest(outIds, graph, inEdge) {
 //  Branch Intel — per-branch exploration lookahead
 // ============================================================
 function getPhysicalEdgeKey(edge) {
-  const a = edge.fromNodeId, b = edge.toNodeId;
-  return a < b ? a + "|" + b : b + "|" + a;
+  const [a, b] = [edge.fromNodeId, edge.toNodeId].sort();
+  return `${edge.osmWayId || "no-way"}:${a}|${b}`;
 }
 
 const INTEL_MAX_M = 1500;
@@ -3041,40 +3032,43 @@ function getBranchIntel(edgeId, decisionNodeId) {
   return { exploration, areaSignal, skillSignal, lootSignal, _nearAreas: nearAreas, _nearSkills: nearSkills };
 }
 
-function suppressCommonIntel(branches) {
+function removeCommonTargetIds(branches, field) {
   if (branches.length < 2) return;
-  const fields = ["areaSignal", "skillSignal"];
-  for (const f of fields) {
-    const vals = branches.map(b => b.intel ? b.intel[f] : "none");
-    const allSame = vals.every(v => v === vals[0]) && vals[0] !== "none";
-    if (allSame) {
-      for (const b of branches) b.intel["_" + f + "Suppressed"] = true;
-    }
+  const lists = branches.map(b => (b.intel && b.intel[field]) || []);
+  if (lists.some(l => l.length === 0)) return;
+  const idSets = lists.map(l => new Set(l.map(x => x.id)));
+  const commonIds = new Set([...idSets[0]].filter(id => idSets.every(s => s.has(id))));
+  if (commonIds.size === 0) return;
+  for (const b of branches) {
+    b.intel[field] = b.intel[field].filter(x => !commonIds.has(x.id));
   }
-  const explorations = branches.map(b => b.intel ? b.intel.exploration : "mapped");
-  const allSameExploration = explorations.every(v => v === explorations[0]) && explorations[0] !== "mapped";
-  if (allSameExploration) {
-    for (const b of branches) b.intel._explorationSuppressed = true;
-  }
-  const loots = branches.map(b => b.intel ? b.intel.lootSignal : "none");
-  const allSameLoot = loots.every(v => v === loots[0]) && loots[0] !== "none";
-  if (allSameLoot) {
-    for (const b of branches) b.intel._lootSignalSuppressed = true;
+}
+
+function recalcSignalsAfterRemoval(branches) {
+  const AREA_CORRIDOR_M = 175;
+  const SKILL_CORRIDOR_M = 135;
+  for (const b of branches) {
+    if (!b.intel) continue;
+    const areas = b.intel._nearAreas || [];
+    const bestArea = areas.length > 0 ? Math.min(...areas.map(a => a.lateralM)) : Infinity;
+    b.intel.areaSignal = bestArea < AREA_CORRIDOR_M * 0.5 ? "strong" : bestArea < AREA_CORRIDOR_M ? "weak" : "none";
+
+    const skills = b.intel._nearSkills || [];
+    const bestSkill = skills.length > 0 ? Math.min(...skills.map(s => s.lateralM)) : Infinity;
+    b.intel.skillSignal = bestSkill < SKILL_CORRIDOR_M * 0.5 ? "strong" : bestSkill < SKILL_CORRIDOR_M ? "weak" : "none";
   }
 }
 
 function getIntelTags(intel) {
   const ranked = [];
-  if (intel.areaSignal === "strong" && !intel._areaSignalSuppressed) ranked.push({ text: "AREA・強", color: "#F59E0B", pri: 1 });
-  if (intel.skillSignal === "strong" && !intel._skillSignalSuppressed) ranked.push({ text: "NODE・強", color: "#A855F7", pri: 1 });
-  if (intel.exploration === "unknown" && !intel._explorationSuppressed) ranked.push({ text: "未知の道", color: "#34D399", pri: 2 });
-  if (intel.areaSignal === "weak" && !intel._areaSignalSuppressed) ranked.push({ text: "AREAの気配", color: "#F59E0B", pri: 3 });
-  if (intel.skillSignal === "weak" && !intel._skillSignalSuppressed) ranked.push({ text: "NODE反応", color: "#A855F7", pri: 3 });
-  if (intel.exploration === "partial" && !intel._explorationSuppressed) ranked.push({ text: "一部未探索", color: "#5B9AB5", pri: 3 });
-  if (intel.lootSignal === "strong" && !intel._lootSignalSuppressed) ranked.push({ text: "LOOT・強", color: "#3B82F6", pri: 4 });
-  if (intel.lootSignal === "weak" && !intel._lootSignalSuppressed) ranked.push({ text: "LOOT反応", color: "#3B82F6", pri: 4 });
-
-  if (ranked.length === 0) ranked.push({ text: "周辺反応なし", color: "#6B7280", pri: 9 });
+  if (intel.areaSignal === "strong") ranked.push({ text: "AREA・強", color: "#F59E0B", pri: 1 });
+  if (intel.skillSignal === "strong") ranked.push({ text: "NODE・強", color: "#A855F7", pri: 1 });
+  if (intel.exploration === "unknown") ranked.push({ text: "未知の道", color: "#34D399", pri: 2 });
+  if (intel.areaSignal === "weak") ranked.push({ text: "AREAの気配", color: "#F59E0B", pri: 3 });
+  if (intel.skillSignal === "weak") ranked.push({ text: "NODE反応", color: "#A855F7", pri: 3 });
+  if (intel.exploration === "partial") ranked.push({ text: "一部未探索", color: "#5B9AB5", pri: 3 });
+  if (intel.lootSignal === "strong") ranked.push({ text: "LOOT・強", color: "#3B82F6", pri: 4 });
+  if (intel.lootSignal === "weak") ranked.push({ text: "LOOT反応", color: "#3B82F6", pri: 4 });
 
   ranked.sort((a, b) => a.pri - b.pri);
   return ranked.slice(0, 2);
@@ -3159,6 +3153,8 @@ let lastSpeedMps = 0;
 let displayDistanceM = null;
 let gpsActive = false;
 let currentDecision = null;
+let explorationVersion = 0;
+let discoveryVersion = 0;
 
 // ============================================================
 //  App startup
@@ -3203,7 +3199,12 @@ async function startApp() {
     prog.textContent = `${skillGraph.nodes.length} スキルノード`;
     await new Promise(r => setTimeout(r, 200));
 
-    if (mapVisitedPhysicalKeys.size === 0 && mapVisitedEdgeIds.size > 0) {
+    const needsKeyMigration = mapVisitedEdgeIds.size > 0 && (
+      mapVisitedPhysicalKeys.size === 0 ||
+      (mapVisitedPhysicalKeys.size > 0 && ![...mapVisitedPhysicalKeys][0].includes(":"))
+    );
+    if (needsKeyMigration) {
+      mapVisitedPhysicalKeys = new Set();
       for (const eid of mapVisitedEdgeIds) {
         const edge = graph.edges.get(eid);
         if (edge) mapVisitedPhysicalKeys.add(getPhysicalEdgeKey(edge));
@@ -3284,6 +3285,36 @@ function processPosition(lat, lon, heading, speed) {
       displayDistanceM = Math.max(0, displayDistanceM - drain);
       decision = { ...currentDecision, distanceM: displayDistanceM };
     }
+
+    const curVer = { exploration: explorationVersion, discovery: discoveryVersion };
+    const needIntel = junctionChanged
+      || !decision.intelVersion
+      || decision.intelVersion.exploration !== curVer.exploration
+      || decision.intelVersion.discovery !== curVer.discovery;
+
+    if (needIntel && decision.branches) {
+      for (const b of decision.branches) {
+        const eid = b.id.replace("br_", "");
+        b.intel = getBranchIntel(eid, decision.nodeId);
+      }
+      removeCommonTargetIds(decision.branches, "_nearAreas");
+      removeCommonTargetIds(decision.branches, "_nearSkills");
+      recalcSignalsAfterRemoval(decision.branches);
+      decision.intelVersion = { ...curVer };
+
+      console.log(`[branchIntel] node=${decision.nodeId} signal=${decision.hasSignal} explVer=${curVer.exploration} discVer=${curVer.discovery}`);
+      for (const b of decision.branches) {
+        const i = b.intel;
+        console.log(`  ${b.label}(${b.roadName||"?"}) expl=${i.exploration} area=${i.areaSignal} skill=${i.skillSignal} loot=${i.lootSignal} areas=${JSON.stringify(i._nearAreas?.slice(0,3))} skills=${JSON.stringify(i._nearSkills?.slice(0,3))}`);
+      }
+    } else if (!junctionChanged && currentDecision && currentDecision.branches) {
+      for (const b of decision.branches) {
+        const existing = currentDecision.branches.find(cb => cb.id === b.id);
+        if (existing && existing.intel) b.intel = existing.intel;
+      }
+      decision.intelVersion = currentDecision.intelVersion;
+    }
+
     if (junctionChanged) {
       forceFinishRoulette();
       if (cruiseActive && lastDecisionNodeId) {
@@ -3865,6 +3896,13 @@ function drawJunction(decision) {
     </g>`;
   }
 
+  const allBranchTags = resolvedBranches.map(b => b.intel ? getIntelTags(b.intel) : []);
+  if (allBranchTags.every(tags => tags.length === 0) && resolvedBranches.some(b => b.intel)) {
+    html += `<text x="0" y="-160" text-anchor="middle" fill="#6B7280" font-size="11" font-weight="600"
+      style="pointer-events:none;opacity:0;transition:opacity 0.3s ease-out 0.2s"
+      class="branch-label-anim">周辺反応なし</text>`;
+  }
+
   svg.innerHTML = html;
 
   // Trigger label slide-in animation after DOM paint
@@ -4252,6 +4290,7 @@ function recordTraversedEdge(edgeId) {
 
   mapVisitedEdgeIds.add(edgeId);
   mapVisitedPhysicalKeys.add(getPhysicalEdgeKey(edge));
+  explorationVersion++;
   const hasEdge = mapEdges.some(e =>
     (e.from === edge.fromNodeId && e.to === edge.toNodeId) ||
     (e.from === edge.toNodeId && e.to === edge.fromNodeId)

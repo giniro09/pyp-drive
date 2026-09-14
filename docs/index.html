@@ -1907,6 +1907,7 @@ function onMapLayoutChange() {
 function resetAutoMap() {
   mapNodes = {};
   mapEdges = [];
+  mapVisitedEdgeIds = new Set();
   mapCurrentNodeId = null;
   mapLastPassedNodeId = null;
   mapCurrentHeading = 0;
@@ -2840,31 +2841,27 @@ function findNextDecision(graph, startEdge, startFraction) {
   let accM = startEdge.lengthM * (1 - startFraction);
   const visited = new Set([startEdge.id]);
   let skippedJunctions = 0;
-  let lastSkipReason = "";
-  const passedNodes = [];
+
+  function noResult(reason) {
+    console.log(`[decisionSearch] stopReason=${reason} distance=${Math.round(accM)} lastEdgeId=${curId} skippedJunctionCount=${skippedJunctions}`);
+    return { decision: null, stopReason: reason };
+  }
 
   for (let s=0; s<500; s++) {
     const edge = graph.edges.get(curId);
+    if (!edge) return noResult("missing_edge");
     const nodeId = edge.toNodeId;
-    if (accM > maxSearchM) {
-      console.log(`[findNext] STOP: distance ${Math.round(accM)}m > ${maxSearchM}m limit. skipped=${skippedJunctions} junctions. last=${lastSkipReason}`);
-      return null;
-    }
-
-    const node = graph.nodes.get(nodeId);
-    if (node) passedNodes.push({ id: nodeId, lat: node.lat, lon: node.lon });
+    if (accM > maxSearchM) return noResult("distance_limit");
 
     const outIds = (graph.outgoing.get(nodeId)||[]).filter(eid => {
       const e = graph.edges.get(eid);
       return e.toNodeId !== edge.fromNodeId || e.osmWayId !== edge.osmWayId;
     });
 
-    if (!outIds.length) {
-      console.log(`[findNext] STOP: dead end at ${nodeId}, ${Math.round(accM)}m. skipped=${skippedJunctions}`);
-      return null;
-    }
+    if (!outIds.length) return noResult("dead_end");
 
     if (outIds.length >= 2) {
+      const node = graph.nodes.get(nodeId);
       const hasSignal = node?.hasSignal || false;
 
       let distFromLast = accM;
@@ -2873,35 +2870,33 @@ function findNextDecision(graph, startEdge, startFraction) {
       }
 
       if (shouldAcceptJunction(nodeId, distFromLast, hasSignal)) {
-        if (skippedJunctions > 0) {
-          console.log(`[findNext] FOUND signal junction at ${Math.round(accM)}m after skipping ${skippedJunctions}`);
-        }
         const inBearing = edge.endBearingDeg;
         const branches = outIds.map(eid => {
           const oe = graph.edges.get(eid);
           const rel = normalize180(oe.startBearingDeg - inBearing);
           return { id:"br_"+eid, label:classifyTurn(rel), angleDeg:rel,
-            roadName:oe.name, roadRef:oe.ref, selected:false };
+            roadName:oe.name, roadRef:oe.ref, selected:false, intel:null };
         }).sort((a,b) => a.angleDeg - b.angleDeg);
 
-        return { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal, inBearing, passedNodes };
+        for (const b of branches) {
+          const eid = b.id.replace("br_", "");
+          b.intel = getBranchIntel(eid, nodeId);
+        }
+
+        const decision = { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal, inBearing };
+        return { decision, stopReason: null };
       } else {
         skippedJunctions++;
-        lastSkipReason = `${nodeId} sig=${hasSignal} dist=${Math.round(accM)}m`;
       }
     }
 
     const nid = outIds.length >= 2 ? pickStraightest(outIds, graph, edge) : outIds[0];
-    if (!nid || visited.has(nid)) {
-      console.log(`[findNext] STOP: ${!nid ? "no next edge" : "loop detected"} at ${nodeId}, ${Math.round(accM)}m. skipped=${skippedJunctions}`);
-      return null;
-    }
+    if (!nid || visited.has(nid)) return noResult(visited.has(nid) ? "loop" : "no_next");
     visited.add(nid);
     accM += graph.edges.get(nid).lengthM;
     curId = nid;
   }
-  console.log(`[findNext] STOP: 500 steps exhausted at ${Math.round(accM)}m. skipped=${skippedJunctions}`);
-  return null;
+  return noResult("steps_exhausted");
 }
 
 function pickStraightest(outIds, graph, inEdge) {
@@ -2920,31 +2915,27 @@ function pickStraightest(outIds, graph, inEdge) {
 const INTEL_MAX_M = 1500;
 const INTEL_MAX_STEPS = 200;
 
-function getBranchIntel(edgeId, fromNodeId) {
+function getBranchIntel(edgeId, decisionNodeId) {
   if (!graph || !edgeId) return { exploration: "mapped", areaSignal: "none", skillSignal: "none", lootSignal: "none" };
-  const visitedEdgeSet = new Set();
-  for (const me of mapEdges) {
-    visitedEdgeSet.add(me.from + "-" + me.to);
-    visitedEdgeSet.add(me.to + "-" + me.from);
-  }
 
   let unmappedEdges = 0, totalEdges = 0;
-  let nearestAreaDist = Infinity, nearestSkillDist = Infinity;
-  let lootChance = 0;
+  let bestAreaDist = Infinity, bestSkillDist = Infinity;
+  let lootScore = 0;
 
-  const queue = [{ eid: edgeId, dist: 0 }];
-  const seen = new Set([edgeId]);
+  let curId = edgeId;
+  let accM = 0;
+  const visited = new Set([edgeId]);
+  let prevFromId = decisionNodeId;
 
-  for (let i = 0; i < queue.length && i < INTEL_MAX_STEPS; i++) {
-    const { eid, dist } = queue[i];
-    const edge = graph.edges.get(eid);
-    if (!edge) continue;
-    const edgeDist = dist + edge.lengthM;
-    if (edgeDist > INTEL_MAX_M) continue;
+  for (let s = 0; s < INTEL_MAX_STEPS; s++) {
+    const edge = graph.edges.get(curId);
+    if (!edge) break;
+    accM += edge.lengthM;
+    if (accM > INTEL_MAX_M) break;
 
     totalEdges++;
-    const fId = edge.fromNodeId, tId = edge.toNodeId;
-    if (!visitedEdgeSet.has(fId + "-" + tId) && !mapNodes[tId]) unmappedEdges++;
+    const tId = edge.toNodeId;
+    if (!mapVisitedEdgeIds.has(curId)) unmappedEdges++;
 
     const toNode = graph.nodes.get(tId);
     if (toNode) {
@@ -2952,58 +2943,67 @@ function getBranchIntel(edgeId, fromNodeId) {
         for (const [aid, area] of areaIndex.areas) {
           if (areaData[aid]) continue;
           const d = haversineM(toNode.lat, toNode.lon, area.lat, area.lon);
-          if (d < nearestAreaDist) nearestAreaDist = d;
+          const roadD = accM + d * 0.7;
+          if (roadD < bestAreaDist) bestAreaDist = roadD;
         }
       }
       if (skillGraph) {
-        const nearby = findNearbySkillNodes(toNode.lat, toNode.lon, 600);
+        const nearby = findNearbySkillNodes(toNode.lat, toNode.lon, 400);
         for (const sk of nearby) {
           if (skillData[sk.skillId]) continue;
-          if (sk.distance < nearestSkillDist) nearestSkillDist = sk.distance;
+          const roadD = accM + sk.distance;
+          if (roadD < bestSkillDist) bestSkillDist = roadD;
         }
       }
-      const roadType = edge.highway || "";
-      if (roadType === "residential" || roadType === "tertiary") lootChance += 0.15;
-      else if (roadType === "secondary" || roadType === "primary") lootChance += 0.1;
+      const rt = edge.highway || "";
+      if (rt === "residential" || rt === "tertiary") lootScore += 0.2;
+      else if (rt === "secondary" || rt === "primary") lootScore += 0.15;
     }
 
-    const nextOut = (graph.outgoing.get(tId) || []).filter(neid => {
-      const ne = graph.edges.get(neid);
-      return ne && ne.toNodeId !== fId && !seen.has(neid);
+    const outIds = (graph.outgoing.get(tId) || []).filter(eid => {
+      const e = graph.edges.get(eid);
+      return e && e.toNodeId !== edge.fromNodeId && !visited.has(eid);
     });
-    for (const neid of nextOut) {
-      seen.add(neid);
-      queue.push({ eid: neid, dist: edgeDist });
+
+    if (outIds.length === 0) break;
+    if (outIds.length >= 2) {
+      const node = graph.nodes.get(tId);
+      if (node && shouldAcceptJunction(tId, accM, node.hasSignal || false)) break;
     }
+
+    const next = pickStraightest(outIds, graph, edge);
+    if (!next) break;
+    visited.add(next);
+    prevFromId = tId;
+    curId = next;
   }
 
   const exploration = totalEdges === 0 ? "mapped"
-    : unmappedEdges / totalEdges > 0.6 ? "unknown"
+    : unmappedEdges / totalEdges > 0.5 ? "unknown"
     : unmappedEdges > 0 ? "partial" : "mapped";
 
-  const areaSignal = nearestAreaDist < 400 ? "strong" : nearestAreaDist < 800 ? "weak" : "none";
-  const skillSignal = nearestSkillDist < 200 ? "strong" : nearestSkillDist < 500 ? "weak" : "none";
-  const lootSignal = lootChance > 1.0 ? "strong" : lootChance > 0.4 ? "weak" : "none";
+  const areaSignal = bestAreaDist < 500 ? "strong" : bestAreaDist < 1200 ? "weak" : "none";
+  const skillSignal = bestSkillDist < 300 ? "strong" : bestSkillDist < 700 ? "weak" : "none";
+  const lootSignal = lootScore > 1.0 ? "strong" : lootScore > 0.4 ? "weak" : "none";
 
   return { exploration, areaSignal, skillSignal, lootSignal };
 }
 
 function getIntelTags(intel) {
-  const tags = [];
-  if (intel.exploration === "unknown") tags.push({ text: "未知の道", color: "#34D399" });
-  else if (intel.exploration === "partial") tags.push({ text: "一部未探索", color: "#5B9AB5" });
-  else tags.push({ text: "探索済", color: "#6B7280" });
+  const ranked = [];
+  if (intel.areaSignal === "strong") ranked.push({ text: "AREA・強", color: "#F59E0B", pri: 1 });
+  if (intel.skillSignal === "strong") ranked.push({ text: "NODE・強", color: "#A855F7", pri: 1 });
+  if (intel.exploration === "unknown") ranked.push({ text: "未知の道", color: "#34D399", pri: 2 });
+  if (intel.areaSignal === "weak") ranked.push({ text: "AREAの気配", color: "#F59E0B", pri: 3 });
+  if (intel.skillSignal === "weak") ranked.push({ text: "NODE反応", color: "#A855F7", pri: 3 });
+  if (intel.exploration === "partial") ranked.push({ text: "一部未探索", color: "#5B9AB5", pri: 3 });
+  if (intel.lootSignal === "strong") ranked.push({ text: "LOOT・強", color: "#3B82F6", pri: 4 });
+  if (intel.lootSignal === "weak") ranked.push({ text: "LOOT反応", color: "#3B82F6", pri: 4 });
 
-  if (intel.areaSignal === "strong") tags.push({ text: "AREAの気配・強", color: "#F59E0B" });
-  else if (intel.areaSignal === "weak") tags.push({ text: "AREAの気配", color: "#F59E0B" });
+  if (ranked.length === 0) ranked.push({ text: "探索済", color: "#6B7280", pri: 9 });
 
-  if (intel.skillSignal === "strong") tags.push({ text: "NODE反応・強", color: "#A855F7" });
-  else if (intel.skillSignal === "weak") tags.push({ text: "NODE反応・弱", color: "#A855F7" });
-
-  if (intel.lootSignal === "strong") tags.push({ text: "LOOT反応・強", color: "#3B82F6" });
-  else if (intel.lootSignal === "weak") tags.push({ text: "LOOT反応", color: "#3B82F6" });
-
-  return tags.slice(0, 2);
+  ranked.sort((a, b) => a.pri - b.pri);
+  return ranked.slice(0, 2);
 }
 
 // ============================================================
@@ -3187,14 +3187,11 @@ function processPosition(lat, lon, heading, speed) {
   }
 
   if (lastMatchEdgeId && lastMatchEdgeId !== match.edge.id) {
-    const prevEdge = graph.edges.get(lastMatchEdgeId);
-    if (prevEdge) {
-      const pn = graph.nodes.get(prevEdge.toNodeId);
-      if (pn) recordMapNode(prevEdge.toNodeId, pn.lat, pn.lon);
-    }
+    recordTraversedEdge(lastMatchEdgeId);
   }
   lastMatchEdgeId = match.edge.id;
-  let decision = findNextDecision(graph, match.edge, match.fraction);
+  const searchResult = findNextDecision(graph, match.edge, match.fraction);
+  let decision = searchResult.decision;
 
   const maxShowM = settings.junctionFilter === "all" ? 800 : 5000;
   if (decision && decision.distanceM <= maxShowM) {
@@ -3224,17 +3221,8 @@ function processPosition(lat, lon, heading, speed) {
       carMaxDistM = Math.max(decision.distanceM, 50);
       generateBranchMults(decision.branches);
       maybeStartEncounter();
-      if (decision.passedNodes) {
-        for (const pn of decision.passedNodes) recordMapNode(pn.id, pn.lat, pn.lon);
-      }
       mapCurrentNodeId = decision.nodeId;
       tripTrackJunction();
-      // Use the node we just passed (lastDecisionNodeId), not the upcoming one
-      const passedNode = lastDecisionNodeId ? graph.nodes.get(lastDecisionNodeId) : null;
-      const areaLat = passedNode ? passedNode.lat : lat;
-      const areaLon = passedNode ? passedNode.lon : lon;
-      checkAreaTransition(areaLat, areaLon);
-      checkSkillNodeDiscovery(areaLat, areaLon);
     }
     lastDecisionNodeId = decision.nodeId;
     lastAcceptedDecisionNodeId = decision.nodeId;
@@ -3308,11 +3296,15 @@ function processPosition(lat, lon, heading, speed) {
       document.getElementById("noticeArea").style.display = "flex";
       hideBgMap();
     }
+    const reason = searchResult.stopReason || "unknown";
     document.getElementById("noticeText").textContent = "次の分岐を探しています";
-    document.getElementById("noticeSub").textContent = "";
+    document.getElementById("noticeSub").textContent = reason === "distance_limit" ? "対象交差点が遠方です" : "";
     document.getElementById("stateLabel").textContent = "走行中";
     setBadge("ok","走行中");
   }
+
+  checkAreaTransition(lat, lon);
+  checkSkillNodeDiscovery(lat, lon);
   renderAutoMap();
 }
 
@@ -3527,14 +3519,6 @@ function drawJunction(decision) {
   const svg = document.getElementById("junctionSvg");
   const branches = decision.branches;
 
-  const branchIntels = {};
-  if (cruiseActive) {
-    for (const b of branches) {
-      const eid = b.id.replace("br_", "");
-      branchIntels[b.id] = getBranchIntel(eid, decision.nodeId);
-    }
-  }
-
   let html = `<defs>
     <filter id="notchGlow" x="-100%" y="-50%" width="300%" height="200%">
       <feGaussianBlur stdDeviation="2" result="blur"/>
@@ -3637,14 +3621,19 @@ function drawJunction(decision) {
           >${road}</text>`;
         yOff += 14;
       }
-      if (cruiseActive && branchIntels[b.id]) {
-        const tags = getIntelTags(branchIntels[b.id]);
+      if (b.intel) {
+        const tags = getIntelTags(b.intel);
         for (const tag of tags) {
-          labelsHtml += `<text x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
-            fill="${tag.color}" font-size="10" font-weight="600"
-            style="pointer-events:none;text-shadow:0 0 4px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-            class="branch-label-anim">［${tag.text}］</text>`;
-          yOff += 12;
+          const tw = tag.text.length * 7 + 14;
+          const pillX = anchor === "middle" ? lx+tx - tw/2 : anchor === "start" ? lx+tx - 2 : lx+tx - tw + 2;
+          labelsHtml += `<rect x="${pillX}" y="${ly+yOff-11}" width="${tw}" height="16" rx="8" fill="rgba(0,0,0,0.7)" stroke="${tag.color}40" stroke-width="1"
+            style="pointer-events:none;opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
+            class="branch-label-anim"/>`;
+          labelsHtml += `<text x="${pillX + tw/2}" y="${ly+yOff}" text-anchor="middle"
+            fill="${tag.color}" font-size="11" font-weight="700"
+            style="pointer-events:none;opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
+            class="branch-label-anim">${tag.text}</text>`;
+          yOff += 18;
         }
       }
     }
@@ -3702,14 +3691,19 @@ function drawJunction(decision) {
           >${road}</text>`;
         yOff += 16;
       }
-      if (cruiseActive && branchIntels[b.id]) {
-        const tags = getIntelTags(branchIntels[b.id]);
+      if (b.intel) {
+        const tags = getIntelTags(b.intel);
         for (const tag of tags) {
-          labelsHtml += `<text x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
-            fill="${tag.color}" font-size="11" font-weight="600"
-            style="pointer-events:none;text-shadow:0 0 4px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-            class="branch-label-anim">［${tag.text}］</text>`;
-          yOff += 14;
+          const tw = tag.text.length * 8 + 16;
+          const pillX = anchor === "middle" ? lx+tx - tw/2 : anchor === "start" ? lx+tx - 2 : lx+tx - tw + 2;
+          labelsHtml += `<rect x="${pillX}" y="${ly+yOff-12}" width="${tw}" height="18" rx="9" fill="rgba(0,0,0,0.7)" stroke="${tag.color}40" stroke-width="1"
+            style="pointer-events:none;opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
+            class="branch-label-anim"/>`;
+          labelsHtml += `<text x="${pillX + tw/2}" y="${ly+yOff+1}" text-anchor="middle"
+            fill="${tag.color}" font-size="13" font-weight="700"
+            style="pointer-events:none;opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
+            class="branch-label-anim">${tag.text}</text>`;
+          yOff += 22;
         }
       }
     }
@@ -3807,7 +3801,7 @@ function drawJunction(decision) {
   });
 
   if (cruiseActive) {
-    const allIntels = Object.values(branchIntels);
+    const allIntels = branches.map(b => b.intel).filter(Boolean);
     if (allIntels.some(i => i.exploration === "unknown"))
       showDriveHint("unknown_road", "未知の道", "この方向にまだ走ったことのない道があります");
     if (allIntels.some(i => i.areaSignal !== "none"))
@@ -4134,15 +4128,21 @@ function loadAutoMap() {
       if (Object.keys(mapNodes).length === 0 && mapEdges.length > 0) {
         mapEdges = [];
       }
+      mapVisitedEdgeIds = new Set(d.visitedEdgeIds || []);
     }
   } catch(e) {}
 }
 
 function saveAutoMap() {
   try {
-    localStorage.setItem("pyp_automap", JSON.stringify({ nodes: mapNodes, edges: mapEdges }));
+    localStorage.setItem("pyp_automap", JSON.stringify({
+      nodes: mapNodes, edges: mapEdges,
+      visitedEdgeIds: Array.from(mapVisitedEdgeIds),
+    }));
   } catch(e) {}
 }
+
+let mapVisitedEdgeIds = new Set();
 
 function recordMapNode(nodeId, lat, lon) {
   if (!nodeId || lat == null || lon == null) return;
@@ -4152,20 +4152,33 @@ function recordMapNode(nodeId, lat, lon) {
     mapNewNodeId = nodeId;
     setTimeout(() => { mapNewNodeId = null; }, 800);
   }
-  if (mapLastPassedNodeId && mapLastPassedNodeId !== nodeId) {
-    mapCurrentEdge = { from: mapLastPassedNodeId, to: nodeId };
-    const edgeKey = [mapLastPassedNodeId, nodeId].sort().join("-");
-    const hasEdge = mapEdges.some(e =>
-      (e.from === mapLastPassedNodeId && e.to === nodeId) ||
-      (e.from === nodeId && e.to === mapLastPassedNodeId)
-    );
-    if (!hasEdge) {
-      mapEdges.push({ from: mapLastPassedNodeId, to: nodeId });
-      mapNewEdgeKey = edgeKey;
-      setTimeout(() => { mapNewEdgeKey = null; }, 800);
-    }
+}
+
+function recordTraversedEdge(edgeId) {
+  if (!graph || !edgeId) return;
+  if (mapVisitedEdgeIds.has(edgeId)) return;
+  const edge = graph.edges.get(edgeId);
+  if (!edge) return;
+
+  const fNode = graph.nodes.get(edge.fromNodeId);
+  const tNode = graph.nodes.get(edge.toNodeId);
+  if (fNode) recordMapNode(edge.fromNodeId, fNode.lat, fNode.lon);
+  if (tNode) recordMapNode(edge.toNodeId, tNode.lat, tNode.lon);
+
+  mapVisitedEdgeIds.add(edgeId);
+  const hasEdge = mapEdges.some(e =>
+    (e.from === edge.fromNodeId && e.to === edge.toNodeId) ||
+    (e.from === edge.toNodeId && e.to === edge.fromNodeId)
+  );
+  if (!hasEdge) {
+    mapEdges.push({ from: edge.fromNodeId, to: edge.toNodeId });
+    const edgeKey = [edge.fromNodeId, edge.toNodeId].sort().join("-");
+    mapNewEdgeKey = edgeKey;
+    setTimeout(() => { mapNewEdgeKey = null; }, 800);
   }
-  mapLastPassedNodeId = nodeId;
+
+  mapCurrentEdge = { from: edge.fromNodeId, to: edge.toNodeId };
+  mapLastPassedNodeId = edge.toNodeId;
   saveAutoMap();
   renderAutoMap();
 }

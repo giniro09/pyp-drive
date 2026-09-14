@@ -1908,6 +1908,7 @@ function resetAutoMap() {
   mapNodes = {};
   mapEdges = [];
   mapVisitedEdgeIds = new Set();
+  mapVisitedPhysicalKeys = new Set();
   mapCurrentNodeId = null;
   mapLastPassedNodeId = null;
   mapCurrentHeading = 0;
@@ -2081,6 +2082,20 @@ function bearingDeg(lat1, lon1, lat2, lon2) {
   const y = Math.sin(dLon)*Math.cos(lat2*DEG2RAD);
   const x = Math.cos(lat1*DEG2RAD)*Math.sin(lat2*DEG2RAD) - Math.sin(lat1*DEG2RAD)*Math.cos(lat2*DEG2RAD)*Math.cos(dLon);
   return ((Math.atan2(y,x)*RAD2DEG)+360)%360;
+}
+
+function pointToSegmentDistM(pLat, pLon, aLat, aLon, bLat, bLon) {
+  const cosLat = Math.cos(pLat * DEG2RAD);
+  const ax = (aLon - pLon) * cosLat * 111320;
+  const ay = (aLat - pLat) * 111320;
+  const bx = (bLon - pLon) * cosLat * 111320;
+  const by = (bLat - pLat) * 111320;
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 0.01) return Math.sqrt(ax * ax + ay * ay);
+  const t = Math.max(0, Math.min(1, (-ax * dx - ay * dy) / lenSq));
+  const cx = ax + t * dx, cy = ay + t * dy;
+  return Math.sqrt(cx * cx + cy * cy);
 }
 
 function normalize180(a) {
@@ -2882,6 +2897,13 @@ function findNextDecision(graph, startEdge, startFraction) {
           const eid = b.id.replace("br_", "");
           b.intel = getBranchIntel(eid, nodeId);
         }
+        suppressCommonIntel(branches);
+
+        console.log(`[branchIntel] node=${nodeId} signal=${hasSignal}`);
+        for (const b of branches) {
+          const i = b.intel;
+          console.log(`  ${b.label}(${b.roadName||"?"}) expl=${i.exploration} area=${i.areaSignal}${i._areaSignalSuppressed?"[S]":""} skill=${i.skillSignal}${i._skillSignalSuppressed?"[S]":""} loot=${i.lootSignal} areas=${JSON.stringify(i._nearAreas?.slice(0,3))} skills=${JSON.stringify(i._nearSkills?.slice(0,3))}`);
+        }
 
         const decision = { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal, inBearing };
         return { decision, stopReason: null };
@@ -2912,20 +2934,24 @@ function pickStraightest(outIds, graph, inEdge) {
 // ============================================================
 //  Branch Intel — per-branch exploration lookahead
 // ============================================================
+function getPhysicalEdgeKey(edge) {
+  const a = edge.fromNodeId, b = edge.toNodeId;
+  return a < b ? a + "|" + b : b + "|" + a;
+}
+
 const INTEL_MAX_M = 1500;
 const INTEL_MAX_STEPS = 200;
 
 function getBranchIntel(edgeId, decisionNodeId) {
-  if (!graph || !edgeId) return { exploration: "mapped", areaSignal: "none", skillSignal: "none", lootSignal: "none" };
+  if (!graph || !edgeId) return { exploration: "mapped", areaSignal: "none", skillSignal: "none", lootSignal: "none", _nearAreas: [], _nearSkills: [] };
 
   let unmappedEdges = 0, totalEdges = 0;
-  let bestAreaDist = Infinity, bestSkillDist = Infinity;
   let lootScore = 0;
+  const corridorNodes = [];
 
   let curId = edgeId;
   let accM = 0;
   const visited = new Set([edgeId]);
-  let prevFromId = decisionNodeId;
 
   for (let s = 0; s < INTEL_MAX_STEPS; s++) {
     const edge = graph.edges.get(curId);
@@ -2934,32 +2960,19 @@ function getBranchIntel(edgeId, decisionNodeId) {
     if (accM > INTEL_MAX_M) break;
 
     totalEdges++;
+    const pKey = getPhysicalEdgeKey(edge);
+    if (!mapVisitedPhysicalKeys.has(pKey)) unmappedEdges++;
+
+    const fNode = graph.nodes.get(edge.fromNodeId);
+    const tNode = graph.nodes.get(edge.toNodeId);
+    if (fNode) corridorNodes.push({ lat: fNode.lat, lon: fNode.lon });
+    if (tNode) corridorNodes.push({ lat: tNode.lat, lon: tNode.lon });
+
+    const rt = edge.highway || "";
+    if (rt === "residential" || rt === "tertiary") lootScore += 0.2;
+    else if (rt === "secondary" || rt === "primary") lootScore += 0.15;
+
     const tId = edge.toNodeId;
-    if (!mapVisitedEdgeIds.has(curId)) unmappedEdges++;
-
-    const toNode = graph.nodes.get(tId);
-    if (toNode) {
-      if (areaIndex) {
-        for (const [aid, area] of areaIndex.areas) {
-          if (areaData[aid]) continue;
-          const d = haversineM(toNode.lat, toNode.lon, area.lat, area.lon);
-          const roadD = accM + d * 0.7;
-          if (roadD < bestAreaDist) bestAreaDist = roadD;
-        }
-      }
-      if (skillGraph) {
-        const nearby = findNearbySkillNodes(toNode.lat, toNode.lon, 400);
-        for (const sk of nearby) {
-          if (skillData[sk.skillId]) continue;
-          const roadD = accM + sk.distance;
-          if (roadD < bestSkillDist) bestSkillDist = roadD;
-        }
-      }
-      const rt = edge.highway || "";
-      if (rt === "residential" || rt === "tertiary") lootScore += 0.2;
-      else if (rt === "secondary" || rt === "primary") lootScore += 0.15;
-    }
-
     const outIds = (graph.outgoing.get(tId) || []).filter(eid => {
       const e = graph.edges.get(eid);
       return e && e.toNodeId !== edge.fromNodeId && !visited.has(eid);
@@ -2974,33 +2987,94 @@ function getBranchIntel(edgeId, decisionNodeId) {
     const next = pickStraightest(outIds, graph, edge);
     if (!next) break;
     visited.add(next);
-    prevFromId = tId;
     curId = next;
+  }
+
+  const AREA_CORRIDOR_M = 175;
+  const SKILL_CORRIDOR_M = 135;
+  let bestAreaDist = Infinity, bestSkillDist = Infinity;
+  const nearAreas = [];
+  const nearSkills = [];
+
+  if (corridorNodes.length >= 2 && areaIndex) {
+    for (const [aid, area] of areaIndex.areas) {
+      if (areaData[aid]) continue;
+      let minLateral = Infinity;
+      for (let i = 0; i < corridorNodes.length - 1; i++) {
+        const d = pointToSegmentDistM(area.lat, area.lon, corridorNodes[i].lat, corridorNodes[i].lon, corridorNodes[i+1].lat, corridorNodes[i+1].lon);
+        if (d < minLateral) minLateral = d;
+      }
+      if (minLateral < AREA_CORRIDOR_M * 4) {
+        nearAreas.push({ id: aid, lateralM: Math.round(minLateral) });
+      }
+      if (minLateral < AREA_CORRIDOR_M) {
+        if (minLateral < bestAreaDist) bestAreaDist = minLateral;
+      }
+    }
+  }
+
+  if (corridorNodes.length >= 2 && skillGraph) {
+    for (const sk of skillGraph.nodes) {
+      if (skillData[sk.skillId]) continue;
+      let minLateral = Infinity;
+      for (let i = 0; i < corridorNodes.length - 1; i++) {
+        const d = pointToSegmentDistM(sk.lat, sk.lon, corridorNodes[i].lat, corridorNodes[i].lon, corridorNodes[i+1].lat, corridorNodes[i+1].lon);
+        if (d < minLateral) minLateral = d;
+      }
+      if (minLateral < SKILL_CORRIDOR_M * 4) {
+        nearSkills.push({ id: sk.skillId, lateralM: Math.round(minLateral) });
+      }
+      if (minLateral < SKILL_CORRIDOR_M) {
+        if (minLateral < bestSkillDist) bestSkillDist = minLateral;
+      }
+    }
   }
 
   const exploration = totalEdges === 0 ? "mapped"
     : unmappedEdges / totalEdges > 0.5 ? "unknown"
     : unmappedEdges > 0 ? "partial" : "mapped";
 
-  const areaSignal = bestAreaDist < 500 ? "strong" : bestAreaDist < 1200 ? "weak" : "none";
-  const skillSignal = bestSkillDist < 300 ? "strong" : bestSkillDist < 700 ? "weak" : "none";
+  const areaSignal = bestAreaDist < AREA_CORRIDOR_M * 0.5 ? "strong" : bestAreaDist < AREA_CORRIDOR_M ? "weak" : "none";
+  const skillSignal = bestSkillDist < SKILL_CORRIDOR_M * 0.5 ? "strong" : bestSkillDist < SKILL_CORRIDOR_M ? "weak" : "none";
   const lootSignal = lootScore > 1.0 ? "strong" : lootScore > 0.4 ? "weak" : "none";
 
-  return { exploration, areaSignal, skillSignal, lootSignal };
+  return { exploration, areaSignal, skillSignal, lootSignal, _nearAreas: nearAreas, _nearSkills: nearSkills };
+}
+
+function suppressCommonIntel(branches) {
+  if (branches.length < 2) return;
+  const fields = ["areaSignal", "skillSignal"];
+  for (const f of fields) {
+    const vals = branches.map(b => b.intel ? b.intel[f] : "none");
+    const allSame = vals.every(v => v === vals[0]) && vals[0] !== "none";
+    if (allSame) {
+      for (const b of branches) b.intel["_" + f + "Suppressed"] = true;
+    }
+  }
+  const explorations = branches.map(b => b.intel ? b.intel.exploration : "mapped");
+  const allSameExploration = explorations.every(v => v === explorations[0]) && explorations[0] !== "mapped";
+  if (allSameExploration) {
+    for (const b of branches) b.intel._explorationSuppressed = true;
+  }
+  const loots = branches.map(b => b.intel ? b.intel.lootSignal : "none");
+  const allSameLoot = loots.every(v => v === loots[0]) && loots[0] !== "none";
+  if (allSameLoot) {
+    for (const b of branches) b.intel._lootSignalSuppressed = true;
+  }
 }
 
 function getIntelTags(intel) {
   const ranked = [];
-  if (intel.areaSignal === "strong") ranked.push({ text: "AREA・強", color: "#F59E0B", pri: 1 });
-  if (intel.skillSignal === "strong") ranked.push({ text: "NODE・強", color: "#A855F7", pri: 1 });
-  if (intel.exploration === "unknown") ranked.push({ text: "未知の道", color: "#34D399", pri: 2 });
-  if (intel.areaSignal === "weak") ranked.push({ text: "AREAの気配", color: "#F59E0B", pri: 3 });
-  if (intel.skillSignal === "weak") ranked.push({ text: "NODE反応", color: "#A855F7", pri: 3 });
-  if (intel.exploration === "partial") ranked.push({ text: "一部未探索", color: "#5B9AB5", pri: 3 });
-  if (intel.lootSignal === "strong") ranked.push({ text: "LOOT・強", color: "#3B82F6", pri: 4 });
-  if (intel.lootSignal === "weak") ranked.push({ text: "LOOT反応", color: "#3B82F6", pri: 4 });
+  if (intel.areaSignal === "strong" && !intel._areaSignalSuppressed) ranked.push({ text: "AREA・強", color: "#F59E0B", pri: 1 });
+  if (intel.skillSignal === "strong" && !intel._skillSignalSuppressed) ranked.push({ text: "NODE・強", color: "#A855F7", pri: 1 });
+  if (intel.exploration === "unknown" && !intel._explorationSuppressed) ranked.push({ text: "未知の道", color: "#34D399", pri: 2 });
+  if (intel.areaSignal === "weak" && !intel._areaSignalSuppressed) ranked.push({ text: "AREAの気配", color: "#F59E0B", pri: 3 });
+  if (intel.skillSignal === "weak" && !intel._skillSignalSuppressed) ranked.push({ text: "NODE反応", color: "#A855F7", pri: 3 });
+  if (intel.exploration === "partial" && !intel._explorationSuppressed) ranked.push({ text: "一部未探索", color: "#5B9AB5", pri: 3 });
+  if (intel.lootSignal === "strong" && !intel._lootSignalSuppressed) ranked.push({ text: "LOOT・強", color: "#3B82F6", pri: 4 });
+  if (intel.lootSignal === "weak" && !intel._lootSignalSuppressed) ranked.push({ text: "LOOT反応", color: "#3B82F6", pri: 4 });
 
-  if (ranked.length === 0) ranked.push({ text: "探索済", color: "#6B7280", pri: 9 });
+  if (ranked.length === 0) ranked.push({ text: "周辺反応なし", color: "#6B7280", pri: 9 });
 
   ranked.sort((a, b) => a.pri - b.pri);
   return ranked.slice(0, 2);
@@ -3128,6 +3202,14 @@ async function startApp() {
     loadBaseData();
     prog.textContent = `${skillGraph.nodes.length} スキルノード`;
     await new Promise(r => setTimeout(r, 200));
+
+    if (mapVisitedPhysicalKeys.size === 0 && mapVisitedEdgeIds.size > 0) {
+      for (const eid of mapVisitedEdgeIds) {
+        const edge = graph.edges.get(eid);
+        if (edge) mapVisitedPhysicalKeys.add(getPhysicalEdgeKey(edge));
+      }
+      saveAutoMap();
+    }
   } catch(e) {
     prog.textContent = "読み込み失敗: " + e.message;
     return;
@@ -4129,6 +4211,7 @@ function loadAutoMap() {
         mapEdges = [];
       }
       mapVisitedEdgeIds = new Set(d.visitedEdgeIds || []);
+      mapVisitedPhysicalKeys = new Set(d.visitedPhysicalKeys || []);
     }
   } catch(e) {}
 }
@@ -4138,11 +4221,13 @@ function saveAutoMap() {
     localStorage.setItem("pyp_automap", JSON.stringify({
       nodes: mapNodes, edges: mapEdges,
       visitedEdgeIds: Array.from(mapVisitedEdgeIds),
+      visitedPhysicalKeys: Array.from(mapVisitedPhysicalKeys),
     }));
   } catch(e) {}
 }
 
 let mapVisitedEdgeIds = new Set();
+let mapVisitedPhysicalKeys = new Set();
 
 function recordMapNode(nodeId, lat, lon) {
   if (!nodeId || lat == null || lon == null) return;
@@ -4166,6 +4251,7 @@ function recordTraversedEdge(edgeId) {
   if (tNode) recordMapNode(edge.toNodeId, tNode.lat, tNode.lon);
 
   mapVisitedEdgeIds.add(edgeId);
+  mapVisitedPhysicalKeys.add(getPhysicalEdgeKey(edge));
   const hasEdge = mapEdges.some(e =>
     (e.from === edge.fromNodeId && e.to === edge.toNodeId) ||
     (e.from === edge.toNodeId && e.to === edge.fromNodeId)

@@ -615,6 +615,7 @@
     border-radius: 10px; padding: 6px 14px; z-index: 80;
     display: none; align-items: center; gap: 8px;
     font-size: 14px; color: var(--text-secondary);
+    transition: transform 0.3s ease-out;
   }
   #trayCounter .tray-icon { font-size: 18px; }
   #trayCounter .tray-count { font-weight: 700; color: var(--route-bright); }
@@ -737,6 +738,7 @@
 <div id="tripStartScreen">
   <div class="trip-card">
     <h2>EXPEDITION</h2>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;font-style:italic;">未知の道と反応を追い、探索成果を持ち帰る。</div>
     <div class="trip-wallet">所持金 <span class="money-val" id="tripMoney">0</span> G</div>
     <div class="trip-mode-list">
       <div class="trip-mode-btn selected" data-mode="expedition">
@@ -814,11 +816,18 @@
     <div id="noticeText" class="notice-text">GPS信号を待っています</div>
     <div id="noticeSub" class="notice-sub">ブラウザの位置情報を許可してください</div>
   </div>
-  <div id="signalHud" style="display:none;position:fixed;top:66px;left:50%;transform:translateX(-50%);z-index:92;background:rgba(0,0,0,0.6);border:1px solid rgba(168,85,247,0.2);border-radius:10px;padding:3px 14px;align-items:center;gap:6px;white-space:nowrap;pointer-events:none;"></div>
-  <div id="areaHud" style="display:none;position:fixed;top:42px;left:50%;transform:translateX(-50%);z-index:92;background:rgba(0,0,0,0.6);border-radius:10px;padding:3px 14px;font-size:12px;color:var(--text-secondary);white-space:nowrap;pointer-events:none;">
-    <span id="areaHudEmoji" style="margin-right:4px;"></span>
-    <span id="areaHudName"></span>
-    <span id="areaHudBiome" style="margin-left:6px;font-size:10px;letter-spacing:1px;opacity:0.7;"></span>
+  <div id="signalHud" style="display:none;"></div>
+  <div id="areaHud" style="display:none;position:fixed;top:36px;left:50%;transform:translateX(-50%);z-index:92;background:rgba(0,0,0,0.7);border-radius:12px;padding:6px 18px;white-space:nowrap;pointer-events:none;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span id="areaHudEmoji" style="font-size:20px;"></span>
+      <div>
+        <div id="areaHudName" style="font-size:16px;font-weight:700;color:#fff;line-height:1.2;"></div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span id="areaHudBiome" style="font-size:11px;letter-spacing:1px;opacity:0.8;"></span>
+          <span id="areaHudStage" style="font-size:10px;letter-spacing:1px;color:var(--text-muted);"></span>
+        </div>
+      </div>
+    </div>
   </div>
   <div id="junctionHud">
     <div><span class="hud-distance" id="hudDistance">---</span><span class="hud-unit">m</span></div>
@@ -1236,6 +1245,23 @@ const devFlags = {
   quest: false,
   base: false,
 };
+
+const shownHints = JSON.parse(localStorage.getItem("pyp_hints") || "{}");
+function showDriveHint(key, title, body) {
+  if (shownHints[key]) return;
+  shownHints[key] = true;
+  localStorage.setItem("pyp_hints", JSON.stringify(shownHints));
+  const el = document.createElement("div");
+  el.style.cssText = `
+    position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:9996;
+    background:rgba(0,0,0,0.85);border:1px solid rgba(91,154,181,0.3);border-radius:12px;
+    padding:10px 20px;max-width:280px;text-align:center;
+    pointer-events:none;animation:areaSlideIn 0.3s ease-out;
+  `;
+  el.innerHTML = `<div style="font-size:11px;color:#5B9AB5;letter-spacing:2px;margin-bottom:4px;">${title}</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.4;">${body}</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.transition = "opacity 0.6s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 600); }, 4000);
+}
 
 const CARGO_MAX_DEFAULT = 8;
 const SCRAP_VALUES = { common: 5, uncommon: 15, rare: 50, epic: 200 };
@@ -2455,9 +2481,16 @@ function updateAreaHud(area) {
   const hud = document.getElementById("areaHud");
   if (!hud) return;
   const biome = BIOME_TYPES[area.primaryBiome] || BIOME_TYPES.rural;
+  const ad = areaData[area.id];
+  const stage = ad ? ad.stage : "DISCOVERED";
   document.getElementById("areaHudEmoji").textContent = biome.emoji;
   document.getElementById("areaHudName").textContent = area.name;
   document.getElementById("areaHudBiome").textContent = biome.label.toUpperCase();
+  const stageEl = document.getElementById("areaHudStage");
+  if (stageEl) {
+    stageEl.textContent = stage;
+    stageEl.style.color = stage === "EXPLORED" ? "#34D399" : "#9CA3AF";
+  }
   hud.style.borderColor = biome.color + "40";
   hud.style.display = "block";
 }
@@ -2808,6 +2841,7 @@ function findNextDecision(graph, startEdge, startFraction) {
   const visited = new Set([startEdge.id]);
   let skippedJunctions = 0;
   let lastSkipReason = "";
+  const passedNodes = [];
 
   for (let s=0; s<500; s++) {
     const edge = graph.edges.get(curId);
@@ -2816,6 +2850,9 @@ function findNextDecision(graph, startEdge, startFraction) {
       console.log(`[findNext] STOP: distance ${Math.round(accM)}m > ${maxSearchM}m limit. skipped=${skippedJunctions} junctions. last=${lastSkipReason}`);
       return null;
     }
+
+    const node = graph.nodes.get(nodeId);
+    if (node) passedNodes.push({ id: nodeId, lat: node.lat, lon: node.lon });
 
     const outIds = (graph.outgoing.get(nodeId)||[]).filter(eid => {
       const e = graph.edges.get(eid);
@@ -2828,7 +2865,6 @@ function findNextDecision(graph, startEdge, startFraction) {
     }
 
     if (outIds.length >= 2) {
-      const node = graph.nodes.get(nodeId);
       const hasSignal = node?.hasSignal || false;
 
       let distFromLast = accM;
@@ -2848,7 +2884,7 @@ function findNextDecision(graph, startEdge, startFraction) {
             roadName:oe.name, roadRef:oe.ref, selected:false };
         }).sort((a,b) => a.angleDeg - b.angleDeg);
 
-        return { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal, inBearing };
+        return { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal, inBearing, passedNodes };
       } else {
         skippedJunctions++;
         lastSkipReason = `${nodeId} sig=${hasSignal} dist=${Math.round(accM)}m`;
@@ -2876,6 +2912,98 @@ function pickStraightest(outIds, graph, inEdge) {
     if (rel < bestAbs) { bestAbs = rel; best = eid; }
   }
   return best;
+}
+
+// ============================================================
+//  Branch Intel — per-branch exploration lookahead
+// ============================================================
+const INTEL_MAX_M = 1500;
+const INTEL_MAX_STEPS = 200;
+
+function getBranchIntel(edgeId, fromNodeId) {
+  if (!graph || !edgeId) return { exploration: "mapped", areaSignal: "none", skillSignal: "none", lootSignal: "none" };
+  const visitedEdgeSet = new Set();
+  for (const me of mapEdges) {
+    visitedEdgeSet.add(me.from + "-" + me.to);
+    visitedEdgeSet.add(me.to + "-" + me.from);
+  }
+
+  let unmappedEdges = 0, totalEdges = 0;
+  let nearestAreaDist = Infinity, nearestSkillDist = Infinity;
+  let lootChance = 0;
+
+  const queue = [{ eid: edgeId, dist: 0 }];
+  const seen = new Set([edgeId]);
+
+  for (let i = 0; i < queue.length && i < INTEL_MAX_STEPS; i++) {
+    const { eid, dist } = queue[i];
+    const edge = graph.edges.get(eid);
+    if (!edge) continue;
+    const edgeDist = dist + edge.lengthM;
+    if (edgeDist > INTEL_MAX_M) continue;
+
+    totalEdges++;
+    const fId = edge.fromNodeId, tId = edge.toNodeId;
+    if (!visitedEdgeSet.has(fId + "-" + tId) && !mapNodes[tId]) unmappedEdges++;
+
+    const toNode = graph.nodes.get(tId);
+    if (toNode) {
+      if (areaIndex) {
+        for (const [aid, area] of areaIndex.areas) {
+          if (areaData[aid]) continue;
+          const d = haversineM(toNode.lat, toNode.lon, area.lat, area.lon);
+          if (d < nearestAreaDist) nearestAreaDist = d;
+        }
+      }
+      if (skillGraph) {
+        const nearby = findNearbySkillNodes(toNode.lat, toNode.lon, 600);
+        for (const sk of nearby) {
+          if (skillData[sk.skillId]) continue;
+          if (sk.distance < nearestSkillDist) nearestSkillDist = sk.distance;
+        }
+      }
+      const roadType = edge.highway || "";
+      if (roadType === "residential" || roadType === "tertiary") lootChance += 0.15;
+      else if (roadType === "secondary" || roadType === "primary") lootChance += 0.1;
+    }
+
+    const nextOut = (graph.outgoing.get(tId) || []).filter(neid => {
+      const ne = graph.edges.get(neid);
+      return ne && ne.toNodeId !== fId && !seen.has(neid);
+    });
+    for (const neid of nextOut) {
+      seen.add(neid);
+      queue.push({ eid: neid, dist: edgeDist });
+    }
+  }
+
+  const exploration = totalEdges === 0 ? "mapped"
+    : unmappedEdges / totalEdges > 0.6 ? "unknown"
+    : unmappedEdges > 0 ? "partial" : "mapped";
+
+  const areaSignal = nearestAreaDist < 400 ? "strong" : nearestAreaDist < 800 ? "weak" : "none";
+  const skillSignal = nearestSkillDist < 200 ? "strong" : nearestSkillDist < 500 ? "weak" : "none";
+  const lootSignal = lootChance > 1.0 ? "strong" : lootChance > 0.4 ? "weak" : "none";
+
+  return { exploration, areaSignal, skillSignal, lootSignal };
+}
+
+function getIntelTags(intel) {
+  const tags = [];
+  if (intel.exploration === "unknown") tags.push({ text: "未知の道", color: "#34D399" });
+  else if (intel.exploration === "partial") tags.push({ text: "一部未探索", color: "#5B9AB5" });
+  else tags.push({ text: "探索済", color: "#6B7280" });
+
+  if (intel.areaSignal === "strong") tags.push({ text: "AREAの気配・強", color: "#F59E0B" });
+  else if (intel.areaSignal === "weak") tags.push({ text: "AREAの気配", color: "#F59E0B" });
+
+  if (intel.skillSignal === "strong") tags.push({ text: "NODE反応・強", color: "#A855F7" });
+  else if (intel.skillSignal === "weak") tags.push({ text: "NODE反応・弱", color: "#A855F7" });
+
+  if (intel.lootSignal === "strong") tags.push({ text: "LOOT反応・強", color: "#3B82F6" });
+  else if (intel.lootSignal === "weak") tags.push({ text: "LOOT反応", color: "#3B82F6" });
+
+  return tags.slice(0, 2);
 }
 
 // ============================================================
@@ -3058,6 +3186,13 @@ function processPosition(lat, lon, heading, speed) {
     return;
   }
 
+  if (lastMatchEdgeId && lastMatchEdgeId !== match.edge.id) {
+    const prevEdge = graph.edges.get(lastMatchEdgeId);
+    if (prevEdge) {
+      const pn = graph.nodes.get(prevEdge.toNodeId);
+      if (pn) recordMapNode(prevEdge.toNodeId, pn.lat, pn.lon);
+    }
+  }
   lastMatchEdgeId = match.edge.id;
   let decision = findNextDecision(graph, match.edge, match.fraction);
 
@@ -3089,7 +3224,9 @@ function processPosition(lat, lon, heading, speed) {
       carMaxDistM = Math.max(decision.distanceM, 50);
       generateBranchMults(decision.branches);
       maybeStartEncounter();
-      recordMapNode(decision.nodeId, decision.lat, decision.lon);
+      if (decision.passedNodes) {
+        for (const pn of decision.passedNodes) recordMapNode(pn.id, pn.lat, pn.lon);
+      }
       mapCurrentNodeId = decision.nodeId;
       tripTrackJunction();
       // Use the node we just passed (lastDecisionNodeId), not the upcoming one
@@ -3098,7 +3235,6 @@ function processPosition(lat, lon, heading, speed) {
       const areaLon = passedNode ? passedNode.lon : lon;
       checkAreaTransition(areaLat, areaLon);
       checkSkillNodeDiscovery(areaLat, areaLon);
-      checkSignals(areaLat, areaLon);
     }
     lastDecisionNodeId = decision.nodeId;
     lastAcceptedDecisionNodeId = decision.nodeId;
@@ -3391,6 +3527,14 @@ function drawJunction(decision) {
   const svg = document.getElementById("junctionSvg");
   const branches = decision.branches;
 
+  const branchIntels = {};
+  if (cruiseActive) {
+    for (const b of branches) {
+      const eid = b.id.replace("br_", "");
+      branchIntels[b.id] = getBranchIntel(eid, decision.nodeId);
+    }
+  }
+
   let html = `<defs>
     <filter id="notchGlow" x="-100%" y="-50%" width="300%" height="200%">
       <feGaussianBlur stdDeviation="2" result="blur"/>
@@ -3485,11 +3629,23 @@ function drawJunction(decision) {
         fill="${lFill}" font-size="${sel ? 20 : 16}" font-weight="${sel ? 800 : 600}"
         style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out,transform 0.3s ease-out"
         >${label}</text>`;
+      let yOff = 12;
       if (road) {
-        labelsHtml += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+12}" text-anchor="${anchor}"
+        labelsHtml += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
           fill="${rnFill}" font-size="12"
           style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.05s,transform 0.3s ease-out 0.05s"
           >${road}</text>`;
+        yOff += 14;
+      }
+      if (cruiseActive && branchIntels[b.id]) {
+        const tags = getIntelTags(branchIntels[b.id]);
+        for (const tag of tags) {
+          labelsHtml += `<text x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
+            fill="${tag.color}" font-size="10" font-weight="600"
+            style="pointer-events:none;text-shadow:0 0 4px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
+            class="branch-label-anim">［${tag.text}］</text>`;
+          yOff += 12;
+        }
       }
     }
   } else {
@@ -3538,11 +3694,23 @@ function drawJunction(decision) {
         style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out,transform 0.3s ease-out"
         >${label}</text>`;
 
+      let yOff = 14;
       if(road){
-        labelsHtml += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+14}" text-anchor="${anchor}"
+        labelsHtml += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
           fill="${rnFill}" font-size="13"
           style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.05s,transform 0.3s ease-out 0.05s"
           >${road}</text>`;
+        yOff += 16;
+      }
+      if (cruiseActive && branchIntels[b.id]) {
+        const tags = getIntelTags(branchIntels[b.id]);
+        for (const tag of tags) {
+          labelsHtml += `<text x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
+            fill="${tag.color}" font-size="11" font-weight="600"
+            style="pointer-events:none;text-shadow:0 0 4px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
+            class="branch-label-anim">［${tag.text}］</text>`;
+          yOff += 14;
+        }
       }
     }
   }
@@ -3637,6 +3805,16 @@ function drawJunction(decision) {
       }
     });
   });
+
+  if (cruiseActive) {
+    const allIntels = Object.values(branchIntels);
+    if (allIntels.some(i => i.exploration === "unknown"))
+      showDriveHint("unknown_road", "未知の道", "この方向にまだ走ったことのない道があります");
+    if (allIntels.some(i => i.areaSignal !== "none"))
+      showDriveHint("area_signal", "AREAの気配", "この方向に未発見のエリアがあるかもしれません");
+    if (allIntels.some(i => i.skillSignal !== "none"))
+      showDriveHint("node_signal", "NODE反応", "この方向に未発見のSkill Nodeがあります");
+  }
 }
 
 function updateCarPosition(decision) {
@@ -4841,29 +5019,47 @@ function tickContainerDistance(deltaM) {
   }
 }
 
+let lootToastEl = null;
+let lootToastTimer = null;
+let lootToastCount = 0;
+
 function revealContainer(container) {
   if (containerRevealing) return;
   containerRevealing = true;
 
   addToTray(container);
   playContainerOpen();
+  playScanSound();
 
   const count = container.slots.length;
-  const toast = document.createElement("div");
-  toast.style.cssText = `
-    position:fixed;bottom:140px;left:50%;transform:translateX(-50%);z-index:9997;
-    background:rgba(0,0,0,0.75);border:1px solid rgba(91,154,181,0.3);border-radius:10px;
-    padding:6px 16px;font-size:12px;color:var(--text-secondary);
-    pointer-events:none;white-space:nowrap;
-    animation:areaSlideIn 0.3s ease-out;
-  `;
-  toast.textContent = `${container.type.emoji} ${container.type.label}コンテナを検知  Haul +${count}`;
-  document.body.appendChild(toast);
-  setTimeout(() => {
-    toast.style.transition = "opacity 0.4s";
-    toast.style.opacity = "0";
-    setTimeout(() => { toast.remove(); containerRevealing = false; }, 400);
-  }, 1200);
+  lootToastCount += count;
+
+  if (lootToastEl && lootToastEl.parentNode) {
+    lootToastEl.textContent = `📡 回収ログ +${lootToastCount}`;
+    clearTimeout(lootToastTimer);
+  } else {
+    lootToastCount = count;
+    lootToastEl = document.createElement("div");
+    lootToastEl.style.cssText = `
+      position:fixed;bottom:70px;right:24px;z-index:9997;
+      background:rgba(0,0,0,0.8);border:1px solid rgba(91,154,181,0.3);border-radius:10px;
+      padding:5px 14px;font-size:12px;color:#5B9AB5;font-weight:600;
+      pointer-events:none;white-space:nowrap;
+      animation:areaSlideIn 0.3s ease-out;
+    `;
+    lootToastEl.textContent = `📡 回収ログ +${count}`;
+    document.body.appendChild(lootToastEl);
+  }
+
+  lootToastTimer = setTimeout(() => {
+    if (lootToastEl) {
+      lootToastEl.style.transition = "opacity 0.4s";
+      lootToastEl.style.opacity = "0";
+      setTimeout(() => { if (lootToastEl) { lootToastEl.remove(); lootToastEl = null; } lootToastCount = 0; }, 400);
+    }
+  }, 2000);
+
+  containerRevealing = false;
 }
 
 function addToTray(container) {
@@ -4892,6 +5088,26 @@ function updateTrayUI() {
   counter.classList.remove("tray-flash");
   void counter.offsetWidth;
   counter.classList.add("tray-flash");
+  counter.style.transform = "scale(1.15)";
+  setTimeout(() => { counter.style.transform = "scale(1)"; }, 300);
+}
+
+function playScanSound() {
+  try {
+    const ctx = ensureAudioCtx();
+    if (!ctx || masterVolume <= 0) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(1200, t);
+    osc.frequency.exponentialRampToValueAtTime(800, t + 0.08);
+    gain.gain.setValueAtTime(0.04 * (masterVolume / 100), t);
+    gain.gain.linearRampToValueAtTime(0, t + 0.12);
+    osc.connect(gain).connect(getMasterOut());
+    osc.start(t);
+    osc.stop(t + 0.12);
+  } catch(e) {}
 }
 
 // --- Container sounds (placeholder using noise bursts) ---

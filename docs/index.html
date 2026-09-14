@@ -1231,6 +1231,10 @@
 // ============================================================
 const PIN_HASH = "81d566fb189d531865580ffde45ceb613b07dcf1c7e45a68729ab7928a5af2b5";
 
+const CARGO_MAX_DEFAULT = 8;
+const SCRAP_VALUES = { common: 5, uncommon: 15, rare: 50, epic: 200 };
+const DEPLOYMENT_COST = 500;
+
 async function sha256(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
@@ -1267,7 +1271,9 @@ async function submitPin() {
   }
 }
 pinSubmit.addEventListener("click", submitPin);
-if (sessionStorage.getItem("jnav_auth") === "1") showTripStart();
+window.addEventListener("DOMContentLoaded", () => {
+  if (sessionStorage.getItem("jnav_auth") === "1") showTripStart();
+});
 
 // ============================================================
 //  Settings state
@@ -5451,9 +5457,6 @@ document.addEventListener("DOMContentLoaded", () => {
 //  Trip Lifecycle + Money Persistence + Cargo / Haul
 // ============================================================
 
-const CARGO_MAX_DEFAULT = 8;
-const SCRAP_VALUES = { common: 5, uncommon: 15, rare: 50, epic: 200 };
-
 function loadPlayerData() {
   try {
     return JSON.parse(localStorage.getItem("pyp_player") || "null") || {
@@ -5518,8 +5521,6 @@ function showTripStart() {
     qPreview.innerHTML = `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📜 Quest（${completedCount}/${QUEST_TEMPLATES.length} 完了）</div>`;
   }
 }
-
-const DEPLOYMENT_COST = 500;
 
 function departTrip() {
   loadBaseData();

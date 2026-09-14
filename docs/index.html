@@ -1139,7 +1139,7 @@
     </details>
 
     <!-- ===== Base / 拠点 ===== -->
-    <details class="s-section">
+    <details id="settingsBaseSection" class="s-section">
       <summary class="s-section-title">Base / 拠点</summary>
       <div class="s-section-body">
         <div id="settingsBaseList" style="font-size:12px;"></div>
@@ -1435,8 +1435,10 @@ function updateSettingsCargo() {
 }
 
 function updateSettingsBase() {
+  const section = document.getElementById("settingsBaseSection");
+  if (section) section.style.display = devFlags.base ? "" : "none";
   const listEl = document.getElementById("settingsBaseList");
-  if (!listEl) return;
+  if (!listEl || !devFlags.base) return;
   loadBaseData();
   listEl.innerHTML = BASE_FACILITIES.map(fac => {
     const lv = getBaseFacilityLevel(fac.key);
@@ -4472,6 +4474,7 @@ function getBaseEffect(effectKey) {
 }
 
 function upgradeFacility(key) {
+  if (!devFlags.base) return;
   const fac = BASE_FACILITIES.find(f => f.key === key);
   if (!fac) return;
   const lv = getBaseFacilityLevel(key);

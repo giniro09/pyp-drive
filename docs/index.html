@@ -1231,6 +1231,12 @@
 // ============================================================
 const PIN_HASH = "81d566fb189d531865580ffde45ceb613b07dcf1c7e45a68729ab7928a5af2b5";
 
+const devFlags = {
+  encounter: false,
+  quest: false,
+  base: false,
+};
+
 const CARGO_MAX_DEFAULT = 8;
 const SCRAP_VALUES = { common: 5, uncommon: 15, rare: 50, epic: 200 };
 const DEPLOYMENT_COST = 500;
@@ -1499,8 +1505,10 @@ function updateSettingsArea() {
 function sellAllCargo() {
   const pd = loadPlayerData();
   if (pd.cargo.length === 0) return;
-  let total = 0;
-  for (const it of pd.cargo) total += SCRAP_VALUES[it.rarity] || 5;
+  let rawTotal = 0;
+  for (const it of pd.cargo) rawTotal += SCRAP_VALUES[it.rarity] || 5;
+  const scrapMult = devFlags.base ? getEffectiveScrapMultiplier() : 1.0;
+  const total = Math.round(rawTotal * scrapMult);
   if (!confirm(`${pd.cargo.length}個のアイテムを${total}Gで売却しますか？`)) return;
   pd.money += total;
   pd.cargo = [];
@@ -3082,9 +3090,13 @@ function processPosition(lat, lon, heading, speed) {
       recordMapNode(decision.nodeId, decision.lat, decision.lon);
       mapCurrentNodeId = decision.nodeId;
       tripTrackJunction();
-      checkAreaTransition(decision.lat, decision.lon);
-      checkSkillNodeDiscovery(decision.lat, decision.lon);
-      checkSignals(decision.lat, decision.lon);
+      // Use the node we just passed (lastDecisionNodeId), not the upcoming one
+      const passedNode = lastDecisionNodeId ? graph.nodes.get(lastDecisionNodeId) : null;
+      const areaLat = passedNode ? passedNode.lat : lat;
+      const areaLon = passedNode ? passedNode.lon : lon;
+      checkAreaTransition(areaLat, areaLon);
+      checkSkillNodeDiscovery(areaLat, areaLon);
+      checkSignals(areaLat, areaLon);
     }
     lastDecisionNodeId = decision.nodeId;
     lastAcceptedDecisionNodeId = decision.nodeId;
@@ -4380,7 +4392,7 @@ function playBustSound() {
   osc.frequency.exponentialRampToValueAtTime(80, t + 0.4);
   gain.gain.setValueAtTime(0.08, t);
   gain.gain.linearRampToValueAtTime(0, t + 0.5);
-  osc.connect(gain).connect(masterGain);
+  osc.connect(gain).connect(getMasterOut());
   osc.start(t); osc.stop(t + 0.5);
 }
 
@@ -4481,18 +4493,22 @@ function upgradeFacility(key) {
 
 // Apply base effects
 function getEffectiveDeploymentCost() {
+  if (!devFlags.base) return DEPLOYMENT_COST;
   return Math.max(100, DEPLOYMENT_COST - getBaseEffect("deployCostReduction"));
 }
 
 function getEffectiveCargoMax() {
+  if (!devFlags.base) return CARGO_MAX_DEFAULT;
   return CARGO_MAX_DEFAULT + getBaseEffect("cargoBonus");
 }
 
 function getEffectiveScannerRange() {
+  if (!devFlags.base) return SCANNER_RANGE_M;
   return SCANNER_RANGE_M + getBaseEffect("scannerRangeBonus");
 }
 
 function getEffectiveScrapMultiplier() {
+  if (!devFlags.base) return 1.0;
   return 1.0 + getBaseEffect("scrapBonus");
 }
 
@@ -4529,6 +4545,7 @@ function saveQuestData() {
 }
 
 function assignTripQuests() {
+  if (!devFlags.quest) { activeQuests = []; return; }
   const completed = new Set(Object.keys(questData).filter(k => questData[k].completed));
   const available = QUEST_TEMPLATES.filter(q => !completed.has(q.id));
   const shuffled = available.sort(() => Math.random() - 0.5);
@@ -4540,6 +4557,7 @@ function assignTripQuests() {
 }
 
 function updateQuestProgress(type, delta) {
+  if (!devFlags.quest) return;
   for (const q of activeQuests) {
     if (q.completed) continue;
     if (q.type !== type) continue;
@@ -4549,17 +4567,22 @@ function updateQuestProgress(type, delta) {
       questData[q.id] = { completed: true, completedAt: Date.now() };
       saveQuestData();
       if (currentTrip) {
-        currentTrip.money += q.reward;
+        const questBonus = devFlags.base ? getBaseEffect("questRewardBonus") : 0;
+        const finalReward = Math.round(q.reward * (1 + questBonus));
+        currentTrip.money += finalReward;
         playerData.skillPoints = (playerData.skillPoints || 0) + (q.rewardSP || 0);
         savePlayerData(playerData);
-        totalSessionScore += q.reward;
+        totalSessionScore += finalReward;
+        showQuestComplete(q, finalReward);
+      } else {
+        showQuestComplete(q, q.reward);
       }
-      showQuestComplete(q);
     }
   }
 }
 
-function showQuestComplete(q) {
+function showQuestComplete(q, rewardAmount) {
+  const displayReward = rewardAmount || q.reward;
   const toast = document.createElement("div");
   toast.style.cssText = `
     position:fixed;top:90px;left:50%;transform:translateX(-50%);z-index:9999;
@@ -4572,7 +4595,7 @@ function showQuestComplete(q) {
     <div>
       <div style="font-size:10px;color:#ffd60a;letter-spacing:2px;">QUEST COMPLETE</div>
       <div style="font-size:13px;color:#fff;">${q.label}</div>
-      <div style="font-size:11px;color:#34D399;">+${q.reward}G${q.rewardSP ? " +" + q.rewardSP + "SP" : ""}</div>
+      <div style="font-size:11px;color:#34D399;">+${displayReward}G${q.rewardSP ? " +" + q.rewardSP + "SP" : ""}</div>
     </div>
   `;
   document.body.appendChild(toast);
@@ -4600,6 +4623,7 @@ let activeEncounter = null;
 let encounterTimer = null;
 
 function maybeStartEncounter() {
+  if (!devFlags.encounter) return;
   if (activeEncounter) return;
   if (!currentTrip) return;
   if (Math.random() > ENCOUNTER_RATE) return;
@@ -4817,54 +4841,26 @@ function tickContainerDistance(deltaM) {
 function revealContainer(container) {
   if (containerRevealing) return;
   containerRevealing = true;
-  const overlay = document.getElementById("containerOverlay");
-  const slotsEl = document.getElementById("containerSlots");
-  const labelEl = document.getElementById("containerLabel");
 
-  labelEl.textContent = container.type.emoji + " " + container.type.label + "コンテナ";
-  slotsEl.innerHTML = "";
-  overlay.style.display = "flex";
-
-  const slotEls = container.slots.map((slot, i) => {
-    const el = document.createElement("div");
-    el.className = "loot-slot";
-    el.innerHTML = `<span style="filter:grayscale(1) brightness(0.5)">?</span>`;
-    slotsEl.appendChild(el);
-    return { el, slot, index: i };
-  });
-
+  addToTray(container);
   playContainerOpen();
 
-  let revealIndex = 0;
-  function revealNext() {
-    if (revealIndex >= slotEls.length) {
-      setTimeout(() => {
-        addToTray(container);
-        hideContainer();
-      }, 1200);
-      return;
-    }
-    const { el, slot } = slotEls[revealIndex];
-    el.classList.add("scanning");
-    setTimeout(() => {
-      el.classList.remove("scanning");
-      el.classList.add("revealed", slot.rarity.cssClass);
-      el.innerHTML = `<span>${slot.emoji}</span><span class="slot-name">${slot.name}</span>`;
-      playSlotReveal(slot.rarity.tier);
-      revealIndex++;
-      setTimeout(revealNext, 600);
-    }, 700);
-  }
-
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    setTimeout(revealNext, 400);
-  }));
-}
-
-function hideContainer() {
-  const overlay = document.getElementById("containerOverlay");
-  overlay.style.display = "none";
-  containerRevealing = false;
+  const count = container.slots.length;
+  const toast = document.createElement("div");
+  toast.style.cssText = `
+    position:fixed;bottom:140px;left:50%;transform:translateX(-50%);z-index:9997;
+    background:rgba(0,0,0,0.75);border:1px solid rgba(91,154,181,0.3);border-radius:10px;
+    padding:6px 16px;font-size:12px;color:var(--text-secondary);
+    pointer-events:none;white-space:nowrap;
+    animation:areaSlideIn 0.3s ease-out;
+  `;
+  toast.textContent = `${container.type.emoji} ${container.type.label}コンテナを検知  Haul +${count}`;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = "opacity 0.4s";
+    toast.style.opacity = "0";
+    setTimeout(() => { toast.remove(); containerRevealing = false; }, 400);
+  }, 1200);
 }
 
 function addToTray(container) {
@@ -5514,11 +5510,15 @@ function showTripStart() {
   const spEl = document.getElementById("tripSP");
   if (spEl) spEl.textContent = playerData.skillPoints || 0;
 
-  loadQuestData();
-  const completedCount = Object.keys(questData).filter(k => questData[k].completed).length;
   const qPreview = document.getElementById("tripQuestPreview");
-  if (qPreview) {
-    qPreview.innerHTML = `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📜 Quest（${completedCount}/${QUEST_TEMPLATES.length} 完了）</div>`;
+  if (devFlags.quest) {
+    loadQuestData();
+    const completedCount = Object.keys(questData).filter(k => questData[k].completed).length;
+    if (qPreview) {
+      qPreview.innerHTML = `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📜 Quest（${completedCount}/${QUEST_TEMPLATES.length} 完了）</div>`;
+    }
+  } else {
+    if (qPreview) qPreview.innerHTML = "";
   }
 }
 
@@ -5607,9 +5607,10 @@ function endTrip() {
   if (!confirm("帰還しますか？")) return;
 
   flushTrayToHaul();
-  currentTrip.money = totalSessionScore;
 
   if (activeEncounter) resolveEncounter();
+
+  currentTrip.money += totalSessionScore;
   if (encounterTimer) { clearTimeout(encounterTimer); encounterTimer = null; }
 
   // Stop demo
@@ -5718,7 +5719,9 @@ function confirmHaul() {
     }
   });
 
-  playerData.money += currentTrip.money + scrapMoney;
+  const scrapMult = devFlags.base ? getEffectiveScrapMultiplier() : 1.0;
+  const finalScrap = Math.round(scrapMoney * scrapMult);
+  playerData.money += currentTrip.money + finalScrap;
   playerData.tripCount++;
   playerData.totalDistance += currentTrip.distanceM;
   savePlayerData(playerData);

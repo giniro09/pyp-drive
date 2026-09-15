@@ -3001,15 +3001,58 @@ function dedupePhysicalBranches(branches) {
 
 function resolveAntiOverlap(branches) {
   if (!branches || branches.length <= 1) return;
+  for (const b of branches) b.displayAngleDeg = b.angleDeg;
   for (let i = 0; i < branches.length; i++) {
     for (let j = i + 1; j < branches.length; j++) {
-      const diff = Math.abs(normalize180(branches[j].angleDeg - branches[i].angleDeg));
-      if (diff < 25 && diff > 0) {
-        const mid = (branches[i].angleDeg + branches[j].angleDeg) / 2;
-        branches[i].angleDeg = mid - 13;
-        branches[j].angleDeg = mid + 13;
+      const diff = Math.abs(normalize180(branches[j].displayAngleDeg - branches[i].displayAngleDeg));
+      if (diff < 28 && diff >= 0) {
+        const mid = (branches[i].displayAngleDeg + branches[j].displayAngleDeg) / 2;
+        branches[i].displayAngleDeg = mid - 15;
+        branches[j].displayAngleDeg = mid + 15;
       }
     }
+  }
+}
+
+function resolveTextOverlaps(svg) {
+  if (!svg) return;
+  const MIN_GAP = 4;
+  const texts = Array.from(svg.querySelectorAll("text"));
+  if (texts.length < 2) return;
+
+  // Group texts by branch — texts within the same branch stack vertically by design
+  function branchKey(el) {
+    const id = el.id || "";
+    const m = id.match(/(label_|roadname_)?(br_\w+)/);
+    return m ? m[2] : null;
+  }
+
+  for (let pass = 0; pass < 3; pass++) {
+    const rects = texts.map(t => { try { return t.getBBox(); } catch(e) { return null; } });
+    let moved = false;
+    for (let i = 0; i < texts.length; i++) {
+      if (!rects[i] || rects[i].width === 0) continue;
+      const ki = branchKey(texts[i]);
+      for (let j = i + 1; j < texts.length; j++) {
+        if (!rects[j] || rects[j].width === 0) continue;
+        const kj = branchKey(texts[j]);
+        if (ki && kj && ki === kj) continue;
+        const a = rects[i], b = rects[j];
+        const ox = a.x < b.x + b.width && a.x + a.width > b.x;
+        const oy = a.y < b.y + b.height + MIN_GAP && a.y + a.height + MIN_GAP > b.y;
+        if (ox && oy) {
+          const shift = (a.y + a.height + MIN_GAP - b.y) / 2 + 2;
+          const yi = parseFloat(texts[i].getAttribute("y")) || 0;
+          const yj = parseFloat(texts[j].getAttribute("y")) || 0;
+          texts[i].setAttribute("y", String(yi - shift));
+          texts[j].setAttribute("y", String(yj + shift));
+          rects[i] = texts[i].getBBox();
+          rects[j] = texts[j].getBBox();
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
   }
 }
 
@@ -3249,7 +3292,6 @@ function computeNavTarget(graph, decision) {
 // ============================================================
 let graph = null;
 let lastMatchEdgeId = null;
-let lastTraversedNodeIds = new Set();
 let currentMapMatch = null;
 let selectedBranchId = null;
 let manuallySelected = false;
@@ -3376,18 +3418,45 @@ function processPosition(lat, lon, heading, speed) {
     return;
   }
 
-  if (lastMatchEdgeId && lastMatchEdgeId !== match.edge.id) {
-    const prevEdge = graph.edges.get(lastMatchEdgeId);
-    if (prevEdge) {
-      lastTraversedNodeIds.add(prevEdge.fromNodeId);
-      lastTraversedNodeIds.add(prevEdge.toNodeId);
-    }
-    recordTraversedEdge(lastMatchEdgeId);
-    const newPKey = getPhysicalEdgeKey(match.edge);
-    onLeadEdgeTransition(newPKey, match.edge.lengthM);
+  const prevEdgeId = lastMatchEdgeId;
+  const nextEdgeId = match.edge.id;
+  const edgeTransition = prevEdgeId && prevEdgeId !== nextEdgeId;
+
+  if (edgeTransition) {
+    recordTraversedEdge(prevEdgeId);
   }
-  lastMatchEdgeId = match.edge.id;
-  currentMapMatch = { edgeId: match.edge.id, fraction: match.fraction, lat, lon, heading: heading || 0 };
+
+  // P0-5: Lead fractional distance tracking
+  if (activeLeadTracking && activeLeadTracking.status === "tracking" && currentMapMatch) {
+    const prevFrac = currentMapMatch.fraction || 0;
+    if (currentMapMatch.edgeId === nextEdgeId) {
+      // Same edge, fraction progressed
+      const curEdge = graph.edges.get(nextEdgeId);
+      if (curEdge) {
+        const delta = curEdge.lengthM * Math.max(0, match.fraction - prevFrac);
+        if (delta > 0) activeLeadTracking.matchedDistanceM += delta;
+      }
+    } else {
+      // Edge transition: close out previous edge remainder
+      const prevE = graph.edges.get(currentMapMatch.edgeId);
+      if (prevE) {
+        const remainder = prevE.lengthM * Math.max(0, 1.0 - prevFrac);
+        if (remainder > 0) activeLeadTracking.matchedDistanceM += remainder;
+      }
+    }
+    if (activeLeadTracking && activeLeadTracking.matchedDistanceM >= activeLeadTracking.targetDistanceM) {
+      captureLead(activeLeadTracking);
+    }
+  }
+
+  // P0-4: Ordered route check on edge transition (non-junction transitions)
+  if (edgeTransition && activeLeadTracking && activeLeadTracking.status === "tracking") {
+    const newPKey = getPhysicalEdgeKey(match.edge);
+    onLeadEdgeTransition(newPKey);
+  }
+
+  currentMapMatch = { edgeId: nextEdgeId, fraction: match.fraction, lat, lon, heading: heading || 0 };
+  // Defer lastMatchEdgeId update until after junction processing
   const searchResult = findNextDecision(graph, match.edge, match.fraction);
   let decision = searchResult.decision;
 
@@ -3434,26 +3503,51 @@ function processPosition(lat, lon, heading, speed) {
     ensureDecisionLeads(decision);
 
     if (junctionChanged) {
-      const didCrossNode = !lastDecisionNodeId || lastTraversedNodeIds.has(lastDecisionNodeId);
       forceFinishRoulette();
-      if (cruiseActive && lastDecisionNodeId && didCrossNode) {
-        console.log(`[decision] passed node=${lastDecisionNodeId} incoming=${lastMatchEdgeId} outgoing=${match.edge.id}`);
-        resolveJunctionReward(manuallySelected, lastChoiceWasRoulette);
-        resolveEncounter();
-        lastChoiceWasRoulette = false;
-      } else if (cruiseActive && lastDecisionNodeId && !didCrossNode) {
-        console.log(`[decision] cancelled node=${lastDecisionNodeId} reason=not_crossed`);
+
+      // P0-6: strict Decision Node crossing validation
+      let didPass = false;
+      if (cruiseActive && lastDecisionNodeId && edgeTransition) {
+        const prevEdge = graph.edges.get(prevEdgeId);
+        const nextEdge = graph.edges.get(nextEdgeId);
+        const prevToNode = prevEdge ? prevEdge.toNodeId : null;
+        const nextFromNode = nextEdge ? nextEdge.fromNodeId : null;
+        const branchEdgeIds = currentDecision ? currentDecision.branches.map(b => b.id.replace("br_", "")) : [];
+        const nextIsBranch = branchEdgeIds.includes(nextEdgeId);
+        if (prevToNode === lastDecisionNodeId && nextFromNode === lastDecisionNodeId && nextIsBranch) {
+          didPass = true;
+          console.log(`[decision] passed node=${lastDecisionNodeId} incoming=${prevEdgeId} outgoing=${nextEdgeId}`);
+          resolveJunctionReward(manuallySelected, lastChoiceWasRoulette);
+          resolveEncounter();
+          lastChoiceWasRoulette = false;
+        } else {
+          console.log(`[decision] cancelled node=${lastDecisionNodeId} reason=not_crossed prevTo=${prevToNode} nextFrom=${nextFromNode} nodeMatch=${prevToNode===lastDecisionNodeId && nextFromNode===lastDecisionNodeId} isBranch=${nextIsBranch}`);
+        }
       }
-      lastTraversedNodeIds.clear();
+
+      // P0-2: Lead start timing — start before edge transition so departure check sees the outgoing edge
       if (activeLeadTracking && (activeLeadTracking.status === "tracking" || activeLeadTracking.status === "pending_departure")) {
-        // Route matching via onLeadEdgeTransition handles capture/miss; don't interfere
+        missLead("junction_changed");
       }
-      if (!activeLeadTracking && cruiseActive && selectedBranchId && currentDecision) {
+      if (!activeLeadTracking && cruiseActive && selectedBranchId && currentDecision && didPass) {
         const selBranch = currentDecision.branches.find(b => b.id === selectedBranchId);
         if (selBranch && selBranch.lead && selBranch.lead.status === "available") {
           startLeadTracking(selBranch.lead);
+          // Immediate departure check with the outgoing edge
+          if (activeLeadTracking && activeLeadTracking.status === "pending_departure" && edgeTransition) {
+            const outPKey = getPhysicalEdgeKey(match.edge);
+            if (outPKey === activeLeadTracking.selectedPhysicalEdgeKey) {
+              activeLeadTracking.status = "tracking";
+              activeLeadTracking.currentRouteIndex = 0;
+              console.log(`[lead] route-match expected=${activeLeadTracking.selectedPhysicalEdgeKey} actual=${outPKey} (immediate)`);
+            } else {
+              console.log(`[lead] lost reason=wrong_departure expected=${activeLeadTracking.selectedPhysicalEdgeKey} actual=${outPKey}`);
+              missLead("wrong_departure");
+            }
+          }
         }
       }
+
       selectedBranchId = null;
       manuallySelected = false;
       rouletteUsedThisJunction = false;
@@ -3510,8 +3604,16 @@ function processPosition(lat, lon, heading, speed) {
   } else {
     const wasShowing = currentDecision !== null;
     forceFinishRoulette();
-    if (wasShowing && lastDecisionNodeId) {
-      resolveJunctionReward(manuallySelected, lastChoiceWasRoulette);
+    if (wasShowing && lastDecisionNodeId && edgeTransition) {
+      const prevEdgeElse = graph.edges.get(prevEdgeId);
+      const nextEdgeElse = graph.edges.get(nextEdgeId);
+      const prevToElse = prevEdgeElse ? prevEdgeElse.toNodeId : null;
+      const nextFromElse = nextEdgeElse ? nextEdgeElse.fromNodeId : null;
+      if (prevToElse === lastDecisionNodeId && nextFromElse === lastDecisionNodeId) {
+        resolveJunctionReward(manuallySelected, lastChoiceWasRoulette);
+      } else {
+        console.log(`[decision] else-branch skip reward: prevTo=${prevToElse} nextFrom=${nextFromElse} node=${lastDecisionNodeId}`);
+      }
       lastChoiceWasRoulette = false;
     }
     currentDecision = null;
@@ -3547,6 +3649,8 @@ function processPosition(lat, lon, heading, speed) {
     document.getElementById("stateLabel").textContent = "走行中";
     setBadge("ok","走行中");
   }
+
+  lastMatchEdgeId = nextEdgeId;
 
   checkAreaTransition(lat, lon);
   checkSkillNodeDiscovery(lat, lon);
@@ -3850,12 +3954,13 @@ function drawJunction(decision) {
   if (settings.minimalUI) {
     // ===== Minimal / bezel mode =====
     for (const b of resolvedBranches) {
-      const rad = b.angleDeg * Math.PI / 180;
+      const roadRad = b.angleDeg * Math.PI / 180;
+      const lblRad = (b.displayAngleDeg != null ? b.displayAngleDeg : b.angleDeg) * Math.PI / 180;
       const sel = b.selected && !b.preview;
       const pre = b.preview;
 
       const dotR = 172;
-      const dx = Math.sin(rad) * dotR, dy = -Math.cos(rad) * dotR;
+      const dx = Math.sin(roadRad) * dotR, dy = -Math.cos(roadRad) * dotR;
       if (sel) {
         bezelHtml += `<circle cx="${dx}" cy="${dy}" r="14" fill="rgba(0,200,232,0.15)" style="pointer-events:none"/>`;
         bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="10" fill="#00C8E8" style="cursor:pointer;filter:drop-shadow(0 0 10px rgba(0,200,232,0.9))"/>`;
@@ -3874,25 +3979,26 @@ function drawJunction(decision) {
       const lFill = dimmed ? "#444" : sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
       const rnFill = dimmed ? "#333" : sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
       const labelD = settings.labelDist;
-      const lx = Math.sin(rad) * labelD, ly = -Math.cos(rad) * labelD;
-      const anchor = Math.abs(b.angleDeg) < 30 ? "middle" : b.angleDeg > 0 ? "start" : "end";
-      const tx = Math.abs(b.angleDeg) < 30 ? 0 : b.angleDeg > 0 ? 10 : -10;
+      const lblDeg = b.displayAngleDeg != null ? b.displayAngleDeg : b.angleDeg;
+      const lx = Math.sin(lblRad) * labelD, ly = -Math.cos(lblRad) * labelD;
+      const anchor = Math.abs(lblDeg) < 30 ? "middle" : lblDeg > 0 ? "start" : "end";
+      const tx = Math.abs(lblDeg) < 30 ? 0 : lblDeg > 0 ? 10 : -10;
       const label = LABEL_JA[b.label] || b.label;
       const road = b.roadName || b.roadRef || "";
-      const slideOx = Math.sin(rad) * 15;
-      const slideOy = -Math.cos(rad) * 15;
+      const slideOx = Math.sin(lblRad) * 15;
+      const slideOy = -Math.cos(lblRad) * 15;
 
       labelsHtml += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-4}" text-anchor="${anchor}"
         fill="${lFill}" font-size="${sel ? 20 : 16}" font-weight="${sel ? 800 : 600}"
         style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out,transform 0.3s ease-out"
         >${label}</text>`;
-      let yOff = 12;
+      let yOff = 14;
       if (road) {
         labelsHtml += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
           fill="${rnFill}" font-size="12"
           style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.05s,transform 0.3s ease-out 0.05s"
           >${road}</text>`;
-        yOff += 14;
+        yOff += 16;
       }
       const gLine = getGameLine(b);
       if (gLine) {
@@ -3908,9 +4014,11 @@ function drawJunction(decision) {
     surfaceHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#465166" stroke-width="10" stroke-linecap="round"/>`;
 
     for (const b of resolvedBranches) {
-      const rad = b.angleDeg*Math.PI/180;
+      const roadRad = b.angleDeg * Math.PI / 180;
+      const lblDeg = b.displayAngleDeg != null ? b.displayAngleDeg : b.angleDeg;
+      const lblRad = lblDeg * Math.PI / 180;
       const roadLen = 165;
-      const ex = Math.sin(rad)*roadLen, ey = -Math.cos(rad)*roadLen;
+      const ex = Math.sin(roadRad)*roadLen, ey = -Math.cos(roadRad)*roadLen;
 
       const sel = b.selected && !b.preview;
       const pre = b.preview;
@@ -3934,14 +4042,14 @@ function drawJunction(decision) {
       }
 
       const labelD=settings.labelDist;
-      const lx=Math.sin(rad)*labelD, ly=-Math.cos(rad)*labelD;
-      const anchor=Math.abs(b.angleDeg)<30?"middle":b.angleDeg>0?"start":"end";
-      const tx=Math.abs(b.angleDeg)<30?0:b.angleDeg>0?18:-18;
+      const lx=Math.sin(lblRad)*labelD, ly=-Math.cos(lblRad)*labelD;
+      const anchor=Math.abs(lblDeg)<30?"middle":lblDeg>0?"start":"end";
+      const tx=Math.abs(lblDeg)<30?0:lblDeg>0?18:-18;
       const label=LABEL_JA[b.label]||b.label;
       const road=b.roadName||b.roadRef||"";
 
-      const slideOx = Math.sin(rad) * 15;
-      const slideOy = -Math.cos(rad) * 15;
+      const slideOx = Math.sin(lblRad) * 15;
+      const slideOy = -Math.cos(lblRad) * 15;
       labelsHtml += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-6}" text-anchor="${anchor}"
         fill="${lFill}" font-size="20" font-weight="800"
         style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out,transform 0.3s ease-out"
@@ -3953,7 +4061,7 @@ function drawJunction(decision) {
           fill="${rnFill}" font-size="13"
           style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.05s,transform 0.3s ease-out 0.05s"
           >${road}</text>`;
-        yOff += 16;
+        yOff += 18;
       }
       const gLine = getGameLine(b);
       if (gLine) {
@@ -4000,6 +4108,8 @@ function drawJunction(decision) {
       for (const tag of svg.querySelectorAll(".branch-label-anim")) {
         tag.style.opacity = "1"; tag.style.transform = "translate(0,0)";
       }
+      // P0-7: getBBox post-render overlap nudge (4px min gap)
+      requestAnimationFrame(() => resolveTextOverlaps(svg));
     });
   });
 
@@ -5158,19 +5268,21 @@ function generateLeadItem(lead) {
 }
 
 function ensureDecisionLeads(decision) {
-  if (!decision || decision._leadsGenerated) return;
-  let hasAnyLead = false;
-  for (const b of decision.branches) {
-    const eid = b.id.replace("br_", "");
-    b.lead = generateLeadForBranch(eid, decision.nodeId);
-    if (b.lead) hasAnyLead = true;
-  }
-  if (!hasAnyLead && settings.demoMode && decision.branches.length >= 2) {
-    const forcedIdx = simpleHash(decision.nodeId) % decision.branches.length;
-    const fb = decision.branches[forcedIdx];
-    const eid = fb.id.replace("br_", "");
-    const edge = graph ? graph.edges.get(eid) : null;
-    if (edge) {
+  if (!decision || !decision.branches || decision._leadsGenerated) return;
+  try {
+    let hasAnyLead = false;
+    for (const b of decision.branches) {
+      const eid = b.id.replace("br_", "");
+      b.lead = generateLeadForBranch(eid, decision.nodeId);
+      if (b.lead) hasAnyLead = true;
+    }
+    if (!hasAnyLead && settings.demoMode && decision.branches.length >= 2) {
+      const forcedIdx = (simpleHash(decision.nodeId) >>> 0) % decision.branches.length;
+      const fb = decision.branches[forcedIdx];
+      if (!fb) { decision._leadsGenerated = true; return; }
+      const eid = fb.id.replace("br_", "");
+      const edge = graph ? graph.edges.get(eid) : null;
+      if (!edge) { decision._leadsGenerated = true; return; }
       const pKey = getPhysicalEdgeKey(edge);
       const leadKey = `lead:${decision.nodeId}:${pKey}`;
       if (!capturedLeadKeys.has(leadKey)) {
@@ -5188,7 +5300,7 @@ function ensureDecisionLeads(decision) {
         };
       }
     }
-  }
+  } catch (e) { console.error("[ensureDecisionLeads]", e); }
   decision._leadsGenerated = true;
 }
 
@@ -5222,21 +5334,25 @@ function startLeadTracking(lead) {
     return;
   }
   const route = buildLeadRoute(lead.edgeId, lead.targetDistanceM);
-  const allowedKeys = new Set(route.map(r => r.physicalEdgeKey));
   activeLeadTracking = {
     ...lead,
     status: "pending_departure",
     selectedPhysicalEdgeKey: lead.physicalEdgeKey,
-    allowedPhysicalEdgeKeys: allowedKeys,
     route,
     currentRouteIndex: 0,
     matchedDistanceM: 0,
-    pendingTicks: 0,
   };
   console.log(`[lead] selected decision=${lead.decisionNodeId} branch=${lead.edgeId} physical=${lead.physicalEdgeKey} target=${lead.targetDistanceM}`);
 }
 
-function onLeadEdgeTransition(newPhysicalEdgeKey, edgeLengthM) {
+function checkLeadRouteEdge(lt, newPhysicalEdgeKey) {
+  const ri = lt.currentRouteIndex;
+  if (ri < lt.route.length && lt.route[ri].physicalEdgeKey === newPhysicalEdgeKey) return ri;
+  if (ri + 1 < lt.route.length && lt.route[ri + 1].physicalEdgeKey === newPhysicalEdgeKey) return ri + 1;
+  return -1;
+}
+
+function onLeadEdgeTransition(newPhysicalEdgeKey) {
   if (!activeLeadTracking) return;
   const lt = activeLeadTracking;
 
@@ -5244,11 +5360,7 @@ function onLeadEdgeTransition(newPhysicalEdgeKey, edgeLengthM) {
     if (newPhysicalEdgeKey === lt.selectedPhysicalEdgeKey) {
       lt.status = "tracking";
       lt.currentRouteIndex = 0;
-      lt.matchedDistanceM += edgeLengthM;
       console.log(`[lead] route-match expected=${lt.selectedPhysicalEdgeKey} actual=${newPhysicalEdgeKey}`);
-      if (lt.matchedDistanceM >= lt.targetDistanceM) captureLead(lt);
-    } else if (lt.pendingTicks < 3) {
-      lt.pendingTicks++;
     } else {
       console.log(`[lead] lost reason=wrong_departure expected=${lt.selectedPhysicalEdgeKey} actual=${newPhysicalEdgeKey}`);
       missLead("wrong_departure");
@@ -5257,13 +5369,10 @@ function onLeadEdgeTransition(newPhysicalEdgeKey, edgeLengthM) {
   }
 
   if (lt.status === "tracking") {
-    if (lt.allowedPhysicalEdgeKeys.has(newPhysicalEdgeKey)) {
-      lt.matchedDistanceM += edgeLengthM;
-      lt.pendingTicks = 0;
-      console.log(`[lead] route-match expected=route actual=${newPhysicalEdgeKey} dist=${Math.round(lt.matchedDistanceM)}/${lt.targetDistanceM}`);
-      if (lt.matchedDistanceM >= lt.targetDistanceM) captureLead(lt);
-    } else if (lt.pendingTicks < 3) {
-      lt.pendingTicks++;
+    const matchIdx = checkLeadRouteEdge(lt, newPhysicalEdgeKey);
+    if (matchIdx >= 0) {
+      lt.currentRouteIndex = matchIdx;
+      console.log(`[lead] route-match expected=${lt.route[matchIdx].physicalEdgeKey} actual=${newPhysicalEdgeKey} idx=${matchIdx} dist=${Math.round(lt.matchedDistanceM)}/${lt.targetDistanceM}`);
     } else {
       console.log(`[lead] lost reason=route_deviation actual=${newPhysicalEdgeKey}`);
       missLead("route_deviation");
@@ -5273,7 +5382,7 @@ function onLeadEdgeTransition(newPhysicalEdgeKey, edgeLengthM) {
 }
 
 function tickLeadDistance(deltaM) {
-  // No longer distance-based; route matching handles capture via onLeadEdgeTransition
+  // Distance is accumulated via fraction tracking in processPosition, not here
 }
 
 function captureLead(lead) {

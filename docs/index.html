@@ -207,6 +207,40 @@
     position: relative; z-index: 1;
     transition: opacity 0.4s ease-out, transform 0.4s ease-out;
   }
+  #branchChoiceDeck {
+    position: fixed; left: 50%; bottom: 72px; z-index: 86;
+    width: min(60vw, 760px); transform: translateX(-50%);
+    display: flex; justify-content: center; align-items: stretch; gap: 8px;
+    pointer-events: none;
+  }
+  .branch-choice-card {
+    --choice-color: #67E8F9;
+    appearance: none; min-width: 0; flex: 1 1 0; max-width: 250px;
+    padding: 9px 11px 8px; color: #DDE9EF; text-align: left;
+    background: linear-gradient(145deg, rgba(11,22,31,.92), rgba(6,13,22,.9));
+    border: 1px solid rgba(139,173,187,.2); border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); backdrop-filter: blur(12px);
+    pointer-events: auto; cursor: pointer; overflow: hidden;
+    transition: border-color .18s, background .18s, transform .18s, box-shadow .18s;
+  }
+  .branch-choice-card:hover, .branch-choice-card.preview {
+    border-color: color-mix(in srgb, var(--choice-color) 62%, transparent);
+    transform: translateY(-2px);
+  }
+  .branch-choice-card.selected {
+    border-color: var(--choice-color);
+    background: linear-gradient(145deg, color-mix(in srgb, var(--choice-color) 14%, rgba(11,22,31,.96)), rgba(6,13,22,.94));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--choice-color) 22%, transparent), 0 10px 28px rgba(0,0,0,.38);
+  }
+  .branch-choice-card.locked:not(.selected) { opacity: .34; cursor: default; }
+  .choice-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .choice-direction { color: #F4FCFF; font-size: 13px; font-weight: 800; white-space: nowrap; }
+  .choice-road { color: #718793; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .choice-main { display:block; margin-top: 5px; color: var(--choice-color); font-size: 12px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .choice-meta { display: flex; gap: 5px; margin-top: 6px; overflow: hidden; }
+  .choice-chip { padding: 2px 6px; border-radius: 999px; color: #A9BAC3; background: rgba(255,255,255,.055); font-size: 9px; white-space: nowrap; }
+  .choice-chip.reward { color: #87E8C0; }
+  .choice-chip.risk { color: #F6B969; }
   .junction-svg.entering {
     opacity: 0; transform: scale(0.85);
   }
@@ -539,8 +573,8 @@
   }
   #bgMap {
     position: absolute;
-    width: 180%; height: 180%;
-    top: -40%; left: -40%;
+    width: 220%; height: 220%;
+    top: -60%; left: -60%;
     opacity: 0.15;
     filter: saturate(0.3) brightness(0.6);
     transition: transform 0.8s linear, top 0.15s linear;
@@ -692,6 +726,11 @@
     .junction-view { padding: 80px 8px 86px; }
     .dial-wrap { width: 96vw; height: 68vh; }
     #autoMap { min-width: 150px; min-height: 150px; }
+    #branchChoiceDeck { width: calc(100vw - 18px); bottom: 70px; gap: 5px; }
+    .branch-choice-card { padding: 7px 7px 6px; border-radius: 9px; }
+    .choice-road { display: none; }
+    .choice-main { font-size: 10px; }
+    .choice-chip { padding: 2px 4px; font-size: 8px; }
   }
 
   .container-approach {
@@ -889,6 +928,7 @@
       </div>
       <svg id="junctionSvg" class="junction-svg" viewBox="-200 -200 400 400"></svg>
     </div>
+    <div id="branchChoiceDeck" aria-label="分岐候補"></div>
   </div>
 
   <div id="noticeArea" class="notice">
@@ -1876,7 +1916,7 @@ function syncBgMapPosition() {
   // The exploration field is rectangular and already pans with live position;
   // shifting the rotated tile layer with the old circular car animation could
   // expose empty corners.
-  el.style.top = "-40%";
+  el.style.top = "-60%";
 }
 
 function initBgMap(lat, lon, heading) {
@@ -3961,6 +4001,71 @@ const LABEL_JA = {
   slight_right:"右斜め", right:"右折", sharp_right:"鋭角右",
 };
 
+function escapeMarkup(value) {
+  return String(value == null ? "" : value)
+    .replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+}
+
+function getBranchChoiceInfo(decision, branch, defaultBrId, bustProb) {
+  const traceBranchId = getLeadContinuationBranchId(decision);
+  const isTrace = activeLeadTracking && branch.id === traceBranchId;
+  const lead = branch.lead && branch.lead.status === "available" && !capturedLeadKeys.has(branch.lead.id)
+    ? branch.lead : null;
+  const intelTags = branch.intel ? getIntelTags(branch.intel) : [];
+  const meta = [];
+  let color = "#67E8F9";
+  let main = branch.intel && branch.intel.exploration === "unknown" ? "未踏ルート" : "既知のルート";
+
+  if (isTrace) {
+    const presentation = getLeadPresentation(activeLeadTracking);
+    main = "追跡ルートを維持";
+    color = presentation.color;
+  } else if (lead) {
+    const leadName = lead.type === "supply" ? "物資を追う" : lead.type === "parts" ? "部品を追う" : "未知反応を追う";
+    main = `${leadName} · ${lead.targetDistanceM}m`;
+    color = lead.color;
+    meta.push({ text: lead.rarityHint === "rare" ? "希少反応" : lead.rarityHint === "uncommon" ? "良好反応" : "通常反応", cls: "reward" });
+  } else if (intelTags.length) {
+    main = intelTags[0].text;
+    color = intelTags[0].color;
+    if (intelTags[1]) meta.push({ text: intelTags[1].text, cls: "" });
+  }
+
+  if (branch.id === defaultBrId) {
+    meta.push({ text: `BUST ${Math.round(bustProb * 100)}%`, cls: "risk" });
+  } else if (branchMults[branch.id] !== undefined) {
+    meta.push({ text: `獲得 ×${branchMults[branch.id].toFixed(1)}`, cls: "reward" });
+  }
+  return { main, color, meta: meta.slice(0, 2) };
+}
+
+function renderBranchChoiceDeck(decision, branches, defaultBrId, bustProb) {
+  const deck = document.getElementById("branchChoiceDeck");
+  if (!deck) return;
+  deck.innerHTML = branches.map(branch => {
+    const info = getBranchChoiceInfo(decision, branch, defaultBrId, bustProb);
+    const direction = LABEL_JA[branch.label] || branch.label;
+    const road = branch.roadName || branch.roadRef || "名称のない道";
+    const selected = branch.selected && !branch.preview;
+    const locked = rouletteUsedThisJunction && branch.id !== rouletteBranchId;
+    const classes = ["branch-choice-card", selected ? "selected" : "", branch.preview ? "preview" : "", locked ? "locked" : ""].filter(Boolean).join(" ");
+    const chips = info.meta.map(m => `<span class="choice-chip ${m.cls}">${escapeMarkup(m.text)}</span>`).join("");
+    return `<button class="${classes}" style="--choice-color:${info.color}" data-branch-id="${escapeMarkup(branch.id)}" ${locked ? "disabled" : ""}>
+      <span class="choice-head"><span class="choice-direction">${escapeMarkup(direction)}</span><span class="choice-road">${escapeMarkup(road)}</span></span>
+      <span class="choice-main">${escapeMarkup(info.main)}</span>
+      <span class="choice-meta">${chips}</span>
+    </button>`;
+  }).join("");
+  for (const card of deck.querySelectorAll(".branch-choice-card")) {
+    card.addEventListener("pointerdown", event => event.stopPropagation());
+    card.addEventListener("click", event => {
+      event.stopPropagation();
+      chooseBranch(card.dataset.branchId);
+    });
+  }
+}
+
 function drawJunction(decision) {
   const svg = document.getElementById("junctionSvg");
   const branches = decision.branches;
@@ -4189,6 +4294,7 @@ function drawJunction(decision) {
   }
 
   svg.innerHTML = html;
+  renderBranchChoiceDeck(decision, resolvedBranches, defaultBrId, bustProb);
 
   // Trigger label slide-in animation after DOM paint
   requestAnimationFrame(() => {
@@ -4227,6 +4333,11 @@ function applyBranchHighlight(branches) {
     const casing = document.getElementById("casing_" + b.id);
     const label = document.getElementById("label_" + b.id);
     const roadname = document.getElementById("roadname_" + b.id);
+    const card = document.querySelector(`.branch-choice-card[data-branch-id="${CSS.escape(b.id)}"]`);
+    if (card) {
+      card.classList.toggle("selected", !!sel && !preview);
+      card.classList.toggle("preview", !!preview);
+    }
     if (!road) continue;
 
     if (sel && !preview) {

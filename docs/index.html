@@ -790,6 +790,24 @@
   .loadout-module .module-effect { margin-top: 4px; font-size: 9px; color: #B8BBB1; line-height: 1.35; }
   .loadout-module .module-state { margin-top: 7px; font-size: 9px; color: var(--module-color); font-weight: 700; }
   .loadout-module .module-recipe { margin-top: 5px; font-size: 8px; color: #777C78; line-height: 1.35; }
+  .encounter-board {
+    margin: 14px 0; padding: 12px 12px 13px; text-align: left;
+    border-left: 4px solid #FF654D; background: rgba(255,255,255,.035);
+  }
+  .encounter-board-title { font-size: 10px; letter-spacing: .16em; color: #9EA095; }
+  .encounter-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 9px; }
+  .encounter-preview {
+    min-width: 0; overflow: hidden; border: 1px solid rgba(255,255,255,.08);
+    border-radius: 8px; background: #1B1D1B;
+  }
+  .encounter-preview img {
+    display: block; width: 100%; height: 68px; object-fit: contain;
+    background: radial-gradient(circle at 50% 65%, color-mix(in srgb, var(--preview-color) 17%, transparent), transparent 70%);
+    filter: drop-shadow(0 7px 7px rgba(0,0,0,.4));
+  }
+  .encounter-preview-copy { padding: 7px 7px 8px; }
+  .encounter-preview-name { color: var(--preview-color); font-size: 8px; font-weight: 850; letter-spacing: .05em; white-space: nowrap; }
+  .encounter-preview-purpose { margin-top: 3px; color: #E7E2D4; font-size: 10px; font-weight: 750; }
   @media (max-width: 520px) {
     .trip-card { padding: 24px 18px; }
     .loadout-grid { grid-template-columns: 1fr; }
@@ -897,9 +915,22 @@
       <div class="loadout-title">VEHICLE MODULE / 1つ装備</div>
       <div class="loadout-grid" id="tripLoadoutGrid"></div>
     </div>
-    <div style="margin:14px 0;padding:13px 16px;border-left:4px solid #FF654D;background:rgba(255,255,255,.035);text-align:left;color:#F0EADA">
-      <div style="font-size:11px;letter-spacing:.12em;color:#9EA095">TODAY'S ROAD ENCOUNTERS</div>
-      <div style="margin-top:5px;font-size:13px">移動デポで稼ぐ ／ シグナルランナーを追う ／ ロードレリックを揃える</div>
+    <div class="encounter-board">
+      <div class="encounter-board-title">TODAY'S ROAD ENCOUNTERS</div>
+      <div class="encounter-strip">
+        <div class="encounter-preview" style="--preview-color:#2DD4D7">
+          <img src="assets/loot/mobile-depot.png" alt="">
+          <div class="encounter-preview-copy"><div class="encounter-preview-name">MOBILE DEPOT</div><div class="encounter-preview-purpose">確実に稼ぐ</div></div>
+        </div>
+        <div class="encounter-preview" style="--preview-color:#F6D547">
+          <img src="assets/loot/signal-runner.png" alt="">
+          <div class="encounter-preview-copy"><div class="encounter-preview-name">SIGNAL RUNNER</div><div class="encounter-preview-purpose">装備を作る</div></div>
+        </div>
+        <div class="encounter-preview" style="--preview-color:#FF654D">
+          <img src="assets/loot/road-relic.png" alt="">
+          <div class="encounter-preview-copy"><div class="encounter-preview-name">ROAD RELIC</div><div class="encounter-preview-purpose">セットを揃える</div></div>
+        </div>
+      </div>
     </div>
     <button class="trip-depart-btn" onclick="departTrip()">出発</button>
     <dialog id="departureConfirm" style="margin:auto;max-width:340px;padding:24px;background:var(--surface);color:var(--text-primary);border:1px solid var(--text-muted);border-radius:12px">

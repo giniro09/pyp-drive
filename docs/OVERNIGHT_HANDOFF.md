@@ -11,9 +11,10 @@
 - Separate item-led dial proposal verified in the browser at desktop and 360px widths: both sprites visible, no observed label overlap, right selection updates, roulette completes and re-enables. Captured browser error log is empty. This is a mockup, not a game integration or real-drive test.
 
 ## Continue next
-- Demo still discards remaining travel distance at an edge transition and can relocate randomly at a disconnected dead end. Fix without skipping traversal/reward events.
+- Demo still discards remaining travel distance at an edge transition. This causes speed loss on short edges, not teleportation; any follow-up must preserve traversal/reward events.
 - Browser-check the Exploration Map update. Older saves whose road geometry is no longer available can only show endpoint fallback until revisited; do not invent lost shape data.
-- Check delayed no-decision notice for stale callbacks and clear stale match state when location matching fails.
+- Position recovery fixed: delayed hide callback now respects a newly restored decision; failed matching clears old road match/continuity and redraws; disconnected demo endpoint stops in place with a notice, rather than selecting a random road. `check-position-recovery.mjs` reproduces and passes all three cases. Existing three regression scripts pass.
+- Next priority: browser demo smoke check of the committed game changes. No real-drive verification yet.
 - Separate `wayfaring-loot-study.html` in the conversation visualization directory is ready for user review; `loot-preview.html` is its browser wrapper. Do not apply to public UI without approval.
 
 ## Verification boundary

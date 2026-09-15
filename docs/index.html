@@ -2091,6 +2091,7 @@ function demoTick() {
   if (!graph || !demoEdgeId) return;
   const edge = graph.edges.get(demoEdgeId);
   if (!edge) return;
+  let reachedDeadEnd = false;
 
   demoFraction += demoSpeedMps / Math.max(edge.lengthM, 1);
 
@@ -2106,8 +2107,10 @@ function demoTick() {
       if (allOut.length) {
         demoEdgeId = allOut[Math.floor(Math.random() * allOut.length)];
       } else {
-        const edgeIds = Array.from(graph.edges.keys());
-        demoEdgeId = edgeIds[Math.floor(Math.random() * edgeIds.length)];
+        // No connected road: retain the endpoint instead of teleporting.
+        reachedDeadEnd = true;
+        clearInterval(demoInterval);
+        demoInterval = null;
       }
     } else {
       // In demo mode, keep following an active trace unless the tester
@@ -2127,7 +2130,7 @@ function demoTick() {
         demoEdgeId = pickStraightest(outIds, graph, edge) || outIds[0];
       }
     }
-    demoFraction = 0;
+    demoFraction = reachedDeadEnd ? 1 : 0;
   }
 
   const curEdge = graph.edges.get(demoEdgeId);
@@ -2144,6 +2147,14 @@ function demoTick() {
   updateMinimap(lat, lon);
   updateBgMap(lat, lon, heading);
   processPosition(lat, lon, heading, demoSpeedMps);
+  if (reachedDeadEnd) {
+    recordTraversedEdge(demoEdgeId);
+    lastSpeedMps = 0;
+    document.getElementById("speed").textContent = "0 km/h";
+    if (hudSpd1) hudSpd1.textContent = "0 km/h";
+    setBadge("ok", "DEMO停止");
+    showNotice("デモ経路の終点", "接続する道路がないため停止しました");
+  }
 }
 
 // ============================================================
@@ -3533,9 +3544,12 @@ function processPosition(lat, lon, heading, speed) {
   const match = matchPosition(graph, lat, lon, heading, speed||0, lastMatchEdgeId);
   if (!match) {
     currentDecision = null;
+    currentMapMatch = null;
+    lastMatchEdgeId = null;
     document.getElementById("stateLabel").textContent = "位置を確認中";
     setBadge("lost","LOST");
     showNotice("位置を確認中","道路にマッチできません");
+    renderAutoMap();
     return;
   }
 
@@ -3749,6 +3763,8 @@ function processPosition(lat, lon, heading, speed) {
       svg.classList.remove("visible","entering");
       svg.classList.add("exiting");
       setTimeout(() => {
+        // A newer GPS update may already have restored the junction.
+        if (currentDecision) { svg.classList.remove("exiting"); return; }
         document.getElementById("junctionArea").style.display = "none";
         document.getElementById("noticeArea").style.display = "flex";
         svg.classList.remove("exiting");

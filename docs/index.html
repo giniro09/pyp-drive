@@ -259,6 +259,28 @@
   .notice-icon { font-size: 48px; opacity: 0.4; }
   .notice-text { font-size: 24px; color: var(--text-muted); }
   .notice-sub { font-size: 14px; color: #444; }
+  .field-scan { display: none; position: relative; width: min(42vh, 330px); aspect-ratio: 1; border-radius: 50%; }
+  .notice.cruising .notice-icon { display: none; }
+  .notice.cruising .field-scan { display: block; }
+  .notice.cruising .notice-text { color: #D9F8FC; font-size: 18px; font-weight: 750; letter-spacing: .12em; }
+  .notice.cruising .notice-sub { color: #66808C; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+  .scan-ring, .scan-crosshair, .scan-sweep, .scan-vehicle, .scan-ping { position: absolute; pointer-events: none; }
+  .scan-ring { inset: 0; border: 1px solid rgba(103,232,249,.16); border-radius: 50%; box-shadow: inset 0 0 42px rgba(25,160,181,.05); }
+  .scan-ring.r2 { inset: 23%; }
+  .scan-ring.r3 { inset: 41%; }
+  .scan-crosshair { inset: 7%; border-radius: 50%; background:
+    linear-gradient(90deg, transparent 49.8%, rgba(103,232,249,.09) 50%, transparent 50.2%),
+    linear-gradient(0deg, transparent 49.8%, rgba(103,232,249,.09) 50%, transparent 50.2%); }
+  .scan-sweep { inset: 4%; border-radius: 50%; overflow: hidden; animation: fieldSweep 3.2s linear infinite; }
+  .scan-sweep::before { content:""; position:absolute; left:50%; top:0; width:50%; height:50%; transform-origin:0 100%;
+    background: conic-gradient(from 0deg at 0 100%, rgba(103,232,249,.28), transparent 42deg); }
+  .scan-vehicle { left:50%; top:50%; width: 0; height: 0; transform: translate(-50%,-50%);
+    border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 23px solid #67E8F9;
+    filter: drop-shadow(0 0 8px rgba(103,232,249,.7)); }
+  .scan-ping { width:12px; height:12px; left:calc(50% - 6px); top:calc(50% - 6px); border:1px solid #67E8F9; border-radius:50%; animation: scanPing 2.2s ease-out infinite; }
+  .scan-ping.p2 { animation-delay:1.1s; }
+  @keyframes fieldSweep { to { transform: rotate(360deg); } }
+  @keyframes scanPing { 0% { opacity:0; transform:scale(.3); } 20% { opacity:1; } 75%,100% { opacity:0; transform:scale(2.6); } }
 
   /* ===== Junction HUD (distance + speed above dial) ===== */
   #junctionHud {
@@ -933,6 +955,11 @@
 
   <div id="noticeArea" class="notice">
     <div class="notice-icon">&#128225;</div>
+    <div class="field-scan" aria-hidden="true">
+      <span class="scan-ring"></span><span class="scan-ring r2"></span><span class="scan-ring r3"></span>
+      <span class="scan-crosshair"></span><span class="scan-sweep"></span>
+      <span class="scan-ping"></span><span class="scan-ping p2"></span><span class="scan-vehicle"></span>
+    </div>
     <div id="noticeText" class="notice-text">GPS信号を待っています</div>
     <div id="noticeSub" class="notice-sub">ブラウザの位置情報を許可してください</div>
   </div>
@@ -3781,8 +3808,7 @@ function processPosition(lat, lon, heading, speed) {
       hideBgMap();
     }
     const reason = searchResult.stopReason || "unknown";
-    document.getElementById("noticeText").textContent = "次の分岐を探しています";
-    document.getElementById("noticeSub").textContent = reason === "distance_limit" ? "対象交差点が遠方です" : "";
+    showCruiseScan(reason);
     document.getElementById("stateLabel").textContent = "走行中";
     setBadge("ok","走行中");
   }
@@ -3981,9 +4007,22 @@ function updateDistanceDisplay(m) {
 function showNotice(text, sub) {
   document.getElementById("junctionArea").style.display = "none";
   hideBgMap();
-  document.getElementById("noticeArea").style.display = "flex";
+  const notice = document.getElementById("noticeArea");
+  notice.classList.remove("cruising");
+  notice.style.display = "flex";
   document.getElementById("noticeText").textContent = text;
   document.getElementById("noticeSub").textContent = sub||"";
+}
+
+function showCruiseScan(reason) {
+  const notice = document.getElementById("noticeArea");
+  if (!notice) return;
+  notice.classList.add("cruising");
+  document.getElementById("noticeText").textContent = "探索走行中";
+  const mapped = mapVisitedPhysicalKeys ? mapVisitedPhysicalKeys.size : 0;
+  document.getElementById("noticeSub").textContent = reason === "distance_limit"
+    ? `MAPPING ${mapped} ROADS · 次の対象を遠方に検出`
+    : `MAPPING ${mapped} ROADS · 周辺反応を走査中`;
 }
 
 function setBadge(type, text) {

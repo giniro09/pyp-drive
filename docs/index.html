@@ -4109,7 +4109,7 @@ function drawJunction(decision) {
       <title>${escape(label)}</title>
       <rect x="-49" y="-69" width="98" height="126" fill="transparent"/>
       ${art ? `<image href="${art}" x="-45" y="-73" width="90" height="90" style="pointer-events:none"/>` : ""}
-      <text id="label_${b.id}" x="0" y="${art ? 28 : 0}" text-anchor="middle" fill="${b.selected ? '#efb38c' : '#eee9d8'}" font-size="19" font-weight="600">${escape(value)}</text>
+      <text id="label_${b.id}" ${trace ? 'data-trace-distance="true"' : ''} x="0" y="${art ? 28 : 0}" text-anchor="middle" fill="${b.selected ? '#efb38c' : '#eee9d8'}" font-size="19" font-weight="600">${escape(value)}</text>
       ${detail ? `<text x="0" y="${art ? 47 : 21}" text-anchor="middle" fill="#bdb9a9" font-size="12">${escape(detail)}</text>` : ""}
       <line x1="-33" y1="${art ? 57 : 30}" x2="33" y2="${art ? 57 : 30}" stroke="#efb38c" opacity="${b.selected ? 1 : 0}"/>
     </g>`;
@@ -5519,6 +5519,7 @@ function updateActiveTraceHud() {
   const lt = activeLeadTracking;
   if (!lt || (lt.status !== "tracking" && lt.status !== "pending_departure")) {
     hud.classList.remove("visible");
+    if (currentDecision && document.querySelector('[data-trace-distance]')) drawJunction(currentDecision);
     return;
   }
   const presentation = getLeadPresentation(lt);
@@ -5528,6 +5529,7 @@ function updateActiveTraceHud() {
   hud.style.setProperty("--trace-color", presentation.color);
   document.getElementById("traceName").textContent = presentation.name;
   document.getElementById("traceDistance").textContent = remaining;
+  for (const label of document.querySelectorAll('[data-trace-distance]')) label.textContent = `${remaining}m`;
   document.getElementById("traceProgressFill").style.width = `${Math.min(100, travelled / target * 100)}%`;
   hud.classList.add("visible");
 }

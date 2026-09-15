@@ -14,9 +14,17 @@ assert.match(html, /economyVersion: 2/);
 assert.match(html, /currentTrip\.money \+= creditReward/);
 assert.match(html, /registerDiscovery\(item\)/);
 assert.match(html, /SET \$\{collection\.count\}\/\$\{collection\.target\}/);
-assert.match(html, /settings\.demoMode \? Math\.min\(2, decision\.branches\.length\) : 1/);
+assert.match(html, /settings\.demoMode \|\| choiceModuleActive/);
 assert.match(html, /const usedTypes = new Set\(activeLeadTracking \? \[activeLeadTracking\.type\] : \[\]\)/);
 assert.match(html, /id = "discoveryToast"/);
 assert.doesNotMatch(html, /小さな遠征を試す/);
 
-console.log('PASS: encounter assets, differentiated leads, purpose reveal, collection progress, and economy rebalance');
+for (const moduleKey of ['trace-lens', 'field-rack', 'risk-dial']) {
+  assert.match(html, new RegExp(`key: "${moduleKey}"`));
+}
+assert.match(html, /consumeModuleRecipe\(module\)/);
+assert.match(html, /Cargo容量 \+2/);
+assert.match(html, /applyVehicleRiskReduction/);
+assert.match(html, /id="tripLoadoutGrid"/);
+
+console.log('PASS: encounter assets, differentiated leads, purpose reveal, modules, collection progress, and economy rebalance');

@@ -2031,15 +2031,23 @@ function demoTick() {
         const edgeIds = Array.from(graph.edges.keys());
         demoEdgeId = edgeIds[Math.floor(Math.random() * edgeIds.length)];
       }
-    } else if (selectedBranchId) {
-      const selEdgeId = selectedBranchId.replace("br_", "");
-      if (outIds.includes(selEdgeId)) {
-        demoEdgeId = selEdgeId;
+    } else {
+      // In demo mode, keep following an active trace unless the tester
+      // explicitly chooses a different branch. This makes the success path
+      // reproducible while still allowing a manual deviation test.
+      const traceEdge = !manuallySelected ? getLeadContinuationEdge(nodeId) : null;
+      if (traceEdge && outIds.includes(traceEdge.edgeId)) {
+        demoEdgeId = traceEdge.edgeId;
+      } else if (selectedBranchId) {
+        const selEdgeId = selectedBranchId.replace("br_", "");
+        if (outIds.includes(selEdgeId)) {
+          demoEdgeId = selEdgeId;
+        } else {
+          demoEdgeId = pickStraightest(outIds, graph, edge) || outIds[0];
+        }
       } else {
         demoEdgeId = pickStraightest(outIds, graph, edge) || outIds[0];
       }
-    } else {
-      demoEdgeId = pickStraightest(outIds, graph, edge) || outIds[0];
     }
     demoFraction = 0;
   }
@@ -2952,7 +2960,16 @@ function getLookaheadBearing(edgeId) {
     if (!e) break;
     accM += e.lengthM;
     if (accM >= 40) return e.endBearingDeg;
-    const outs = (graph.outgoing.get(e.toNodeId) || []).filter(eid => !visited.has(eid));
+    const outs = (graph.outgoing.get(e.toNodeId) || []).filter(eid => {
+      if (visited.has(eid)) return false;
+      const candidate = graph.edges.get(eid);
+      if (!candidate) return false;
+      // Never build a trace by immediately reversing over the edge we just
+      // travelled. The demo and Decision search apply the same rule.
+      if (candidate.toNodeId === e.fromNodeId) return false;
+      if (getPhysicalEdgeKey(candidate) === getPhysicalEdgeKey(e)) return false;
+      return true;
+    });
     if (outs.length === 0) break;
     const next = outs.length === 1 ? outs[0] : pickStraightest(outs, graph, e);
     if (!next) break;
@@ -3426,8 +3443,15 @@ function processPosition(lat, lon, heading, speed) {
     recordTraversedEdge(prevEdgeId);
   }
 
+  // Map matching can briefly jump to a parallel or crossing edge. Treat a
+  // short mismatch as uncertain positioning rather than an immediate hard
+  // failure, and allow tiny route segments to be skipped by the matcher.
+  if (activeLeadTracking) {
+    updateLeadRouteMatch(getPhysicalEdgeKey(match.edge), !!edgeTransition);
+  }
+
   // P0-5: Lead fractional distance tracking
-  if (activeLeadTracking && activeLeadTracking.status === "tracking" && currentMapMatch) {
+  if (activeLeadTracking && activeLeadTracking.status === "tracking" && activeLeadTracking.deviationTicks === 0 && currentMapMatch) {
     const prevFrac = currentMapMatch.fraction || 0;
     if (currentMapMatch.edgeId === nextEdgeId) {
       // Same edge, fraction progressed
@@ -3447,12 +3471,6 @@ function processPosition(lat, lon, heading, speed) {
     if (activeLeadTracking && activeLeadTracking.matchedDistanceM >= activeLeadTracking.targetDistanceM) {
       captureLead(activeLeadTracking);
     }
-  }
-
-  // P0-4: Ordered route check on edge transition (non-junction transitions)
-  if (edgeTransition && activeLeadTracking && activeLeadTracking.status === "tracking") {
-    const newPKey = getPhysicalEdgeKey(match.edge);
-    onLeadEdgeTransition(newPKey);
   }
 
   currentMapMatch = { edgeId: nextEdgeId, fraction: match.fraction, lat, lon, heading: heading || 0 };
@@ -3526,9 +3544,9 @@ function processPosition(lat, lon, heading, speed) {
       }
 
       // P0-2: Lead start timing — start before edge transition so departure check sees the outgoing edge
-      if (activeLeadTracking && (activeLeadTracking.status === "tracking" || activeLeadTracking.status === "pending_departure")) {
-        missLead("junction_changed");
-      }
+      // A Lead may span multiple Decision Nodes. Crossing an intermediate
+      // junction is not itself a failure; the ordered physical-edge check
+      // above decides whether the player stayed on the traced route.
       if (!activeLeadTracking && cruiseActive && selectedBranchId && currentDecision && didPass) {
         const selBranch = currentDecision.branches.find(b => b.id === selectedBranchId);
         if (selBranch && selBranch.lead && selBranch.lead.status === "available") {
@@ -3539,6 +3557,7 @@ function processPosition(lat, lon, heading, speed) {
             if (outPKey === activeLeadTracking.selectedPhysicalEdgeKey) {
               activeLeadTracking.status = "tracking";
               activeLeadTracking.currentRouteIndex = 0;
+              activeLeadTracking.deviationTicks = 0;
               console.log(`[lead] route-match expected=${activeLeadTracking.selectedPhysicalEdgeKey} actual=${outPKey} (immediate)`);
             } else {
               console.log(`[lead] lost reason=wrong_departure expected=${activeLeadTracking.selectedPhysicalEdgeKey} actual=${outPKey}`);
@@ -3567,7 +3586,8 @@ function processPosition(lat, lon, heading, speed) {
     lastAcceptedDecisionNodeId = decision.nodeId;
 
     if (!selectedBranchId || !decision.branches.some(b => b.id === selectedBranchId)) {
-      selectedBranchId = pickDefaultBranch(decision.branches);
+      const traceBranchId = getLeadContinuationBranchId(decision);
+      selectedBranchId = traceBranchId || pickDefaultBranch(decision.branches);
       const defBranch = decision.branches.find(b => b.id === selectedBranchId);
       if (defBranch) dialFixedAngle = defBranch.angleDeg;
     }
@@ -3929,6 +3949,11 @@ function drawJunction(decision) {
   function getGameLine(b) {
     if (!cruiseActive) return null;
     if (rouletteAnimId) return null;
+    const traceBranchId = getLeadContinuationBranchId(decision);
+    if (activeLeadTracking && b.id === traceBranchId) {
+      const remainingM = Math.max(0, Math.ceil(activeLeadTracking.targetDistanceM - activeLeadTracking.matchedDistanceM));
+      return { text: `TRACE ${remainingM}m`, color: "#67E8F9", size: 13 };
+    }
     if (b.lead && b.lead.status === "available" && !capturedLeadKeys.has(b.lead.id)) {
       const shortLabel = b.lead.type === "supply" ? "SUPPLY" : b.lead.type === "parts" ? "PARTS" : "UNKNOWN";
       return { text: `${shortLabel} ${b.lead.targetDistanceM}m`, color: b.lead.color, size: 13 };
@@ -5309,19 +5334,33 @@ function buildLeadRoute(startEdgeId, targetDistanceM) {
   const route = [];
   let curId = startEdgeId;
   let accM = 0;
-  const visited = new Set([curId]);
+  const visitedEdgeIds = new Set([curId]);
+  const visitedPhysicalKeys = new Set();
   for (let s = 0; s < 200; s++) {
     const e = graph.edges.get(curId);
     if (!e) break;
     const pKey = getPhysicalEdgeKey(e);
+    if (visitedPhysicalKeys.has(pKey)) break;
+    visitedPhysicalKeys.add(pKey);
     route.push({ edgeId: curId, physicalEdgeKey: pKey, lengthM: e.lengthM });
     accM += e.lengthM;
     if (accM >= targetDistanceM) break;
-    const outs = (graph.outgoing.get(e.toNodeId) || []).filter(eid => !visited.has(eid));
+    const outs = (graph.outgoing.get(e.toNodeId) || []).filter(eid => {
+      if (visitedEdgeIds.has(eid)) return false;
+      const candidate = graph.edges.get(eid);
+      if (!candidate) return false;
+      const candidatePKey = getPhysicalEdgeKey(candidate);
+      // A trace must move forward through the Road Graph. Directed reverse
+      // edges and any previously used physical road would create a loop that
+      // the player cannot understand or intentionally follow.
+      if (candidate.toNodeId === e.fromNodeId) return false;
+      if (candidatePKey === pKey || visitedPhysicalKeys.has(candidatePKey)) return false;
+      return true;
+    });
     if (outs.length === 0) break;
     const next = outs.length === 1 ? outs[0] : pickStraightest(outs, graph, e);
     if (!next) break;
-    visited.add(next);
+    visitedEdgeIds.add(next);
     curId = next;
   }
   return route;
@@ -5341,25 +5380,49 @@ function startLeadTracking(lead) {
     route,
     currentRouteIndex: 0,
     matchedDistanceM: 0,
+    deviationTicks: 0,
   };
   console.log(`[lead] selected decision=${lead.decisionNodeId} branch=${lead.edgeId} physical=${lead.physicalEdgeKey} target=${lead.targetDistanceM}`);
 }
 
+function getLeadContinuationEdge(nodeId) {
+  const lt = activeLeadTracking;
+  if (!lt || lt.status !== "tracking" || !graph || !Array.isArray(lt.route)) return null;
+  for (let i = Math.max(0, lt.currentRouteIndex + 1); i < lt.route.length; i++) {
+    const step = lt.route[i];
+    const edge = graph.edges.get(step.edgeId);
+    if (edge && edge.fromNodeId === nodeId) return step;
+  }
+  return null;
+}
+
+function getLeadContinuationBranchId(decision) {
+  if (!decision || !decision.branches) return null;
+  const step = getLeadContinuationEdge(decision.nodeId);
+  if (!step) return null;
+  const branch = decision.branches.find(b => b.id.replace("br_", "") === step.edgeId);
+  return branch ? branch.id : null;
+}
+
 function checkLeadRouteEdge(lt, newPhysicalEdgeKey) {
   const ri = lt.currentRouteIndex;
-  if (ri < lt.route.length && lt.route[ri].physicalEdgeKey === newPhysicalEdgeKey) return ri;
-  if (ri + 1 < lt.route.length && lt.route[ri + 1].physicalEdgeKey === newPhysicalEdgeKey) return ri + 1;
+  const maxLookAhead = Math.min(lt.route.length - 1, ri + 3);
+  for (let i = Math.max(0, ri); i <= maxLookAhead; i++) {
+    if (lt.route[i].physicalEdgeKey === newPhysicalEdgeKey) return i;
+  }
   return -1;
 }
 
-function onLeadEdgeTransition(newPhysicalEdgeKey) {
+function updateLeadRouteMatch(newPhysicalEdgeKey, edgeTransition) {
   if (!activeLeadTracking) return;
   const lt = activeLeadTracking;
 
   if (lt.status === "pending_departure") {
+    if (!edgeTransition) return;
     if (newPhysicalEdgeKey === lt.selectedPhysicalEdgeKey) {
       lt.status = "tracking";
       lt.currentRouteIndex = 0;
+      lt.deviationTicks = 0;
       console.log(`[lead] route-match expected=${lt.selectedPhysicalEdgeKey} actual=${newPhysicalEdgeKey}`);
     } else {
       console.log(`[lead] lost reason=wrong_departure expected=${lt.selectedPhysicalEdgeKey} actual=${newPhysicalEdgeKey}`);
@@ -5371,11 +5434,22 @@ function onLeadEdgeTransition(newPhysicalEdgeKey) {
   if (lt.status === "tracking") {
     const matchIdx = checkLeadRouteEdge(lt, newPhysicalEdgeKey);
     if (matchIdx >= 0) {
+      const advanced = matchIdx !== lt.currentRouteIndex;
       lt.currentRouteIndex = matchIdx;
-      console.log(`[lead] route-match expected=${lt.route[matchIdx].physicalEdgeKey} actual=${newPhysicalEdgeKey} idx=${matchIdx} dist=${Math.round(lt.matchedDistanceM)}/${lt.targetDistanceM}`);
+      lt.deviationTicks = 0;
+      if (edgeTransition || advanced) {
+        console.log(`[lead] route-match expected=${lt.route[matchIdx].physicalEdgeKey} actual=${newPhysicalEdgeKey} idx=${matchIdx} dist=${Math.round(lt.matchedDistanceM)}/${lt.targetDistanceM}`);
+      }
     } else {
-      console.log(`[lead] lost reason=route_deviation actual=${newPhysicalEdgeKey}`);
-      missLead("route_deviation");
+      lt.deviationTicks = (lt.deviationTicks || 0) + 1;
+      if (lt.deviationTicks === 1) {
+        const expected = lt.route.slice(lt.currentRouteIndex, lt.currentRouteIndex + 4).map(s => s.physicalEdgeKey).join(",");
+        console.log(`[lead] uncertain actual=${newPhysicalEdgeKey} expected=${expected}`);
+      }
+      if (lt.deviationTicks >= 3) {
+        console.log(`[lead] lost reason=route_deviation actual=${newPhysicalEdgeKey}`);
+        missLead("route_deviation");
+      }
     }
     return;
   }

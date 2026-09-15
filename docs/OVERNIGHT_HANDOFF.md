@@ -14,8 +14,10 @@
 - Demo still discards remaining travel distance at an edge transition. This causes speed loss on short edges, not teleportation; any follow-up must preserve traversal/reward events.
 - Browser-check the Exploration Map update. Older saves whose road geometry is no longer available can only show endpoint fallback until revisited; do not invent lost shape data.
 - Position recovery fixed: delayed hide callback now respects a newly restored decision; failed matching clears old road match/continuity and redraws; disconnected demo endpoint stops in place with a notice, rather than selecting a random road. `check-position-recovery.mjs` reproduces and passes all three cases. Existing three regression scripts pass.
-- Next priority: browser demo smoke check of the committed game changes. No real-drive verification yet.
+- Public browser check: PIN screen is present; PIN entry reaches TripStart. Existing test profile has -5000G. Departure raises an in-game borrowing confirmation; the browser dialog handle was unavailable and subsequent UI reads/Escape timed out. Do not repeat the same blocked automation or reset user saves. Public driving smoke test remains for manual confirmation or a restored browser session. No real-drive verification yet.
 - Separate `wayfaring-loot-study.html` in the conversation visualization directory is ready for user review; `loot-preview.html` is its browser wrapper. Do not apply to public UI without approval.
 
 ## Verification boundary
 Pure-function and roulette regression checks only in this checkpoint. Browser demo and real driving are not verified. Keep the remaining work separate from completed fixes.
+
+Night run concluded after the bounded fixes and proposal were delivered. Browser validation limitation is explicit above. Further gameplay changes and applying the proposal require daytime review; do not expand the feature set to fill the overnight window.

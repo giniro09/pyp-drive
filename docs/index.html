@@ -2870,9 +2870,14 @@ function findNextDecision(graph, startEdge, startFraction) {
     const nodeId = edge.toNodeId;
     if (accM > maxSearchM) return noResult("distance_limit");
 
+    const inPKey = getPhysicalEdgeKey(edge);
     const outIds = (graph.outgoing.get(nodeId)||[]).filter(eid => {
       const e = graph.edges.get(eid);
-      return e.toNodeId !== edge.fromNodeId || e.osmWayId !== edge.osmWayId;
+      if (e.toNodeId === edge.fromNodeId && e.osmWayId === edge.osmWayId) return false;
+      const rel = normalize180(e.startBearingDeg - edge.endBearingDeg);
+      if (Math.abs(rel) > 160) return false;
+      if (getPhysicalEdgeKey(e) === inPKey) return false;
+      return true;
     });
 
     if (!outIds.length) return noResult("dead_end");
@@ -2888,16 +2893,27 @@ function findNextDecision(graph, startEdge, startFraction) {
 
       if (shouldAcceptJunction(nodeId, distFromLast, hasSignal)) {
         const inBearing = edge.endBearingDeg;
-        const branches = outIds.map(eid => {
+        const rawBranches = outIds.map(eid => {
           const oe = graph.edges.get(eid);
           const rel = normalize180(oe.startBearingDeg - inBearing);
           return { id:"br_"+eid, label:classifyTurn(rel), angleDeg:rel,
-            roadName:oe.name, roadRef:oe.ref, selected:false, intel:null };
+            roadName:oe.name, roadRef:oe.ref, osmWayId:oe.osmWayId,
+            startBearing:oe.startBearingDeg, selected:false, intel:null };
         }).sort((a,b) => a.angleDeg - b.angleDeg);
 
-        const decision = { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal, inBearing,
-          intelVersion: null };
-        return { decision, stopReason: null };
+        const branches = dedupePhysicalBranches(rawBranches);
+
+        console.log(`[decision] candidate node=${nodeId} signal=${hasSignal} branchesBefore=${rawBranches.length} branchesAfterDedupe=${branches.length} distance=${Math.round(accM)}`);
+
+        if (branches.length < 2) {
+          console.log(`[decision] cancelled node=${nodeId} reason=no_real_branch`);
+          skippedJunctions++;
+        } else {
+          resolveAntiOverlap(branches);
+          const decision = { nodeId, distanceM:accM, branches, lat:node?.lat, lon:node?.lon, hasSignal, inBearing,
+            intelVersion: null, _inEdgeId: curId };
+          return { decision, stopReason: null };
+        }
       } else {
         skippedJunctions++;
       }
@@ -2920,6 +2936,81 @@ function pickStraightest(outIds, graph, inEdge) {
     if (rel < bestAbs) { bestAbs = rel; best = eid; }
   }
   return best;
+}
+
+// ============================================================
+//  Branch dedup / anti-overlap (P0-1 + P0 偽Decision Node修正)
+// ============================================================
+
+function getLookaheadBearing(edgeId) {
+  if (!graph) return null;
+  let curId = edgeId;
+  let accM = 0;
+  const visited = new Set([curId]);
+  for (let s = 0; s < 10; s++) {
+    const e = graph.edges.get(curId);
+    if (!e) break;
+    accM += e.lengthM;
+    if (accM >= 40) return e.endBearingDeg;
+    const outs = (graph.outgoing.get(e.toNodeId) || []).filter(eid => !visited.has(eid));
+    if (outs.length === 0) break;
+    const next = outs.length === 1 ? outs[0] : pickStraightest(outs, graph, e);
+    if (!next) break;
+    visited.add(next);
+    curId = next;
+  }
+  const e = graph.edges.get(edgeId);
+  return e ? e.startBearingDeg : null;
+}
+
+function dedupePhysicalBranches(branches) {
+  if (!branches || branches.length <= 1) return branches;
+  const groups = [];
+  for (const b of branches) {
+    const eid = b.id.replace("br_", "");
+    const edge = graph ? graph.edges.get(eid) : null;
+    const pKey = edge ? getPhysicalEdgeKey(edge) : null;
+    const laBearing = getLookaheadBearing(eid);
+    let merged = false;
+    for (const g of groups) {
+      const bearingDiff = Math.abs(normalize180(b.angleDeg - g.primary.angleDeg));
+      const samePhys = pKey && g.physicalKey && pKey === g.physicalKey;
+      const sameWay = b.osmWayId && g.primary.osmWayId && b.osmWayId === g.primary.osmWayId;
+      const sameRoad = b.roadName && g.primary.roadName && b.roadName === g.primary.roadName;
+      const laMatch = laBearing != null && g.laBearing != null
+        && Math.abs(normalize180(laBearing - g.laBearing)) < 15;
+      if (samePhys || (bearingDiff < 15 && (sameWay || sameRoad || laMatch))) {
+        g.absorbed.push(b);
+        merged = true;
+        break;
+      }
+    }
+    if (!merged) {
+      groups.push({ primary: b, physicalKey: pKey, laBearing, absorbed: [] });
+    }
+  }
+  return groups.map(g => {
+    if (g.absorbed.length === 0) return g.primary;
+    const merged = { ...g.primary, _mergedIds: g.absorbed.map(a => a.id) };
+    for (const a of g.absorbed) {
+      if (!merged.roadName && a.roadName) merged.roadName = a.roadName;
+    }
+    return merged;
+  });
+}
+
+function resolveAntiOverlap(branches) {
+  if (!branches || branches.length <= 1) return;
+  for (let i = 0; i < branches.length; i++) {
+    for (let j = i + 1; j < branches.length; j++) {
+      const diff = Math.abs(normalize180(branches[j].angleDeg - branches[i].angleDeg));
+      if (diff < 25 && diff > 0) {
+        const mid = (branches[i].angleDeg + branches[j].angleDeg) / 2;
+        branches[i].angleDeg = mid - 13;
+        branches[j].angleDeg = mid + 13;
+      }
+    }
+  }
 }
 
 // ============================================================
@@ -3158,6 +3249,7 @@ function computeNavTarget(graph, decision) {
 // ============================================================
 let graph = null;
 let lastMatchEdgeId = null;
+let lastTraversedNodeIds = new Set();
 let currentMapMatch = null;
 let selectedBranchId = null;
 let manuallySelected = false;
@@ -3285,7 +3377,14 @@ function processPosition(lat, lon, heading, speed) {
   }
 
   if (lastMatchEdgeId && lastMatchEdgeId !== match.edge.id) {
+    const prevEdge = graph.edges.get(lastMatchEdgeId);
+    if (prevEdge) {
+      lastTraversedNodeIds.add(prevEdge.fromNodeId);
+      lastTraversedNodeIds.add(prevEdge.toNodeId);
+    }
     recordTraversedEdge(lastMatchEdgeId);
+    const newPKey = getPhysicalEdgeKey(match.edge);
+    onLeadEdgeTransition(newPKey, match.edge.lengthM);
   }
   lastMatchEdgeId = match.edge.id;
   currentMapMatch = { edgeId: match.edge.id, fraction: match.fraction, lat, lon, heading: heading || 0 };
@@ -3335,21 +3434,21 @@ function processPosition(lat, lon, heading, speed) {
     ensureDecisionLeads(decision);
 
     if (junctionChanged) {
+      const didCrossNode = !lastDecisionNodeId || lastTraversedNodeIds.has(lastDecisionNodeId);
       forceFinishRoulette();
-      if (cruiseActive && lastDecisionNodeId) {
+      if (cruiseActive && lastDecisionNodeId && didCrossNode) {
+        console.log(`[decision] passed node=${lastDecisionNodeId} incoming=${lastMatchEdgeId} outgoing=${match.edge.id}`);
         resolveJunctionReward(manuallySelected, lastChoiceWasRoulette);
         resolveEncounter();
         lastChoiceWasRoulette = false;
+      } else if (cruiseActive && lastDecisionNodeId && !didCrossNode) {
+        console.log(`[decision] cancelled node=${lastDecisionNodeId} reason=not_crossed`);
       }
-      if (activeLeadTracking && activeLeadTracking.status === "tracking") {
-        const selectedLead = currentDecision && currentDecision.branches.find(b => b.id === selectedBranchId);
-        if (selectedLead && selectedLead.lead && selectedLead.lead.id === activeLeadTracking.id) {
-          // still tracking, don't miss
-        } else {
-          missLead();
-        }
+      lastTraversedNodeIds.clear();
+      if (activeLeadTracking && (activeLeadTracking.status === "tracking" || activeLeadTracking.status === "pending_departure")) {
+        // Route matching via onLeadEdgeTransition handles capture/miss; don't interfere
       }
-      if (cruiseActive && selectedBranchId && currentDecision) {
+      if (!activeLeadTracking && cruiseActive && selectedBranchId && currentDecision) {
         const selBranch = currentDecision.branches.find(b => b.id === selectedBranchId);
         if (selBranch && selBranch.lead && selBranch.lead.status === "available") {
           startLeadTracking(selBranch.lead);
@@ -3719,6 +3818,35 @@ function drawJunction(decision) {
   let labelsHtml = "";
   let bezelHtml = "";
 
+  // Pre-compute game info per branch for unified rendering
+  const defaultBrId = cruiseActive ? pickDefaultBranch(branches) : null;
+  const bustProb = cruiseActive && consecutiveStraights > 0 ? getNextBustProb() : (cruiseActive ? BUST_CHANCES[0] : 0);
+
+  function getGameLine(b) {
+    if (!cruiseActive) return null;
+    if (rouletteAnimId) return null;
+    if (b.lead && b.lead.status === "available" && !capturedLeadKeys.has(b.lead.id)) {
+      const shortLabel = b.lead.type === "supply" ? "SUPPLY" : b.lead.type === "parts" ? "PARTS" : "UNKNOWN";
+      return { text: `${shortLabel} ${b.lead.targetDistanceM}m`, color: b.lead.color, size: 13 };
+    }
+    if (rouletteUsedThisJunction) {
+      if (b.id === defaultBrId) return null;
+      const bm = branchMults[b.id];
+      if (bm === undefined) return null;
+      const isWinner = b.id === rouletteBranchId;
+      return { text: "×" + bm.toFixed(1), color: isWinner ? "#34D399" : "#6B7280", size: isWinner ? 16 : 13 };
+    }
+    if (b.id === defaultBrId) {
+      const pct = Math.round(bustProb * 100);
+      return { text: "⚠ " + pct + "%", color: pct >= 50 ? "#EF4444" : "#F59E0B", size: 14 };
+    }
+    const bm = branchMults[b.id];
+    if (bm !== undefined) {
+      return { text: "×" + bm.toFixed(1), color: bm >= 1.5 ? "#F59E0B" : bm >= 1.0 ? "#34D399" : "#9CA3AF", size: 14 };
+    }
+    return { text: "反応なし", color: "#4B5563", size: 11 };
+  }
+
   if (settings.minimalUI) {
     // ===== Minimal / bezel mode =====
     for (const b of resolvedBranches) {
@@ -3726,7 +3854,6 @@ function drawJunction(decision) {
       const sel = b.selected && !b.preview;
       const pre = b.preview;
 
-      // Bezel markers on the outer ring
       const dotR = 172;
       const dx = Math.sin(rad) * dotR, dy = -Math.cos(rad) * dotR;
       if (sel) {
@@ -3767,36 +3894,16 @@ function drawJunction(decision) {
           >${road}</text>`;
         yOff += 14;
       }
-      if (b.lead) {
-        const lText = b.lead.label;
-        const lColor = b.lead.color;
-        const tw = lText.length * 7 + 14;
-        const pillX = anchor === "middle" ? lx+tx - tw/2 : anchor === "start" ? lx+tx - 2 : lx+tx - tw + 2;
-        labelsHtml += `<rect x="${pillX}" y="${ly+yOff-11}" width="${tw}" height="16" rx="8" fill="rgba(0,0,0,0.7)" stroke="${lColor}40" stroke-width="1"
-          style="pointer-events:none;opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-          class="branch-label-anim"/>`;
-        labelsHtml += `<text x="${pillX + tw/2}" y="${ly+yOff}" text-anchor="middle"
-          fill="${lColor}" font-size="11" font-weight="700"
-          style="pointer-events:none;opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-          class="branch-label-anim">${lText}</text>`;
-        yOff += 16;
-        const distText = `約${b.lead.targetDistanceM}m`;
+      const gLine = getGameLine(b);
+      if (gLine) {
         labelsHtml += `<text x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
-          fill="${lColor}" font-size="10" opacity="0.7"
-          style="pointer-events:none;opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-          class="branch-label-anim">${distText}</text>`;
-        yOff += 14;
-      } else {
-        labelsHtml += `<text x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
-          fill="#4B5563" font-size="10"
-          style="pointer-events:none;opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-          class="branch-label-anim">反応なし</text>`;
-        yOff += 14;
+          fill="${gLine.color}" font-size="${gLine.size}" font-weight="700"
+          style="pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
+          class="branch-label-anim">${gLine.text}</text>`;
       }
     }
   } else {
     // ===== Classic road-line mode =====
-    // Approach road (from bottom)
     casingHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171E2B" stroke-width="16" stroke-linecap="round"/>`;
     surfaceHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#465166" stroke-width="10" stroke-linecap="round"/>`;
 
@@ -3848,31 +3955,12 @@ function drawJunction(decision) {
           >${road}</text>`;
         yOff += 16;
       }
-      if (b.lead) {
-        const lText = b.lead.label;
-        const lColor = b.lead.color;
-        const tw = lText.length * 8 + 16;
-        const pillX = anchor === "middle" ? lx+tx - tw/2 : anchor === "start" ? lx+tx - 2 : lx+tx - tw + 2;
-        labelsHtml += `<rect x="${pillX}" y="${ly+yOff-12}" width="${tw}" height="18" rx="9" fill="rgba(0,0,0,0.7)" stroke="${lColor}40" stroke-width="1"
-          style="pointer-events:none;opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-          class="branch-label-anim"/>`;
-        labelsHtml += `<text x="${pillX + tw/2}" y="${ly+yOff+1}" text-anchor="middle"
-          fill="${lColor}" font-size="13" font-weight="700"
-          style="pointer-events:none;opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-          class="branch-label-anim">${lText}</text>`;
-        yOff += 20;
-        const distText = `約${b.lead.targetDistanceM}m`;
+      const gLine = getGameLine(b);
+      if (gLine) {
         labelsHtml += `<text x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
-          fill="${lColor}" font-size="11" opacity="0.7"
-          style="pointer-events:none;opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-          class="branch-label-anim">${distText}</text>`;
-        yOff += 16;
-      } else {
-        labelsHtml += `<text x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
-          fill="#4B5563" font-size="11"
-          style="pointer-events:none;opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-          class="branch-label-anim">反応なし</text>`;
-        yOff += 16;
+          fill="${gLine.color}" font-size="${gLine.size}" font-weight="700"
+          style="pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
+          class="branch-label-anim">${gLine.text}</text>`;
       }
     }
   }
@@ -3888,59 +3976,6 @@ function drawJunction(decision) {
   html += selectedHtml;
   html += bezelHtml;
   if (settings.showLabels) html += labelsHtml;
-  if (cruiseActive) {
-    const defaultBrId = pickDefaultBranch(branches);
-    const bustProb = consecutiveStraights > 0 ? getNextBustProb() : BUST_CHANCES[0];
-    for (const b of resolvedBranches) {
-      const rad = b.angleDeg * Math.PI / 180;
-      const tagD = settings.labelDist;
-      const lx = Math.sin(rad) * tagD, ly = -Math.cos(rad) * tagD;
-      const anchor = Math.abs(b.angleDeg) < 30 ? "middle" : b.angleDeg > 0 ? "start" : "end";
-      const tx = Math.abs(b.angleDeg) < 30 ? 0 : b.angleDeg > 0 ? (settings.minimalUI ? 10 : 18) : (settings.minimalUI ? -10 : -18);
-      const labelsVisible = settings.showLabels;
-      const roadOffset = labelsVisible && (b.roadName || b.roadRef) ? 16 : 0;
-      const labelOffset = labelsVisible ? (settings.minimalUI ? 24 : 26) : 6;
-      const tagY = ly + labelOffset + roadOffset;
-      const slideOx = Math.sin(rad) * 15;
-      const slideOy = -Math.cos(rad) * 15;
-      let tagText, tagColor, showTag = true, tagSize = 17;
-      if (rouletteAnimId) {
-        showTag = false;
-      } else if (rouletteUsedThisJunction) {
-        if (b.id === defaultBrId) {
-          showTag = false;
-        } else {
-          const bm = branchMults[b.id];
-          if (bm !== undefined) {
-            const isWinner = b.id === rouletteBranchId;
-            tagText = "×" + bm.toFixed(1);
-            tagColor = isWinner ? "#34D399" : "#6B7280";
-            tagSize = isWinner ? 22 : 15;
-          } else {
-            showTag = false;
-          }
-        }
-      } else if (b.id === defaultBrId) {
-        const pct = Math.round(bustProb * 100);
-        tagText = "⚠ " + pct + "%";
-        tagColor = pct >= 50 ? "#EF4444" : "#F59E0B";
-        tagSize = 19;
-      } else {
-        const bm = branchMults[b.id];
-        if (bm !== undefined) {
-          tagText = "×" + bm.toFixed(1);
-          tagColor = bm >= 1.5 ? "#F59E0B" : bm >= 1.0 ? "#34D399" : "#9CA3AF";
-          tagSize = 20;
-        } else {
-          showTag = false;
-        }
-      }
-      if (showTag) html += `<text x="${lx+tx}" y="${tagY}" text-anchor="${anchor}"
-        fill="${tagColor}" font-size="${tagSize}" font-weight="700"
-        style="pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-        class="branch-label-anim">${tagText}</text>`;
-    }
-  }
 
   if (decision.hasSignal) {
     html += `<g style="filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));pointer-events:none" transform="translate(0,-185)">
@@ -4477,6 +4512,15 @@ function renderAutoMap() {
         hc++;
         if (hc >= hintLimit) break;
       }
+    }
+  }
+
+  // Decision Node marker (demo only)
+  if (settings.demoMode && currentDecision && currentDecision.lat != null) {
+    const dp = geoToScreen(currentDecision.lat, currentDecision.lon);
+    if (inBounds(dp.x, dp.y)) {
+      html += `<circle cx="${dp.x.toFixed(1)}" cy="${dp.y.toFixed(1)}" r="4" fill="none"
+        stroke="#67E8F9" stroke-width="1.5" opacity="0.8"/>`;
     }
   }
 
@@ -5121,7 +5165,7 @@ function ensureDecisionLeads(decision) {
     b.lead = generateLeadForBranch(eid, decision.nodeId);
     if (b.lead) hasAnyLead = true;
   }
-  if (!hasAnyLead && decision.branches.length >= 2) {
+  if (!hasAnyLead && settings.demoMode && decision.branches.length >= 2) {
     const forcedIdx = simpleHash(decision.nodeId) % decision.branches.length;
     const fb = decision.branches[forcedIdx];
     const eid = fb.id.replace("br_", "");
@@ -5148,24 +5192,100 @@ function ensureDecisionLeads(decision) {
   decision._leadsGenerated = true;
 }
 
+function buildLeadRoute(startEdgeId, targetDistanceM) {
+  if (!graph) return [];
+  const route = [];
+  let curId = startEdgeId;
+  let accM = 0;
+  const visited = new Set([curId]);
+  for (let s = 0; s < 200; s++) {
+    const e = graph.edges.get(curId);
+    if (!e) break;
+    const pKey = getPhysicalEdgeKey(e);
+    route.push({ edgeId: curId, physicalEdgeKey: pKey, lengthM: e.lengthM });
+    accM += e.lengthM;
+    if (accM >= targetDistanceM) break;
+    const outs = (graph.outgoing.get(e.toNodeId) || []).filter(eid => !visited.has(eid));
+    if (outs.length === 0) break;
+    const next = outs.length === 1 ? outs[0] : pickStraightest(outs, graph, e);
+    if (!next) break;
+    visited.add(next);
+    curId = next;
+  }
+  return route;
+}
+
 function startLeadTracking(lead) {
   if (!lead || lead.status !== "available") return;
-  activeLeadTracking = { ...lead, status: "tracking", distanceTraveled: 0 };
-  console.log(`[lead] tracking: ${lead.label} ${lead.rarityHint} target=${lead.targetDistanceM}m`);
+  if (capturedLeadKeys.has(lead.id)) {
+    console.log(`[lead] blocked reason=already_captured id=${lead.id}`);
+    return;
+  }
+  const route = buildLeadRoute(lead.edgeId, lead.targetDistanceM);
+  const allowedKeys = new Set(route.map(r => r.physicalEdgeKey));
+  activeLeadTracking = {
+    ...lead,
+    status: "pending_departure",
+    selectedPhysicalEdgeKey: lead.physicalEdgeKey,
+    allowedPhysicalEdgeKeys: allowedKeys,
+    route,
+    currentRouteIndex: 0,
+    matchedDistanceM: 0,
+    pendingTicks: 0,
+  };
+  console.log(`[lead] selected decision=${lead.decisionNodeId} branch=${lead.edgeId} physical=${lead.physicalEdgeKey} target=${lead.targetDistanceM}`);
+}
+
+function onLeadEdgeTransition(newPhysicalEdgeKey, edgeLengthM) {
+  if (!activeLeadTracking) return;
+  const lt = activeLeadTracking;
+
+  if (lt.status === "pending_departure") {
+    if (newPhysicalEdgeKey === lt.selectedPhysicalEdgeKey) {
+      lt.status = "tracking";
+      lt.currentRouteIndex = 0;
+      lt.matchedDistanceM += edgeLengthM;
+      console.log(`[lead] route-match expected=${lt.selectedPhysicalEdgeKey} actual=${newPhysicalEdgeKey}`);
+      if (lt.matchedDistanceM >= lt.targetDistanceM) captureLead(lt);
+    } else if (lt.pendingTicks < 3) {
+      lt.pendingTicks++;
+    } else {
+      console.log(`[lead] lost reason=wrong_departure expected=${lt.selectedPhysicalEdgeKey} actual=${newPhysicalEdgeKey}`);
+      missLead("wrong_departure");
+    }
+    return;
+  }
+
+  if (lt.status === "tracking") {
+    if (lt.allowedPhysicalEdgeKeys.has(newPhysicalEdgeKey)) {
+      lt.matchedDistanceM += edgeLengthM;
+      lt.pendingTicks = 0;
+      console.log(`[lead] route-match expected=route actual=${newPhysicalEdgeKey} dist=${Math.round(lt.matchedDistanceM)}/${lt.targetDistanceM}`);
+      if (lt.matchedDistanceM >= lt.targetDistanceM) captureLead(lt);
+    } else if (lt.pendingTicks < 3) {
+      lt.pendingTicks++;
+    } else {
+      console.log(`[lead] lost reason=route_deviation actual=${newPhysicalEdgeKey}`);
+      missLead("route_deviation");
+    }
+    return;
+  }
 }
 
 function tickLeadDistance(deltaM) {
-  if (!activeLeadTracking || activeLeadTracking.status !== "tracking") return;
-  activeLeadTracking.distanceTraveled += deltaM;
-  if (activeLeadTracking.distanceTraveled >= activeLeadTracking.targetDistanceM) {
-    captureLead(activeLeadTracking);
-  }
+  // No longer distance-based; route matching handles capture via onLeadEdgeTransition
 }
 
 function captureLead(lead) {
   lead.status = "captured";
   capturedLeadKeys.add(lead.id);
   saveLeadData();
+
+  if (currentDecision) {
+    for (const b of currentDecision.branches) {
+      if (b.lead && b.lead.id === lead.id) b.lead.status = "captured";
+    }
+  }
 
   const item = generateLeadItem(lead);
   explorationTray.push({
@@ -5179,13 +5299,14 @@ function captureLead(lead) {
   updateTrayUI();
   playScanSound();
   showLeadCaptureToast(item, lead);
+  console.log(`[lead] captured id=${lead.id} item=${item.name} distance=${Math.round(lead.matchedDistanceM || 0)}`);
   activeLeadTracking = null;
-  console.log(`[lead] captured: ${item.name} (${item.rarity})`);
 }
 
-function missLead() {
-  if (!activeLeadTracking || activeLeadTracking.status !== "tracking") return;
+function missLead(reason) {
+  if (!activeLeadTracking) return;
   activeLeadTracking.status = "missed";
+  console.log(`[lead] lost reason=${reason || "unknown"}`);
   showLeadMissToast();
   activeLeadTracking = null;
 }

@@ -72,6 +72,51 @@
 
   /* ===== Drive UI ===== */
   #driveScreen { display: none; flex-direction: column; height: 100vh; }
+  #driveScreen {
+    position: relative; isolation: isolate;
+    background:
+      radial-gradient(circle at 50% 48%, rgba(18,68,82,0.2) 0%, transparent 38%),
+      linear-gradient(145deg, #071017 0%, #080B13 52%, #0D111A 100%);
+  }
+  #driveScreen::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(103,232,249,.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(103,232,249,.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(circle at 50% 48%, black 0%, transparent 72%);
+  }
+  .wayfaring-brand {
+    position: fixed; top: 18px; left: 22px; z-index: 91; pointer-events: none;
+  }
+  .wayfaring-brand .brand-name {
+    font-size: 14px; line-height: 1; font-weight: 850; letter-spacing: .32em;
+    color: #DDFBFF; text-shadow: 0 0 18px rgba(103,232,249,.36);
+  }
+  .wayfaring-brand .brand-mode {
+    margin-top: 7px; font-size: 9px; letter-spacing: .22em; color: #638697;
+  }
+  #activeTraceHud {
+    display: none; position: fixed; top: 82px; left: 22px; z-index: 92;
+    width: min(290px, calc(100vw - 44px)); padding: 13px 15px 12px;
+    border: 1px solid rgba(103,232,249,.3); border-radius: 14px;
+    background: linear-gradient(115deg, rgba(10,27,35,.94), rgba(12,17,28,.82));
+    box-shadow: 0 16px 44px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.06);
+    pointer-events: none; overflow: hidden;
+  }
+  #activeTraceHud.visible { display: block; animation: traceHudIn .32s ease-out; }
+  #activeTraceHud::after {
+    content: ""; position: absolute; inset: 0 auto 0 0; width: 3px;
+    background: var(--trace-color, #67E8F9); box-shadow: 0 0 16px var(--trace-color, #67E8F9);
+  }
+  .trace-kicker { font-size: 9px; letter-spacing: .22em; color: #6F9EAC; font-weight: 750; }
+  .trace-main { display: flex; align-items: baseline; gap: 8px; margin-top: 5px; }
+  .trace-name { flex: 1; font-size: 15px; font-weight: 800; color: #F1FCFF; }
+  .trace-distance { font-size: 19px; font-weight: 850; color: var(--trace-color, #67E8F9); font-variant-numeric: tabular-nums; }
+  .trace-distance small { margin-left: 2px; font-size: 10px; letter-spacing: .1em; }
+  .trace-progress { height: 3px; margin-top: 10px; overflow: hidden; border-radius: 3px; background: rgba(255,255,255,.08); }
+  #traceProgressFill { width: 0%; height: 100%; border-radius: inherit; background: var(--trace-color, #67E8F9); box-shadow: 0 0 10px var(--trace-color, #67E8F9); transition: width .35s linear; }
+  @keyframes traceHudIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 
   .header {
     position: fixed; top: 0; right: 0; z-index: 90;
@@ -150,6 +195,12 @@
     --dial-scale: 1; --dial-ox: 0px; --dial-oy: 0px;
     transform: scale(var(--dial-scale)) translate(var(--dial-ox), var(--dial-oy));
     transition: transform 0.4s ease-out;
+  }
+  .dial-wrap::before {
+    content: ""; position: absolute; inset: 1.5%; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, rgba(8,19,29,.18) 0 44%, rgba(11,26,36,.7) 72%, rgba(7,12,20,.9) 100%);
+    border: 1px solid rgba(103,232,249,.12);
+    box-shadow: 0 0 60px rgba(0,200,232,.08), inset 0 0 48px rgba(0,0,0,.45);
   }
   .junction-svg {
     width: 100%; height: 100%; overflow: visible;
@@ -254,10 +305,11 @@
     position: fixed; bottom: 16px; right: 16px;
     width: 160px; height: 160px;
     background: rgba(10,14,23,0.85);
-    border: 1px solid rgba(100,120,140,0.3);
-    border-radius: 8px; z-index: 80;
+    border: 1px solid rgba(103,232,249,0.24);
+    border-radius: 14px; z-index: 80;
     pointer-events: none;
-    box-shadow: 0 0 12px rgba(0,0,0,0.4);
+    box-shadow: 0 14px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,.04);
+    backdrop-filter: blur(10px);
   }
   #autoMapSvg {
     width: 100%; height: 100%;
@@ -497,7 +549,7 @@
 
   /* ===== Debug minimap ===== */
   #minimap {
-    display: none; position: fixed; bottom: 40px; right: 80px;
+    display: none !important; position: fixed; bottom: 40px; right: 80px;
     width: 180px; height: 180px; z-index: 50;
     border: 2px solid #00d4ff; border-radius: 10px; overflow: hidden;
     opacity: 0.9;
@@ -610,9 +662,9 @@
   }
 
   #trayCounter {
-    position: fixed; bottom: 22px; right: 24px;
-    background: rgba(20,27,42,0.88); border: 1px solid rgba(91,154,181,0.25);
-    border-radius: 10px; padding: 6px 14px; z-index: 80;
+    position: fixed; bottom: 46px; left: 22px; right: auto;
+    background: rgba(10,20,29,0.9); border: 1px solid rgba(103,232,249,0.25);
+    border-radius: 12px; padding: 8px 14px; z-index: 82;
     display: none; align-items: center; gap: 8px;
     font-size: 14px; color: var(--text-secondary);
     transition: transform 0.3s ease-out;
@@ -624,6 +676,19 @@
     0% { transform: scale(1); }
     40% { transform: scale(1.15); }
     100% { transform: scale(1); }
+  }
+  .signal-route { animation: signalFlow 1.15s linear infinite; }
+  .signal-beacon { animation: beaconPulse 1.5s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes signalFlow { to { stroke-dashoffset: -24; } }
+  @keyframes beaconPulse { 0% { opacity: .95; transform: scale(.72); } 70%,100% { opacity: .18; transform: scale(1.45); } }
+
+  @media (max-width: 760px) {
+    .wayfaring-brand { top: 14px; left: 14px; }
+    #activeTraceHud { top: 62px; left: 14px; width: 210px; padding: 10px 12px; }
+    .trace-name { font-size: 13px; }
+    .trace-distance { font-size: 16px; }
+    .header { padding: 8px 10px; }
+    #areaHud { display: none !important; }
   }
 
   .container-approach {
@@ -786,6 +851,18 @@
 
 <!-- ===== Drive Screen ===== -->
 <div id="driveScreen">
+  <div class="wayfaring-brand">
+    <div class="brand-name">WAYFARING</div>
+    <div class="brand-mode" id="brandContext">EXPEDITION / LIVE FIELD</div>
+  </div>
+  <div id="activeTraceHud">
+    <div class="trace-kicker">ACTIVE TRACE</div>
+    <div class="trace-main">
+      <span class="trace-name" id="traceName">反応を追跡中</span>
+      <span class="trace-distance"><span id="traceDistance">0</span><small>M</small></span>
+    </div>
+    <div class="trace-progress"><div id="traceProgressFill"></div></div>
+  </div>
   <div class="header">
     <div class="status">
       <div id="stateLabel" class="status-text">GPS待機中</div>
@@ -817,7 +894,7 @@
     <div id="noticeSub" class="notice-sub">ブラウザの位置情報を許可してください</div>
   </div>
   <div id="signalHud" style="display:none;"></div>
-  <div id="areaHud" style="display:none;position:fixed;top:36px;left:50%;transform:translateX(-50%);z-index:92;background:rgba(0,0,0,0.7);border-radius:12px;padding:6px 18px;white-space:nowrap;pointer-events:none;">
+  <div id="areaHud" style="display:none;position:fixed;top:16px;left:200px;z-index:92;background:rgba(8,18,27,0.82);border:1px solid rgba(255,255,255,0.08);box-shadow:0 12px 36px rgba(0,0,0,0.28);backdrop-filter:blur(10px);border-radius:14px;padding:8px 18px;white-space:nowrap;pointer-events:none;">
     <div style="display:flex;align-items:center;gap:8px;">
       <span id="areaHudEmoji" style="font-size:20px;"></span>
       <div>
@@ -1890,7 +1967,8 @@ function applyMapLayout() {
   el.style.width = settings.mapSize + "px";
   el.style.height = settings.mapSize + "px";
   el.style.right = settings.mapRight + "px";
-  el.style.bottom = settings.mapBottom + "px";
+  // Keep the exploration map above the persistent trip footer.
+  el.style.bottom = (settings.mapBottom + 30) + "px";
 }
 
 function onMapLayoutChange() {
@@ -2511,6 +2589,8 @@ function updateAreaHud(area) {
   document.getElementById("areaHudEmoji").textContent = biome.emoji;
   document.getElementById("areaHudName").textContent = area.name;
   document.getElementById("areaHudBiome").textContent = biome.label.toUpperCase();
+  const brandContext = document.getElementById("brandContext");
+  if (brandContext) brandContext.textContent = `${biome.label.toUpperCase()} / ${area.name}`;
   const stageEl = document.getElementById("areaHudStage");
   if (stageEl) {
     stageEl.textContent = stage;
@@ -3442,7 +3522,6 @@ function processPosition(lat, lon, heading, speed) {
   if (edgeTransition) {
     recordTraversedEdge(prevEdgeId);
   }
-
   // Map matching can briefly jump to a parallel or crossing edge. Treat a
   // short mismatch as uncertain positioning rather than an immediate hard
   // failure, and allow tiny route segments to be skipped by the matcher.
@@ -3450,28 +3529,21 @@ function processPosition(lat, lon, heading, speed) {
     updateLeadRouteMatch(getPhysicalEdgeKey(match.edge), !!edgeTransition);
   }
 
-  // P0-5: Lead fractional distance tracking
+  // Count real movement only while the map-matched road is on the trace.
+  // Fraction-based edge accounting under-counted when the matcher skipped
+  // short OSM segments, leaving the player at the end of a valid trace without
+  // enough credited distance.
   if (activeLeadTracking && activeLeadTracking.status === "tracking" && activeLeadTracking.deviationTicks === 0 && currentMapMatch) {
-    const prevFrac = currentMapMatch.fraction || 0;
-    if (currentMapMatch.edgeId === nextEdgeId) {
-      // Same edge, fraction progressed
-      const curEdge = graph.edges.get(nextEdgeId);
-      if (curEdge) {
-        const delta = curEdge.lengthM * Math.max(0, match.fraction - prevFrac);
-        if (delta > 0) activeLeadTracking.matchedDistanceM += delta;
-      }
-    } else {
-      // Edge transition: close out previous edge remainder
-      const prevE = graph.edges.get(currentMapMatch.edgeId);
-      if (prevE) {
-        const remainder = prevE.lengthM * Math.max(0, 1.0 - prevFrac);
-        if (remainder > 0) activeLeadTracking.matchedDistanceM += remainder;
-      }
+    const movedM = haversineM(currentMapMatch.lat, currentMapMatch.lon, lat, lon);
+    const plausibleMaxM = Math.max(35, (speed || 0) * 5);
+    if ((speed || 0) > 0.5 && movedM > 0 && movedM <= plausibleMaxM) {
+      activeLeadTracking.matchedDistanceM += movedM;
     }
     if (activeLeadTracking && activeLeadTracking.matchedDistanceM >= activeLeadTracking.targetDistanceM) {
       captureLead(activeLeadTracking);
     }
   }
+  updateActiveTraceHud();
 
   currentMapMatch = { edgeId: nextEdgeId, fraction: match.fraction, lat, lon, heading: heading || 0 };
   // Defer lastMatchEdgeId update until after junction processing
@@ -3951,12 +4023,11 @@ function drawJunction(decision) {
     if (rouletteAnimId) return null;
     const traceBranchId = getLeadContinuationBranchId(decision);
     if (activeLeadTracking && b.id === traceBranchId) {
-      const remainingM = Math.max(0, Math.ceil(activeLeadTracking.targetDistanceM - activeLeadTracking.matchedDistanceM));
-      return { text: `TRACE ${remainingM}m`, color: "#67E8F9", size: 13 };
+      return { text: "追跡ルート", color: getLeadPresentation(activeLeadTracking).color, size: 13, kind: "trace" };
     }
     if (b.lead && b.lead.status === "available" && !capturedLeadKeys.has(b.lead.id)) {
-      const shortLabel = b.lead.type === "supply" ? "SUPPLY" : b.lead.type === "parts" ? "PARTS" : "UNKNOWN";
-      return { text: `${shortLabel} ${b.lead.targetDistanceM}m`, color: b.lead.color, size: 13 };
+      const shortLabel = b.lead.type === "supply" ? "物資反応" : b.lead.type === "parts" ? "部品反応" : "未知反応";
+      return { text: `${shortLabel} ${b.lead.targetDistanceM}m`, color: b.lead.color, size: 13, kind: "lead" };
     }
     if (rouletteUsedThisJunction) {
       if (b.id === defaultBrId) return null;
@@ -4049,6 +4120,7 @@ function drawJunction(decision) {
       const pre = b.preview;
       const lFill = sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
       const rnFill = sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
+      const gLine = getGameLine(b);
 
       if (sel || pre) {
         const rStroke = sel ? "#00C8E8" : "#55D9EC";
@@ -4064,6 +4136,18 @@ function drawJunction(decision) {
         surfaceHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
           stroke="#465166" stroke-width="9" stroke-linecap="round" opacity=".82"
           style="cursor:pointer"/>`;
+      }
+
+      if (gLine && (gLine.kind === "lead" || gLine.kind === "trace")) {
+        const beaconX = ex * .82, beaconY = ey * .82;
+        selectedHtml += `<line x1="0" y1="0" x2="${ex}" y2="${ey}"
+          stroke="${gLine.color}" stroke-width="${gLine.kind === "trace" ? 4 : 2.5}" stroke-linecap="round"
+          stroke-dasharray="3 9" opacity="${gLine.kind === "trace" ? .9 : .62}"
+          class="signal-route" style="pointer-events:none;filter:drop-shadow(0 0 5px ${gLine.color})"/>`;
+        selectedHtml += `<circle cx="${beaconX}" cy="${beaconY}" r="12" fill="none" stroke="${gLine.color}" stroke-width="1.5"
+          class="signal-beacon" style="pointer-events:none"/>`;
+        selectedHtml += `<path d="M ${beaconX} ${beaconY-6} L ${beaconX+6} ${beaconY} L ${beaconX} ${beaconY+6} L ${beaconX-6} ${beaconY} Z"
+          fill="${gLine.color}" style="pointer-events:none;filter:drop-shadow(0 0 6px ${gLine.color})"/>`;
       }
 
       const labelD=settings.labelDist;
@@ -4088,7 +4172,6 @@ function drawJunction(decision) {
           >${road}</text>`;
         yOff += 18;
       }
-      const gLine = getGameLine(b);
       if (gLine) {
         labelsHtml += `<text x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
           fill="${gLine.color}" font-size="${gLine.size}" font-weight="700"
@@ -5268,7 +5351,7 @@ function generateLeadForBranch(edgeId, decisionNodeId) {
   const rarityRoll = rng();
   const rarityHint = rarityRoll < 0.15 ? "rare" : rarityRoll < 0.45 ? "uncommon" : "common";
 
-  return {
+  return fitLeadToRoute({
     id: leadKey,
     physicalEdgeKey: pKey,
     edgeId: edgeId,
@@ -5279,7 +5362,7 @@ function generateLeadForBranch(edgeId, decisionNodeId) {
     targetDistanceM,
     status: "available",
     decisionNodeId,
-  };
+  });
 }
 
 function generateLeadItem(lead) {
@@ -5316,13 +5399,13 @@ function ensureDecisionLeads(decision) {
         const hw = edge.highway || "";
         let leadType = LEAD_TYPES[2];
         for (const lt of LEAD_TYPES) { if (lt.highways.includes(hw)) { leadType = lt; break; } }
-        fb.lead = {
+        fb.lead = fitLeadToRoute({
           id: leadKey, physicalEdgeKey: pKey, edgeId: eid,
           type: leadType.type, label: leadType.label, color: leadType.color,
           rarityHint: rng() < 0.3 ? "uncommon" : "common",
           targetDistanceM: Math.round(200 + rng() * 300),
           status: "available", decisionNodeId: decision.nodeId,
-        };
+        });
       }
     }
   } catch (e) { console.error("[ensureDecisionLeads]", e); }
@@ -5366,13 +5449,27 @@ function buildLeadRoute(startEdgeId, targetDistanceM) {
   return route;
 }
 
+function fitLeadToRoute(lead) {
+  if (!lead) return null;
+  const route = buildLeadRoute(lead.edgeId, lead.targetDistanceM);
+  const availableM = route.reduce((sum, step) => sum + (step.lengthM || 0), 0);
+  // Do not advertise a trace that ends almost immediately or cannot reach its
+  // displayed target. Short dead ends simply have no detectable trace.
+  if (availableM < 120) return null;
+  lead.targetDistanceM = Math.min(lead.targetDistanceM, Math.max(100, Math.floor(availableM - 5)));
+  lead.route = route;
+  return lead;
+}
+
 function startLeadTracking(lead) {
   if (!lead || lead.status !== "available") return;
   if (capturedLeadKeys.has(lead.id)) {
     console.log(`[lead] blocked reason=already_captured id=${lead.id}`);
     return;
   }
-  const route = buildLeadRoute(lead.edgeId, lead.targetDistanceM);
+  const route = Array.isArray(lead.route) && lead.route.length
+    ? lead.route.map(step => ({ ...step }))
+    : buildLeadRoute(lead.edgeId, lead.targetDistanceM);
   activeLeadTracking = {
     ...lead,
     status: "pending_departure",
@@ -5382,7 +5479,34 @@ function startLeadTracking(lead) {
     matchedDistanceM: 0,
     deviationTicks: 0,
   };
+  updateActiveTraceHud();
   console.log(`[lead] selected decision=${lead.decisionNodeId} branch=${lead.edgeId} physical=${lead.physicalEdgeKey} target=${lead.targetDistanceM}`);
+}
+
+function getLeadPresentation(lead) {
+  if (!lead) return { name: "反応を追跡中", color: "#67E8F9" };
+  if (lead.type === "supply") return { name: "物資反応を追跡中", color: "#34D399" };
+  if (lead.type === "parts") return { name: "部品反応を追跡中", color: "#F59E0B" };
+  return { name: "未知反応を追跡中", color: "#A78BFA" };
+}
+
+function updateActiveTraceHud() {
+  const hud = document.getElementById("activeTraceHud");
+  if (!hud) return;
+  const lt = activeLeadTracking;
+  if (!lt || (lt.status !== "tracking" && lt.status !== "pending_departure")) {
+    hud.classList.remove("visible");
+    return;
+  }
+  const presentation = getLeadPresentation(lt);
+  const target = Math.max(1, lt.targetDistanceM || 1);
+  const travelled = Math.max(0, lt.matchedDistanceM || 0);
+  const remaining = Math.max(0, Math.ceil(target - travelled));
+  hud.style.setProperty("--trace-color", presentation.color);
+  document.getElementById("traceName").textContent = presentation.name;
+  document.getElementById("traceDistance").textContent = remaining;
+  document.getElementById("traceProgressFill").style.width = `${Math.min(100, travelled / target * 100)}%`;
+  hud.classList.add("visible");
 }
 
 function getLeadContinuationEdge(nodeId) {
@@ -5484,6 +5608,7 @@ function captureLead(lead) {
   showLeadCaptureToast(item, lead);
   console.log(`[lead] captured id=${lead.id} item=${item.name} distance=${Math.round(lead.matchedDistanceM || 0)}`);
   activeLeadTracking = null;
+  updateActiveTraceHud();
 }
 
 function missLead(reason) {
@@ -5492,6 +5617,7 @@ function missLead(reason) {
   console.log(`[lead] lost reason=${reason || "unknown"}`);
   showLeadMissToast();
   activeLeadTracking = null;
+  updateActiveTraceHud();
 }
 
 function showLeadCaptureToast(item, lead) {
@@ -5499,18 +5625,22 @@ function showLeadCaptureToast(item, lead) {
   const rarityLabel = item.rarity === "rare" ? "RARE" : item.rarity === "uncommon" ? "UNCOMMON" : "COMMON";
   const el = document.createElement("div");
   el.style.cssText = `
-    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9998;
-    background:rgba(0,0,0,0.9);border:2px solid ${rarityColor};border-radius:14px;
-    padding:16px 28px;text-align:center;pointer-events:none;
-    animation:areaSlideIn 0.4s ease-out;
+    position:fixed;left:22px;bottom:92px;z-index:9998;min-width:240px;
+    background:linear-gradient(110deg,rgba(10,27,35,.96),rgba(12,17,28,.94));
+    border:1px solid ${rarityColor};border-radius:14px;padding:13px 16px;
+    text-align:left;pointer-events:none;box-shadow:0 16px 42px rgba(0,0,0,.38),0 0 22px ${rarityColor}22;
+    animation:traceHudIn 0.35s ease-out;
   `;
   el.innerHTML = `
-    <div style="font-size:11px;letter-spacing:2px;color:#34D399;font-weight:700;margin-bottom:6px;">SIGNAL CAPTURED</div>
-    <div style="font-size:18px;font-weight:800;color:#fff;margin-bottom:4px;">${item.emoji} ${item.name}</div>
-    <div style="font-size:12px;letter-spacing:1px;color:${rarityColor};font-weight:600;">${rarityLabel}</div>
+    <div style="font-size:9px;letter-spacing:2px;color:#67E8F9;font-weight:800;margin-bottom:5px;">TRACE RECOVERED</div>
+    <div style="display:flex;align-items:center;gap:11px;">
+      <div style="font-size:27px;filter:drop-shadow(0 0 8px ${rarityColor});">${item.emoji}</div>
+      <div><div style="font-size:16px;font-weight:850;color:#fff;">${item.name}</div>
+      <div style="font-size:10px;letter-spacing:1px;color:${rarityColor};font-weight:700;margin-top:2px;">${rarityLabel} · トレイに回収</div></div>
+    </div>
   `;
   document.body.appendChild(el);
-  setTimeout(() => { el.style.transition = "opacity 0.5s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 500); }, 2500);
+  setTimeout(() => { el.style.transition = "opacity 0.45s,transform 0.45s"; el.style.opacity = "0"; el.style.transform = "translateY(8px)"; setTimeout(() => el.remove(), 450); }, 1900);
 }
 
 function showLeadMissToast() {

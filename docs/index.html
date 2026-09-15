@@ -95,6 +95,10 @@
   .wayfaring-brand .brand-mode {
     margin-top: 7px; font-size: 11px; letter-spacing: .08em; color: var(--text-secondary);
   }
+  .wayfaring-brand .brand-module {
+    margin-top: 5px; font-size: 9px; font-weight: 800; letter-spacing: .12em;
+    color: var(--module-color, #6F7470);
+  }
   #activeTraceHud {
     display: none; position: fixed; top: 82px; left: 22px; z-index: 92;
     width: min(290px, calc(100vw - 44px)); padding: 13px 15px 12px;
@@ -934,6 +938,7 @@
   <div class="wayfaring-brand">
     <div class="brand-name">WAYFARING</div>
     <div class="brand-mode" id="brandContext">EXPEDITION / LIVE FIELD</div>
+    <div class="brand-module" id="brandModule">NO MODULE</div>
   </div>
   <div id="activeTraceHud">
     <div class="trace-kicker">ACTIVE TRACE</div>
@@ -5431,10 +5436,10 @@ const LEAD_TYPES = [
   { type: "parts", label: "SIGNAL RUNNER", name: "シグナルランナー", color: "#F6D547", asset: "assets/loot/signal-runner.png",
     promise: "装備へつながる生体部品", highways: ["primary","secondary","trunk","industrial"],
     items: [
-      { name: "感覚フィン", rarity: "common", effect: "スキャナー系クラフト素材", setKey: "runner", pieceId: "fin" },
-      { name: "関節ベアリング", rarity: "common", effect: "カーゴ系クラフト素材", setKey: "runner", pieceId: "joint" },
-      { name: "航跡メモリ", rarity: "common", effect: "マッピング系クラフト素材", setKey: "runner", pieceId: "memory" },
-      { name: "共鳴骨格", rarity: "uncommon", effect: "ルーレット系クラフト素材", setKey: "runner", pieceId: "frame" },
+      { name: "感覚フィン", rarity: "common", effect: "TRACE LENS素材 · 感知", setKey: "runner", pieceId: "fin" },
+      { name: "関節ベアリング", rarity: "common", effect: "FIELD RACK素材 · 接続", setKey: "runner", pieceId: "joint" },
+      { name: "航跡メモリ", rarity: "common", effect: "TRACE LENS素材 · 記録", setKey: "runner", pieceId: "memory" },
+      { name: "共鳴骨格", rarity: "uncommon", effect: "RISK DIAL素材 · 共鳴", setKey: "runner", pieceId: "frame" },
       { name: "跳躍制御器", rarity: "uncommon", effect: "車両系クラフト素材", setKey: "runner", pieceId: "drive" },
       { name: "心拍コア", rarity: "rare", effect: "上位装備の中核素材", setKey: "runner", pieceId: "core" },
     ]},
@@ -5442,8 +5447,8 @@ const LEAD_TYPES = [
     promise: "3つ揃えると未知の機能", highways: [],
     items: [
       { name: "青環モジュール", rarity: "common", effect: "青環セット 1/3", setKey: "blue-ring", pieceId: "lens" },
-      { name: "赤矢タグ", rarity: "common", effect: "赤矢セット 1/3", setKey: "red-arrow", pieceId: "tag" },
-      { name: "座標鍵", rarity: "uncommon", effect: "青環セット 2/3", setKey: "blue-ring", pieceId: "key" },
+      { name: "赤矢タグ", rarity: "common", effect: "RISK DIAL素材 · 赤矢SET", setKey: "red-arrow", pieceId: "tag" },
+      { name: "座標鍵", rarity: "uncommon", effect: "FIELD RACK素材 · 青環SET", setKey: "blue-ring", pieceId: "key" },
       { name: "航路フィルム", rarity: "uncommon", effect: "赤矢セット 2/3", setKey: "red-arrow", pieceId: "film" },
       { name: "観測眼", rarity: "rare", effect: "青環セット 3/3", setKey: "blue-ring", pieceId: "eye" },
       { name: "未登録ビーコン", rarity: "rare", effect: "赤矢セット 3/3", setKey: "red-arrow", pieceId: "beacon" },
@@ -6730,6 +6735,14 @@ function renderVehicleLoadout() {
   }).join("");
 }
 
+function updateVehicleModuleHud() {
+  const hud = document.getElementById("brandModule");
+  if (!hud) return;
+  const module = VEHICLE_MODULES.find(entry => entry.key === getEquippedModuleKey());
+  hud.textContent = module ? `${module.mark} ${module.name} ACTIVE` : "NO MODULE";
+  hud.style.setProperty("--module-color", module ? module.color : "#6F7470");
+}
+
 function loadPlayerData() {
   const fresh = () => ({
     money: 600,
@@ -6850,6 +6863,7 @@ function departTrip(allowDebt = false) {
   assignTripQuests();
 
   document.getElementById("tripStartScreen").style.display = "none";
+  updateVehicleModuleHud();
   startApp();
 }
 

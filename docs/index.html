@@ -719,14 +719,17 @@
 
   #trayCounter {
     position: fixed; bottom: 46px; left: 22px; right: auto;
-    background: rgba(10,20,29,0.9); border: 1px solid rgba(103,232,249,0.25);
-    border-radius: 12px; padding: 8px 14px; z-index: 82;
-    display: none; align-items: center; gap: 8px;
-    font-size: 14px; color: var(--text-secondary);
+    min-width: 190px; background: rgba(10,20,29,0.92); border: 1px solid rgba(103,232,249,0.25);
+    border-radius: 12px; padding: 8px 12px; z-index: 82;
+    display: none; align-items: center; gap: 10px;
+    color: var(--text-secondary); box-shadow: 0 10px 28px rgba(0,0,0,.28);
     transition: transform 0.3s ease-out;
   }
-  #trayCounter .tray-icon { font-size: 18px; }
-  #trayCounter .tray-count { font-weight: 700; color: var(--route-bright); }
+  #trayCounter .tray-icon { font-size: 22px; }
+  .tray-copy { min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .tray-kicker { color:#6F8995; font-size:8px; font-weight:800; letter-spacing:1.7px; }
+  #trayCounter .tray-count { font-size:10px; font-weight:800; color: var(--route-bright); }
+  .tray-last-item { max-width:165px; color:#DDE9EF; font-size:12px; font-weight:750; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #trayCounter.tray-flash { animation: trayPop 0.4s ease-out; }
   @keyframes trayPop {
     0% { transform: scale(1); }
@@ -1004,8 +1007,10 @@
   </div>
   <div id="trayCounter">
     <span class="tray-icon">&#128218;</span>
-    <span>トレイ</span>
-    <span class="tray-count" id="trayCount">0</span>
+    <span class="tray-copy">
+      <span class="tray-kicker">FIELD HAUL · <span class="tray-count" id="trayCount">0</span> RECOVERED</span>
+      <span class="tray-last-item" id="trayLastItem">回収品なし</span>
+    </span>
   </div>
 
   <div class="footer">
@@ -5958,8 +5963,14 @@ function addToTray(container) {
 function updateTrayUI() {
   const counter = document.getElementById("trayCounter");
   const countEl = document.getElementById("trayCount");
+  const lastItemEl = document.getElementById("trayLastItem");
   counter.style.display = "flex";
   countEl.textContent = explorationTray.length;
+  const lastItem = explorationTray[explorationTray.length - 1];
+  if (lastItemEl) {
+    lastItemEl.textContent = lastItem ? `${lastItem.emoji || "📦"} ${lastItem.name}` : "回収品なし";
+    lastItemEl.style.color = lastItem ? (LEAD_RARITY_COLORS[lastItem.rarity] || "#DDE9EF") : "#718793";
+  }
   counter.classList.remove("tray-flash");
   void counter.offsetWidth;
   counter.classList.add("tray-flash");

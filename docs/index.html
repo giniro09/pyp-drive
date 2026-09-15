@@ -3032,11 +3032,12 @@ function getBranchIntel(edgeId, decisionNodeId) {
   return { exploration, areaSignal, skillSignal, lootSignal, _nearAreas: nearAreas, _nearSkills: nearSkills };
 }
 
-function removeCommonTargetIds(branches, field) {
+function removeCommonTargetIds(branches, field, thresholdM) {
   if (branches.length < 2) return;
   const lists = branches.map(b => (b.intel && b.intel[field]) || []);
-  if (lists.some(l => l.length === 0)) return;
-  const idSets = lists.map(l => new Set(l.map(x => x.id)));
+  const inRangeLists = lists.map(l => l.filter(x => x.lateralM < thresholdM));
+  if (inRangeLists.some(l => l.length === 0)) return;
+  const idSets = inRangeLists.map(l => new Set(l.map(x => x.id)));
   const commonIds = new Set([...idSets[0]].filter(id => idSets.every(s => s.has(id))));
   if (commonIds.size === 0) return;
   for (const b of branches) {
@@ -3049,13 +3050,25 @@ function recalcSignalsAfterRemoval(branches) {
   const SKILL_CORRIDOR_M = 135;
   for (const b of branches) {
     if (!b.intel) continue;
-    const areas = b.intel._nearAreas || [];
+    const areas = (b.intel._nearAreas || []).filter(a => a.lateralM < AREA_CORRIDOR_M);
     const bestArea = areas.length > 0 ? Math.min(...areas.map(a => a.lateralM)) : Infinity;
     b.intel.areaSignal = bestArea < AREA_CORRIDOR_M * 0.5 ? "strong" : bestArea < AREA_CORRIDOR_M ? "weak" : "none";
 
-    const skills = b.intel._nearSkills || [];
+    const skills = (b.intel._nearSkills || []).filter(s => s.lateralM < SKILL_CORRIDOR_M);
     const bestSkill = skills.length > 0 ? Math.min(...skills.map(s => s.lateralM)) : Infinity;
     b.intel.skillSignal = bestSkill < SKILL_CORRIDOR_M * 0.5 ? "strong" : bestSkill < SKILL_CORRIDOR_M ? "weak" : "none";
+  }
+}
+
+function suppressSameValues(branches) {
+  if (branches.length < 2) return;
+  const expls = branches.map(b => b.intel ? b.intel.exploration : "mapped");
+  if (expls.every(v => v === expls[0]) && expls[0] !== "mapped") {
+    for (const b of branches) if (b.intel) b.intel._explorationSuppressed = true;
+  }
+  const loots = branches.map(b => b.intel ? b.intel.lootSignal : "none");
+  if (loots.every(v => v === loots[0]) && loots[0] !== "none") {
+    for (const b of branches) if (b.intel) b.intel._lootSuppressed = true;
   }
 }
 
@@ -3063,12 +3076,12 @@ function getIntelTags(intel) {
   const ranked = [];
   if (intel.areaSignal === "strong") ranked.push({ text: "AREA・強", color: "#F59E0B", pri: 1 });
   if (intel.skillSignal === "strong") ranked.push({ text: "NODE・強", color: "#A855F7", pri: 1 });
-  if (intel.exploration === "unknown") ranked.push({ text: "未知の道", color: "#34D399", pri: 2 });
+  if (intel.exploration === "unknown" && !intel._explorationSuppressed) ranked.push({ text: "未知の道", color: "#34D399", pri: 2 });
   if (intel.areaSignal === "weak") ranked.push({ text: "AREAの気配", color: "#F59E0B", pri: 3 });
   if (intel.skillSignal === "weak") ranked.push({ text: "NODE反応", color: "#A855F7", pri: 3 });
-  if (intel.exploration === "partial") ranked.push({ text: "一部未探索", color: "#5B9AB5", pri: 3 });
-  if (intel.lootSignal === "strong") ranked.push({ text: "LOOT・強", color: "#3B82F6", pri: 4 });
-  if (intel.lootSignal === "weak") ranked.push({ text: "LOOT反応", color: "#3B82F6", pri: 4 });
+  if (intel.exploration === "partial" && !intel._explorationSuppressed) ranked.push({ text: "一部未探索", color: "#5B9AB5", pri: 3 });
+  if (intel.lootSignal === "strong" && !intel._lootSuppressed) ranked.push({ text: "LOOT・強", color: "#3B82F6", pri: 4 });
+  if (intel.lootSignal === "weak" && !intel._lootSuppressed) ranked.push({ text: "LOOT反応", color: "#3B82F6", pri: 4 });
 
   ranked.sort((a, b) => a.pri - b.pri);
   return ranked.slice(0, 2);
@@ -3286,33 +3299,32 @@ function processPosition(lat, lon, heading, speed) {
       decision = { ...currentDecision, distanceM: displayDistanceM };
     }
 
-    const curVer = { exploration: explorationVersion, discovery: discoveryVersion };
-    const needIntel = junctionChanged
-      || !decision.intelVersion
-      || decision.intelVersion.exploration !== curVer.exploration
-      || decision.intelVersion.discovery !== curVer.discovery;
+    const sameDecision = currentDecision && currentDecision.nodeId === decision.nodeId;
+    const needIntel = !sameDecision
+      || (sameDecision && currentDecision.intelVersion && currentDecision.intelVersion.discovery !== discoveryVersion);
 
-    if (needIntel && decision.branches) {
-      for (const b of decision.branches) {
-        const eid = b.id.replace("br_", "");
-        b.intel = getBranchIntel(eid, decision.nodeId);
-      }
-      removeCommonTargetIds(decision.branches, "_nearAreas");
-      removeCommonTargetIds(decision.branches, "_nearSkills");
-      recalcSignalsAfterRemoval(decision.branches);
-      decision.intelVersion = { ...curVer };
-
-      console.log(`[branchIntel] node=${decision.nodeId} signal=${decision.hasSignal} explVer=${curVer.exploration} discVer=${curVer.discovery}`);
-      for (const b of decision.branches) {
-        const i = b.intel;
-        console.log(`  ${b.label}(${b.roadName||"?"}) expl=${i.exploration} area=${i.areaSignal} skill=${i.skillSignal} loot=${i.lootSignal} areas=${JSON.stringify(i._nearAreas?.slice(0,3))} skills=${JSON.stringify(i._nearSkills?.slice(0,3))}`);
-      }
-    } else if (!junctionChanged && currentDecision && currentDecision.branches) {
+    if (sameDecision && !needIntel) {
       for (const b of decision.branches) {
         const existing = currentDecision.branches.find(cb => cb.id === b.id);
         if (existing && existing.intel) b.intel = existing.intel;
       }
       decision.intelVersion = currentDecision.intelVersion;
+    } else if (decision.branches) {
+      for (const b of decision.branches) {
+        const eid = b.id.replace("br_", "");
+        b.intel = getBranchIntel(eid, decision.nodeId);
+      }
+      removeCommonTargetIds(decision.branches, "_nearAreas", 175);
+      removeCommonTargetIds(decision.branches, "_nearSkills", 135);
+      recalcSignalsAfterRemoval(decision.branches);
+      suppressSameValues(decision.branches);
+      decision.intelVersion = { exploration: explorationVersion, discovery: discoveryVersion };
+
+      console.log(`[branchIntel] node=${decision.nodeId} signal=${decision.hasSignal} discVer=${discoveryVersion}`);
+      for (const b of decision.branches) {
+        const i = b.intel;
+        console.log(`  ${b.label}(${b.roadName||"?"}) expl=${i.exploration}${i._explorationSuppressed?"[S]":""} area=${i.areaSignal} skill=${i.skillSignal} loot=${i.lootSignal}${i._lootSuppressed?"[S]":""} areas=${JSON.stringify(i._nearAreas?.slice(0,3))} skills=${JSON.stringify(i._nearSkills?.slice(0,3))}`);
+      }
     }
 
     if (junctionChanged) {

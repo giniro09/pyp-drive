@@ -4599,9 +4599,18 @@ function recordMapNode(nodeId, lat, lon) {
 
 function recordTraversedEdge(edgeId) {
   if (!graph || !edgeId) return;
-  if (mapVisitedEdgeIds.has(edgeId)) return;
   const edge = graph.edges.get(edgeId);
   if (!edge) return;
+  const physicalKey = getPhysicalEdgeKey(edge);
+  const stored = mapEdges.find(e => e.physicalKey === physicalKey || (!e.physicalKey &&
+    ((e.from === edge.fromNodeId && e.to === edge.toNodeId) ||
+     (e.to === edge.fromNodeId && e.from === edge.toNodeId))));
+  if (stored && !stored.geometry) {
+    stored.geometry = edge.geometry.map(p => [...p]);
+    stored.physicalKey = physicalKey;
+    saveAutoMap();
+  }
+  if (mapVisitedEdgeIds.has(edgeId)) return;
 
   const fNode = graph.nodes.get(edge.fromNodeId);
   const tNode = graph.nodes.get(edge.toNodeId);
@@ -4611,12 +4620,10 @@ function recordTraversedEdge(edgeId) {
   mapVisitedEdgeIds.add(edgeId);
   mapVisitedPhysicalKeys.add(getPhysicalEdgeKey(edge));
   explorationVersion++;
-  const hasEdge = mapEdges.some(e =>
-    (e.from === edge.fromNodeId && e.to === edge.toNodeId) ||
-    (e.from === edge.toNodeId && e.to === edge.fromNodeId)
-  );
+  const hasEdge = !!stored;
   if (!hasEdge) {
-    mapEdges.push({ from: edge.fromNodeId, to: edge.toNodeId });
+    mapEdges.push({ from: edge.fromNodeId, to: edge.toNodeId,
+      physicalKey, geometry: edge.geometry.map(p => [...p]) });
     const edgeKey = [edge.fromNodeId, edge.toNodeId].sort().join("-");
     mapNewEdgeKey = edgeKey;
     setTimeout(() => { mapNewEdgeKey = null; }, 800);
@@ -4684,46 +4691,44 @@ function renderAutoMap() {
 
   let html = '<rect x="' + (-half) + '" y="' + (-half) + '" width="' + (half*2) + '" height="' + (half*2) + '" fill="rgba(10,14,23,0.01)" />';
 
-  // Visited edges from Road Graph geometry
-  if (graph) {
-    const drawnPhysKeys = new Set();
-    for (const pKey of mapVisitedPhysicalKeys) {
-      if (drawnPhysKeys.has(pKey)) continue;
-      drawnPhysKeys.add(pKey);
-      let foundEdge = null;
-      for (const eid of mapVisitedEdgeIds) {
-        const e = graph.edges.get(eid);
-        if (e && getPhysicalEdgeKey(e) === pKey) { foundEdge = e; break; }
-      }
-      if (!foundEdge) continue;
-      const fNode = graph.nodes.get(foundEdge.fromNodeId);
-      const tNode = graph.nodes.get(foundEdge.toNodeId);
-      if (!fNode || !tNode) continue;
-      const p1 = geoToScreen(fNode.lat, fNode.lon);
-      const p2 = geoToScreen(tNode.lat, tNode.lon);
-      if (!inBounds(p1.x, p1.y) && !inBounds(p2.x, p2.y)) continue;
-      html += `<line x1="${p1.x.toFixed(1)}" y1="${p1.y.toFixed(1)}" x2="${p2.x.toFixed(1)}" y2="${p2.y.toFixed(1)}"
-        stroke="#4B8CA8" stroke-width="2" stroke-linecap="round"/>`;
-    }
-
-    // Current edge (in-progress, not yet visited)
-    if (currentMapMatch) {
-      const curEdge = graph.edges.get(currentMapMatch.edgeId);
-      if (curEdge) {
-        const cF = graph.nodes.get(curEdge.fromNodeId);
-        const cT = graph.nodes.get(curEdge.toNodeId);
-        if (cF && cT) {
-          const cp1 = geoToScreen(cF.lat, cF.lon);
-          const cp2 = geoToScreen(cT.lat, cT.lon);
-          const curPKey = getPhysicalEdgeKey(curEdge);
-          if (!mapVisitedPhysicalKeys.has(curPKey)) {
-            html += `<line x1="${cp1.x.toFixed(1)}" y1="${cp1.y.toFixed(1)}" x2="${cp2.x.toFixed(1)}" y2="${cp2.y.toFixed(1)}"
-              stroke="#67E8F9" stroke-width="2" stroke-linecap="round" opacity="0.6"/>`;
-          }
-        }
-      }
-    }
+  // Keep complete shapes in the save: the active graph can change while travelling.
+  // SVG clips long crossing roads; endpoint-only culling incorrectly hid them.
+  function roadPolyline(geometry, color) {
+    if (!geometry || geometry.length < 2) return "";
+    const points = geometry.map(([lon, lat]) => geoToScreen(lat, lon));
+    if (points.every(p => p.x < -half) || points.every(p => p.x > half) ||
+        points.every(p => p.y < -half) || points.every(p => p.y > half)) return "";
+    return `<polyline points="${points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}"
+      fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
   }
+  const liveVisited = new Map();
+  if (graph) for (const eid of mapVisitedEdgeIds) {
+    const e = graph.edges.get(eid);
+    if (e) liveVisited.set(getPhysicalEdgeKey(e), e);
+  }
+  const drawn = new Set();
+  let upgraded = false;
+  for (const saved of mapEdges) {
+    const live = saved.physicalKey ? liveVisited.get(saved.physicalKey) :
+      Array.from(liveVisited.values()).find(e =>
+        (e.fromNodeId === saved.from && e.toNodeId === saved.to) ||
+        (e.toNodeId === saved.from && e.fromNodeId === saved.to));
+    if (live && !saved.geometry) {
+      saved.geometry = live.geometry.map(p => [...p]);
+      saved.physicalKey = getPhysicalEdgeKey(live);
+      upgraded = true;
+    }
+    const f = mapNodes[saved.from], t = mapNodes[saved.to];
+    const geometry = saved.geometry || (f && t ? [[f.lon,f.lat],[t.lon,t.lat]] : null);
+    html += roadPolyline(geometry, '#4B8CA8');
+    if (saved.physicalKey) drawn.add(saved.physicalKey);
+  }
+  for (const [key, edge] of liveVisited) {
+    if (!drawn.has(key)) html += roadPolyline(edge.geometry, '#4B8CA8');
+  }
+  if (upgraded) saveAutoMap();
+  const currentRoad = graph && currentMapMatch && graph.edges.get(currentMapMatch.edgeId);
+  if (currentRoad) html += roadPolyline(currentRoad.geometry, '#67E8F9');
 
   // Unexplored hints
   if (graph) {

@@ -117,6 +117,40 @@
   #traceProgressFill { width: 0%; height: 100%; border-radius: inherit; background: var(--trace-color, #67E8F9); box-shadow: 0 0 10px var(--trace-color, #67E8F9); transition: width .35s linear; }
   @keyframes traceHudIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 
+  #discoveryToast {
+    position: fixed; left: 18px; bottom: 78px; z-index: 9998;
+    width: min(430px, calc(100vw - 36px)); min-height: 142px;
+    display: grid; grid-template-columns: 150px 1fr; align-items: center;
+    overflow: hidden; pointer-events: none; color: #F4F0E6;
+    border: 1px solid color-mix(in srgb, var(--discovery-color, #67E8F9) 62%, transparent);
+    border-radius: 8px;
+    background:
+      linear-gradient(110deg, rgba(18,20,21,.98) 0 48%, rgba(25,27,28,.93) 72%, rgba(18,20,21,.98)),
+      linear-gradient(90deg, var(--discovery-color, #67E8F9), transparent 68%);
+    box-shadow: 0 22px 55px rgba(0,0,0,.48), inset 0 1px rgba(255,255,255,.06);
+    animation: discoveryIn .28s cubic-bezier(.2,.8,.2,1);
+  }
+  #discoveryToast::after {
+    content: ""; position: absolute; left: 0; bottom: 0; width: 42%; height: 4px;
+    background: var(--discovery-color, #67E8F9);
+  }
+  .discovery-art {
+    width: 150px; height: 140px; object-fit: contain; transform: scale(1.04);
+    filter: drop-shadow(0 12px 18px rgba(0,0,0,.48));
+  }
+  .discovery-copy { min-width: 0; padding: 18px 18px 18px 8px; }
+  .discovery-kicker { font-size: 10px; font-weight: 850; letter-spacing: .2em; color: var(--discovery-color, #67E8F9); }
+  .discovery-name { margin-top: 5px; font-size: 22px; line-height: 1.05; font-weight: 900; letter-spacing: -.02em; }
+  .discovery-effect { margin-top: 9px; font-size: 13px; color: #D7D2C5; }
+  .discovery-meta { margin-top: 6px; font-size: 11px; color: #8F918A; letter-spacing: .04em; }
+  @keyframes discoveryIn { from { opacity: 0; transform: translateX(-28px) skewX(-2deg); } to { opacity: 1; transform: none; } }
+  @media(max-width:620px) {
+    #discoveryToast { grid-template-columns: 116px 1fr; min-height: 116px; }
+    .discovery-art { width: 116px; height: 112px; }
+    .discovery-name { font-size: 18px; }
+    .discovery-copy { padding: 13px 12px 13px 5px; }
+  }
+
   .header {
     position: fixed; top: 0; right: 0; z-index: 90;
     display: flex; align-items: center; gap: 10px;
@@ -230,7 +264,7 @@
     transition: top 0.3s ease-out;
   }
   #junctionHud .hud-distance {
-    font-size: 48px; font-weight: 900; line-height: 1;
+    font-size: 36px; font-weight: 900; line-height: 1;
     font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
     color: var(--route-bright);
     text-shadow: 0 0 14px rgba(0,200,232,0.14);
@@ -249,18 +283,18 @@
     transition: top 0.3s ease-out;
   }
   .cruise-value {
-    font-size: 48px; font-weight: 900; line-height: 1;
+    font-size: 34px; font-weight: 900; line-height: 1;
     font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
     color: rgba(137,175,192,0.6);
     text-shadow: none;
     transition: font-size 0.4s ease-out, color 0.4s, text-shadow 0.4s;
   }
   .cruise-value.tier1 {
-    font-size: 56px; color: #34D399;
+    font-size: 42px; color: #34D399;
     text-shadow: 0 0 16px rgba(52,211,153,0.2);
   }
   .cruise-value.tier2 {
-    font-size: 64px;
+    font-size: 48px;
     background: linear-gradient(135deg, #818CF8 0%, #C084FC 50%, #818CF8 100%);
     background-size: 200% 200%;
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
@@ -269,7 +303,7 @@
     animation: epicShift 3s ease-in-out infinite;
   }
   .cruise-value.tier3 {
-    font-size: 72px;
+    font-size: 52px;
     background: linear-gradient(90deg, #F59E0B 0%, #FDE68A 30%, #F59E0B 50%, #FDE68A 70%, #F59E0B 100%);
     background-size: 300% 100%;
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
@@ -393,7 +427,9 @@
   }
   #bustToast {
     position: fixed; top: 45%; left: 50%; transform: translate(-50%, -50%);
-    font-size: 42px; font-weight: 900; color: #EF4444;
+    font-size: 18px; font-weight: 900; color: #EF4444;
+    padding: 7px 14px; border: 1px solid rgba(239,68,68,.52); border-radius: 4px;
+    background: rgba(16,18,19,.9);
     text-shadow: 0 0 30px rgba(239,68,68,0.5);
     pointer-events: none; z-index: 96; display: none;
     letter-spacing: 0.05em;
@@ -415,7 +451,8 @@
   }
   #bustJudge.show { display: block; }
   #bustJudge .judge-result {
-    font-size: 36px; font-weight: 900;
+    font-size: 18px; font-weight: 900; padding: 7px 14px;
+    border: 1px solid currentColor; border-radius: 4px; background: rgba(16,18,19,.9);
     letter-spacing: 0.12em;
   }
   @keyframes judgePop {
@@ -762,7 +799,9 @@
   }
   .haul-item.selected { border-color: var(--route); background: rgba(0,200,232,0.1); }
   .haul-item .item-emoji { font-size: 20px; display: block; }
+  .haul-item .item-art { width: 54px; height: 48px; object-fit: contain; display: block; margin: 0 auto 3px; filter: drop-shadow(0 6px 6px rgba(0,0,0,.42)); }
   .haul-item .item-name { color: var(--text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .haul-item .item-effect { color: #8E9189; margin-top: 3px; font-size: 9px; line-height: 1.25; min-height: 22px; }
   .haul-item.rarity-uncommon { border-color: rgba(91,154,181,0.4); }
   .haul-item.rarity-rare { border-color: rgba(255,159,67,0.5); }
   .haul-item.rarity-epic { border-color: rgba(168,85,247,0.5); }
@@ -818,7 +857,10 @@
     <div id="tripCargoPreview" style="margin-bottom:12px;"></div>
     <div style="margin-bottom:8px;font-size:12px;color:var(--text-muted);">Trip #<span id="tripNum">0</span> &nbsp; 総走行 <span id="tripTotalDist">0</span> km &nbsp; エリア <span id="tripAreaCount">0</span> &nbsp; SP <span id="tripSP">0</span></div>
     <div id="tripQuestPreview" style="margin-bottom:12px;text-align:left;"></div>
-    <a href="playtest.html" style="display:block;margin:14px 0;padding:14px 18px;border:1px solid #edb087;border-radius:4px;color:#f0eada;text-decoration:none">小さな遠征を試す →<small style="display:block;color:#b7b7a6">回収 → 装備づくり → 次の探索。約3分の仮想プレイ</small></a>
+    <div style="margin:14px 0;padding:13px 16px;border-left:4px solid #FF654D;background:rgba(255,255,255,.035);text-align:left;color:#F0EADA">
+      <div style="font-size:11px;letter-spacing:.12em;color:#9EA095">TODAY'S ROAD ENCOUNTERS</div>
+      <div style="margin-top:5px;font-size:13px">移動デポで稼ぐ ／ シグナルランナーを追う ／ ロードレリックを揃える</div>
+    </div>
     <button class="trip-depart-btn" onclick="departTrip()">出発</button>
     <dialog id="departureConfirm" style="margin:auto;max-width:340px;padding:24px;background:var(--surface);color:var(--text-primary);border:1px solid var(--text-muted);border-radius:12px">
       <p id="departureConfirmText" style="margin-bottom:20px"></p>
@@ -1343,8 +1385,8 @@ function showDriveHint(key, title, body) {
 }
 
 const CARGO_MAX_DEFAULT = 8;
-const SCRAP_VALUES = { common: 5, uncommon: 15, rare: 50, epic: 200 };
-const DEPLOYMENT_COST = 500;
+const SCRAP_VALUES = { common: 20, uncommon: 60, rare: 180, epic: 500 };
+const DEPLOYMENT_COST = 180;
 
 async function sha256(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -3479,6 +3521,7 @@ async function startApp() {
     loadSkillData();
     loadBaseData();
     loadLeadData();
+    loadDiscoveryCollection();
     prog.textContent = `${skillGraph.nodes.length} スキルノード`;
     await new Promise(r => setTimeout(r, 200));
 
@@ -4002,6 +4045,23 @@ function drawJunction(decision) {
   const svg = document.getElementById("junctionSvg");
   const branches = decision.branches;
 
+  if (activeLeadTracking) {
+    const traceBranchId = getLeadContinuationBranchId(decision);
+    const usedTypes = new Set([activeLeadTracking.type]);
+    for (const branch of branches) {
+      if (!branch.lead || branch.id === traceBranchId) continue;
+      if (usedTypes.has(branch.lead.type)) {
+        const unused = LEAD_TYPES.find(type => !usedTypes.has(type.type));
+        if (unused) {
+          branch.lead.type = unused.type;
+          branch.lead.label = unused.label;
+          branch.lead.color = unused.color;
+        }
+      }
+      usedTypes.add(branch.lead.type);
+    }
+  }
+
   let html = `<defs>
     <filter id="notchGlow" x="-100%" y="-50%" width="300%" height="200%">
       <feGaussianBlur stdDeviation="2" result="blur"/>
@@ -4068,7 +4128,8 @@ function drawJunction(decision) {
       return { text: "追跡ルート", color: getLeadPresentation(activeLeadTracking).color, size: 13, kind: "trace" };
     }
     if (b.lead && b.lead.status === "available" && !capturedLeadKeys.has(b.lead.id)) {
-      const shortLabel = b.lead.type === "supply" ? "物資反応" : b.lead.type === "parts" ? "部品反応" : "未知反応";
+      const leadType = LEAD_TYPES.find(type => type.type === b.lead.type);
+      const shortLabel = leadType ? leadType.name : "未知反応";
       return { text: `${shortLabel} ${b.lead.targetDistanceM}m`, color: b.lead.color, size: 13, kind: "lead" };
     }
     if (rouletteUsedThisJunction) {
@@ -4093,26 +4154,54 @@ function drawJunction(decision) {
   function drawBranchReward(b, gLine) {
     const deg = b.displayAngleDeg ?? b.angleDeg;
     const rad = deg * Math.PI / 180;
-    const x = Math.sin(rad) * 244, y = -Math.cos(rad) * 222;
+    const x = Math.sin(rad) * 242, y = -Math.cos(rad) * 224;
     const trace = activeLeadTracking && b.id === getLeadContinuationBranchId(decision);
     const lead = trace ? activeLeadTracking : (b.lead && b.lead.status === "available" && !capturedLeadKeys.has(b.lead.id) ? b.lead : null);
-    const type = lead && lead.type;
-    const art = type === "supply" || type === "parts" ? `assets/loot/${type}.png` : null;
     const distance = lead ? Math.max(0, Math.round(trace ? lead.targetDistanceM - (lead.matchedDistanceM || 0) : lead.targetDistanceM)) : null;
     const escape = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-    const label = lead ? (type === "supply" ? "物資の気配" : type === "parts" ? "部品の気配" : "未知の気配") : (gLine?.text || "");
-    const value = lead ? `${distance}m` : label;
     const multiplier = branchMults[b.id];
-    const detail = lead ? `${trace ? "追跡中" : "気配"}${multiplier === undefined ? "" : " · ×" + multiplier.toFixed(1)}` : "";
+    const defaultBranch = b.id === defaultBrId;
+    const riskText = defaultBranch
+      ? `BUST ${Math.round(bustProb * 100)}%`
+      : (multiplier === undefined ? "" : `×${multiplier.toFixed(1)}`);
+    if (!lead) {
+      const quiet = gLine?.text || riskText || "";
+      if (!quiet) return "";
+      return `<g class="branch-reward branch-reward-quiet" data-branch="${b.id}" role="button" tabindex="0"
+        aria-label="${escape((LABEL_JA[b.label] || b.label) + ' ' + quiet)}"
+        transform="translate(${x},${y})" style="cursor:pointer">
+        <rect x="-42" y="-18" width="84" height="36" rx="18" fill="#15191D" stroke="#55584F" opacity=".94"/>
+        <text id="label_${b.id}" x="0" y="5" text-anchor="middle" fill="${b.selected ? '#F4F0E6' : '#8D918A'}" font-size="13" font-weight="750">${escape(quiet)}</text>
+      </g>`;
+    }
+
+    const type = LEAD_TYPES.find(entry => entry.type === lead.type) || LEAD_TYPES[2];
+    const item = generateLeadItem(lead);
+    const setPieces = item.setKey ? (discoveryCollection.sets[item.setKey] || []) : [];
+    const purpose = lead.type === "supply"
+      ? `+${item.credits || 80}G · ${item.name}`
+      : lead.type === "unknown"
+        ? `${item.setKey === "blue-ring" ? "青環" : "赤矢"} SET ${Math.min(3, setPieces.length + 1)}/3`
+        : item.effect;
+    const artWidth = lead.type === "supply" ? 126 : lead.type === "parts" ? 122 : 98;
+    const artHeight = lead.type === "supply" ? 84 : lead.type === "parts" ? 96 : 98;
+    const artX = -artWidth / 2;
+    const artY = lead.type === "supply" ? -79 : -88;
+    const accent = type.color;
+    const selected = b.selected || b.preview;
     return `<g class="branch-reward" data-branch="${b.id}" role="button" tabindex="0"
-      aria-label="${escape((LABEL_JA[b.label] || b.label) + ' ' + label + ' ' + (lead ? value : ''))}"
+      aria-label="${escape((LABEL_JA[b.label] || b.label) + ' ' + type.name + ' ' + purpose + ' ' + distance + 'm') }"
       transform="translate(${x},${y})" style="cursor:pointer">
-      <title>${escape(label)}</title>
-      <rect x="-49" y="-69" width="98" height="126" fill="transparent"/>
-      ${art ? `<image href="${art}" x="-45" y="-73" width="90" height="90" style="pointer-events:none"/>` : ""}
-      <text id="label_${b.id}" ${trace ? 'data-trace-distance="true"' : ''} x="0" y="${art ? 28 : 0}" text-anchor="middle" fill="${b.selected ? '#efb38c' : '#eee9d8'}" font-size="19" font-weight="600">${escape(value)}</text>
-      ${detail ? `<text x="0" y="${art ? 47 : 21}" text-anchor="middle" fill="#bdb9a9" font-size="12">${escape(detail)}</text>` : ""}
-      <line x1="-33" y1="${art ? 57 : 30}" x2="33" y2="${art ? 57 : 30}" stroke="#efb38c" opacity="${b.selected ? 1 : 0}"/>
+      <title>${escape(type.name + ' — ' + purpose)}</title>
+      <rect x="-66" y="-92" width="132" height="157" rx="7" fill="${selected ? '#171B1E' : '#121619'}" stroke="${accent}" stroke-width="${selected ? 2 : 1}" opacity="${selected ? .98 : .91}"/>
+      <path d="M -66 -92 H -20 L -10 -82 H 66" fill="none" stroke="${accent}" stroke-width="4"/>
+      <text x="-55" y="-72" fill="${accent}" font-size="9" font-weight="900" letter-spacing="1.5">${escape(type.label)}</text>
+      <image href="${type.asset}" x="${artX}" y="${artY}" width="${artWidth}" height="${artHeight}" preserveAspectRatio="xMidYMid meet" style="pointer-events:none;filter:drop-shadow(0 9px 8px rgba(0,0,0,.5))"/>
+      <rect x="-58" y="5" width="116" height="1" fill="${accent}" opacity=".45"/>
+      <text id="label_${b.id}" ${trace ? 'data-trace-distance="true"' : ''} x="-55" y="27" text-anchor="start" fill="#F4F0E6" font-size="18" font-weight="900">${distance}m</text>
+      <text x="55" y="26" text-anchor="end" fill="${defaultBranch ? '#FF654D' : '#AEB0A8'}" font-size="11" font-weight="800">${escape(riskText)}</text>
+      <text x="0" y="49" text-anchor="middle" fill="#D3CEC2" font-size="10.5" font-weight="650">${escape(purpose)}</text>
+      <rect x="-58" y="58" width="${selected ? 116 : 0}" height="3" rx="1.5" fill="${accent}" style="transition:width .2s"/>
     </g>`;
   }
 
@@ -5292,31 +5381,35 @@ function showEncounterResult(enemy, won, reward) {
 //  Route Lead System
 // ============================================================
 const LEAD_TYPES = [
-  { type: "supply", label: "SUPPLY TRACE", color: "#34D399", highways: ["residential","living_street","service","unclassified","tertiary"],
+  { type: "supply", label: "MOBILE DEPOT", name: "移動デポ", color: "#2DD4D7", asset: "assets/loot/mobile-depot.png",
+    promise: "確実な補給と現金", highways: ["residential","living_street","service","unclassified","tertiary"],
     items: [
-      { name: "保存食パック", rarity: "common" },
-      { name: "簡易工具セット", rarity: "common" },
-      { name: "応急キット", rarity: "common" },
-      { name: "浄水フィルター", rarity: "uncommon" },
-      { name: "携帯発電機部品", rarity: "uncommon" },
-      { name: "高性能バッテリー", rarity: "rare" },
+      { name: "応急シール材", rarity: "common", effect: "帰還時の売却価値 +80G", credits: 80 },
+      { name: "夜光ロードタグ", rarity: "common", effect: "帰還時の売却価値 +90G", credits: 90 },
+      { name: "フレックスセル", rarity: "common", effect: "帰還時の売却価値 +100G", credits: 100 },
+      { name: "気密ツールロール", rarity: "uncommon", effect: "帰還時の売却価値 +150G", credits: 150 },
+      { name: "予備駆動パック", rarity: "uncommon", effect: "帰還時の売却価値 +180G", credits: 180 },
+      { name: "デポ会員端末", rarity: "rare", effect: "帰還時の売却価値 +280G", credits: 280 },
     ]},
-  { type: "parts", label: "PARTS TRACE", color: "#F59E0B", highways: ["primary","secondary","trunk","industrial"],
+  { type: "parts", label: "SIGNAL RUNNER", name: "シグナルランナー", color: "#F6D547", asset: "assets/loot/signal-runner.png",
+    promise: "装備へつながる生体部品", highways: ["primary","secondary","trunk","industrial"],
     items: [
-      { name: "配線ハーネス", rarity: "common" },
-      { name: "制御基板", rarity: "common" },
-      { name: "合金フレーム片", rarity: "uncommon" },
-      { name: "工業用センサー部品", rarity: "uncommon" },
-      { name: "精密モーターユニット", rarity: "rare" },
-      { name: "量子コンパス試作品", rarity: "rare" },
+      { name: "感覚フィン", rarity: "common", effect: "スキャナー系クラフト素材", setKey: "runner", pieceId: "fin" },
+      { name: "関節ベアリング", rarity: "common", effect: "カーゴ系クラフト素材", setKey: "runner", pieceId: "joint" },
+      { name: "航跡メモリ", rarity: "common", effect: "マッピング系クラフト素材", setKey: "runner", pieceId: "memory" },
+      { name: "共鳴骨格", rarity: "uncommon", effect: "ルーレット系クラフト素材", setKey: "runner", pieceId: "frame" },
+      { name: "跳躍制御器", rarity: "uncommon", effect: "車両系クラフト素材", setKey: "runner", pieceId: "drive" },
+      { name: "心拍コア", rarity: "rare", effect: "上位装備の中核素材", setKey: "runner", pieceId: "core" },
     ]},
-  { type: "unknown", label: "UNKNOWN TRACE", color: "#A855F7", highways: [],
+  { type: "unknown", label: "ROAD RELIC", name: "ロードレリック", color: "#FF654D", asset: "assets/loot/road-relic.png",
+    promise: "3つ揃えると未知の機能", highways: [],
     items: [
-      { name: "解析不能の破片", rarity: "common" },
-      { name: "古い地図の断片", rarity: "uncommon" },
-      { name: "信号源チップ", rarity: "uncommon" },
-      { name: "異常波形の記録媒体", rarity: "rare" },
-      { name: "座標不明のビーコン", rarity: "rare" },
+      { name: "青環モジュール", rarity: "common", effect: "青環セット 1/3", setKey: "blue-ring", pieceId: "lens" },
+      { name: "赤矢タグ", rarity: "common", effect: "赤矢セット 1/3", setKey: "red-arrow", pieceId: "tag" },
+      { name: "座標鍵", rarity: "uncommon", effect: "青環セット 2/3", setKey: "blue-ring", pieceId: "key" },
+      { name: "航路フィルム", rarity: "uncommon", effect: "赤矢セット 2/3", setKey: "red-arrow", pieceId: "film" },
+      { name: "観測眼", rarity: "rare", effect: "青環セット 3/3", setKey: "blue-ring", pieceId: "eye" },
+      { name: "未登録ビーコン", rarity: "rare", effect: "赤矢セット 3/3", setKey: "red-arrow", pieceId: "beacon" },
     ]},
 ];
 
@@ -5324,6 +5417,7 @@ const LEAD_RARITY_COLORS = { common: "#9CA3AF", uncommon: "#5B9AB5", rare: "#FF9
 
 let capturedLeadKeys = new Set();
 let activeLeadTracking = null;
+let discoveryCollection = { sets: {}, total: 0 };
 
 function loadLeadData() {
   try {
@@ -5333,6 +5427,30 @@ function loadLeadData() {
 }
 function saveLeadData() {
   try { localStorage.setItem("pyp_leads", JSON.stringify([...capturedLeadKeys])); } catch(e) {}
+}
+
+function loadDiscoveryCollection() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("pyp_discovery_collection") || "null");
+    if (raw && raw.sets) discoveryCollection = raw;
+  } catch(e) {}
+}
+
+function saveDiscoveryCollection() {
+  try { localStorage.setItem("pyp_discovery_collection", JSON.stringify(discoveryCollection)); } catch(e) {}
+}
+
+function registerDiscovery(item) {
+  if (!item.setKey || !item.pieceId) return { count: 0, target: 0, completed: false };
+  const pieces = discoveryCollection.sets[item.setKey] || [];
+  if (!pieces.includes(item.pieceId)) {
+    pieces.push(item.pieceId);
+    discoveryCollection.sets[item.setKey] = pieces;
+    discoveryCollection.total = (discoveryCollection.total || 0) + 1;
+    saveDiscoveryCollection();
+  }
+  const target = item.type === "unknown" ? 3 : 6;
+  return { count: pieces.length, target, completed: pieces.length >= target };
 }
 
 function simpleHash(str) {
@@ -5364,12 +5482,14 @@ function generateLeadForBranch(edgeId, decisionNodeId) {
   const roll = rng();
 
   const hw = edge.highway || "";
-  let leadType = LEAD_TYPES[2];
-  for (const lt of LEAD_TYPES) {
-    if (lt.highways.includes(hw)) { leadType = lt; break; }
-  }
+  const roadAffinity = LEAD_TYPES.findIndex(lt => lt.highways.includes(hw));
+  const typeRoll = rng();
+  const typeIndex = roadAffinity >= 0 && typeRoll < 0.58 ? roadAffinity : Math.floor(rng() * LEAD_TYPES.length);
+  const leadType = LEAD_TYPES[typeIndex];
 
-  if (roll > 0.35) return null;
+  // Most decisions should contain a visible reason to deviate, while a
+  // minority remain quiet so a signal still feels like a discovery.
+  if (roll > 0.62) return null;
 
   const targetDistanceM = Math.round(200 + rng() * 400);
   const rarityRoll = rng();
@@ -5396,40 +5516,76 @@ function generateLeadItem(lead) {
   const seed = simpleHash(lead.id + ":item");
   const rng = seededRandom(seed);
   const item = pool[Math.floor(rng() * pool.length)];
-  return { name: item.name, rarity: lead.rarityHint, type: lead.type, emoji: lead.type === "supply" ? "📦" : lead.type === "parts" ? "⚙️" : "❓" };
+  return {
+    ...item,
+    rarity: lead.rarityHint,
+    type: lead.type,
+    encounterName: lt.name,
+    asset: lt.asset,
+    color: lt.color,
+    promise: lt.promise,
+    emoji: lead.type === "supply" ? "▰" : lead.type === "parts" ? "◇" : "◉",
+  };
 }
 
 function ensureDecisionLeads(decision) {
   if (!decision || !decision.branches || decision._leadsGenerated) return;
   try {
-    let hasAnyLead = false;
     for (const b of decision.branches) {
       const eid = b.id.replace("br_", "");
       b.lead = generateLeadForBranch(eid, decision.nodeId);
-      if (b.lead) hasAnyLead = true;
     }
-    if (!hasAnyLead && settings.demoMode && decision.branches.length >= 2) {
-      const forcedIdx = (simpleHash(decision.nodeId) >>> 0) % decision.branches.length;
-      const fb = decision.branches[forcedIdx];
-      if (!fb) { decision._leadsGenerated = true; return; }
+
+    const forceLead = (fb, typeOffset) => {
+      if (!fb || fb.lead) return false;
       const eid = fb.id.replace("br_", "");
       const edge = graph ? graph.edges.get(eid) : null;
-      if (!edge) { decision._leadsGenerated = true; return; }
+      if (!edge) return false;
       const pKey = getPhysicalEdgeKey(edge);
       const leadKey = `lead:${decision.nodeId}:${pKey}`;
-      if (!capturedLeadKeys.has(leadKey)) {
-        const seed = simpleHash(leadKey + ":forced");
-        const rng = seededRandom(seed);
-        const hw = edge.highway || "";
-        let leadType = LEAD_TYPES[2];
-        for (const lt of LEAD_TYPES) { if (lt.highways.includes(hw)) { leadType = lt; break; } }
-        fb.lead = fitLeadToRoute({
-          id: leadKey, physicalEdgeKey: pKey, edgeId: eid,
-          type: leadType.type, label: leadType.label, color: leadType.color,
-          rarityHint: rng() < 0.3 ? "uncommon" : "common",
-          targetDistanceM: Math.round(200 + rng() * 300),
-          status: "available", decisionNodeId: decision.nodeId,
-        });
+      if (capturedLeadKeys.has(leadKey)) return false;
+      const seed = simpleHash(leadKey + ":forced");
+      const rng = seededRandom(seed);
+      const leadType = LEAD_TYPES[(Math.abs(simpleHash(decision.nodeId)) + typeOffset) % LEAD_TYPES.length];
+      fb.lead = fitLeadToRoute({
+        id: leadKey, physicalEdgeKey: pKey, edgeId: eid,
+        type: leadType.type, label: leadType.label, color: leadType.color,
+        rarityHint: rng() < 0.28 ? "uncommon" : "common",
+        targetDistanceM: Math.round(180 + rng() * 280),
+        status: "available", decisionNodeId: decision.nodeId,
+      });
+      return !!fb.lead;
+    };
+
+    const activeBranchId = activeLeadTracking ? getLeadContinuationBranchId(decision) : null;
+    if (activeBranchId) {
+      const activeBranch = decision.branches.find(branch => branch.id === activeBranchId);
+      if (activeBranch) activeBranch.lead = null;
+    }
+
+    const wanted = activeLeadTracking ? 1 : (settings.demoMode ? Math.min(2, decision.branches.length) : 1);
+    let count = decision.branches.filter(b => b.lead).length;
+    const start = (simpleHash(decision.nodeId) >>> 0) % decision.branches.length;
+    for (let i = 0; count < wanted && i < decision.branches.length; i++) {
+      const branch = decision.branches[(start + i) % decision.branches.length];
+      if (branch.id === activeBranchId) continue;
+      if (forceLead(branch, i)) count++;
+    }
+
+    // A junction is a comparison, not a vending-machine row. If more than
+    // one encounter is visible, keep their identities distinct.
+    const usedTypes = new Set(activeLeadTracking ? [activeLeadTracking.type] : []);
+    for (const branch of decision.branches.filter(b => b.lead)) {
+      if (!usedTypes.has(branch.lead.type)) {
+        usedTypes.add(branch.lead.type);
+        continue;
+      }
+      const unused = LEAD_TYPES.find(type => !usedTypes.has(type.type));
+      if (unused) {
+        branch.lead.type = unused.type;
+        branch.lead.label = unused.label;
+        branch.lead.color = unused.color;
+        usedTypes.add(unused.type);
       }
     }
   } catch (e) { console.error("[ensureDecisionLeads]", e); }
@@ -5508,10 +5664,9 @@ function startLeadTracking(lead) {
 }
 
 function getLeadPresentation(lead) {
-  if (!lead) return { name: "反応を追跡中", color: "#67E8F9" };
-  if (lead.type === "supply") return { name: "物資反応を追跡中", color: "#34D399" };
-  if (lead.type === "parts") return { name: "部品反応を追跡中", color: "#F59E0B" };
-  return { name: "未知反応を追跡中", color: "#A78BFA" };
+  const type = lead && LEAD_TYPES.find(entry => entry.type === lead.type);
+  if (!type) return { name: "反応を追跡中", color: "#67E8F9", asset: "assets/loot/road-relic.png" };
+  return { name: `${type.name}を追跡中`, color: type.color, asset: type.asset, promise: type.promise };
 }
 
 function updateActiveTraceHud() {
@@ -5621,17 +5776,25 @@ function captureLead(lead) {
   }
 
   const item = generateLeadItem(lead);
+  const collection = registerDiscovery(item);
+  const creditReward = item.credits || (item.rarity === "rare" ? 160 : item.rarity === "uncommon" ? 100 : 60);
+  if (currentTrip) currentTrip.money += creditReward;
   explorationTray.push({
     name: item.name,
     emoji: item.emoji,
     rarity: item.rarity,
     containerType: lead.type,
+    asset: item.asset,
+    effect: item.effect,
+    setKey: item.setKey || null,
+    pieceId: item.pieceId || null,
+    creditReward,
     wasRoulette: false,
     appraised: true,
   });
   updateTrayUI();
   playScanSound();
-  showLeadCaptureToast(item, lead);
+  showLeadCaptureToast(item, lead, collection, creditReward);
   console.log(`[lead] captured id=${lead.id} item=${item.name} distance=${Math.round(lead.matchedDistanceM || 0)}`);
   activeLeadTracking = null;
   updateActiveTraceHud();
@@ -5646,27 +5809,33 @@ function missLead(reason) {
   updateActiveTraceHud();
 }
 
-function showLeadCaptureToast(item, lead) {
+function showLeadCaptureToast(item, lead, collection, creditReward) {
   const rarityColor = LEAD_RARITY_COLORS[item.rarity] || "#9CA3AF";
   const rarityLabel = item.rarity === "rare" ? "RARE" : item.rarity === "uncommon" ? "UNCOMMON" : "COMMON";
+  document.getElementById("discoveryToast")?.remove();
   const el = document.createElement("div");
-  el.style.cssText = `
-    position:fixed;left:22px;bottom:92px;z-index:9998;min-width:240px;
-    background:linear-gradient(110deg,rgba(10,27,35,.96),rgba(12,17,28,.94));
-    border:1px solid ${rarityColor};border-radius:14px;padding:13px 16px;
-    text-align:left;pointer-events:none;box-shadow:0 16px 42px rgba(0,0,0,.38),0 0 22px ${rarityColor}22;
-    animation:traceHudIn 0.35s ease-out;
-  `;
+  el.id = "discoveryToast";
+  el.style.setProperty("--discovery-color", item.color || rarityColor);
+  const setMeta = collection && collection.target
+    ? `${collection.completed ? "SET COMPLETE" : `SET ${collection.count}/${collection.target}`}`
+    : "TRIP HAUL";
+  const effect = item.effect || item.promise || "帰還後に利用可能";
   el.innerHTML = `
-    <div style="font-size:9px;letter-spacing:2px;color:#67E8F9;font-weight:800;margin-bottom:5px;">TRACE RECOVERED</div>
-    <div style="display:flex;align-items:center;gap:11px;">
-      <div style="font-size:27px;filter:drop-shadow(0 0 8px ${rarityColor});">${item.emoji}</div>
-      <div><div style="font-size:16px;font-weight:850;color:#fff;">${item.name}</div>
-      <div style="font-size:10px;letter-spacing:1px;color:${rarityColor};font-weight:700;margin-top:2px;">${rarityLabel} · トレイに回収</div></div>
+    <img class="discovery-art" src="${item.asset}" alt="">
+    <div class="discovery-copy">
+      <div class="discovery-kicker">${item.encounterName} · ${rarityLabel}</div>
+      <div class="discovery-name">${item.name}</div>
+      <div class="discovery-effect">${effect}</div>
+      <div class="discovery-meta">+${creditReward}G · ${setMeta} · トレイ ${explorationTray.length}</div>
     </div>
   `;
   document.body.appendChild(el);
-  setTimeout(() => { el.style.transition = "opacity 0.45s,transform 0.45s"; el.style.opacity = "0"; el.style.transform = "translateY(8px)"; setTimeout(() => el.remove(), 450); }, 1900);
+  setTimeout(() => {
+    el.style.transition = "opacity 0.4s,transform 0.4s";
+    el.style.opacity = "0";
+    el.style.transform = "translateX(-16px)";
+    setTimeout(() => el.remove(), 420);
+  }, 2300);
 }
 
 function showLeadMissToast() {
@@ -6436,17 +6605,27 @@ document.addEventListener("DOMContentLoaded", () => {
 // ============================================================
 
 function loadPlayerData() {
+  const fresh = () => ({
+    money: 600,
+    cargo: [],
+    cargoMax: CARGO_MAX_DEFAULT,
+    tripCount: 0,
+    totalDistance: 0,
+    skillPoints: 0,
+    economyVersion: 2,
+  });
   try {
-    return JSON.parse(localStorage.getItem("pyp_player") || "null") || {
-      money: 0,
-      cargo: [],
-      cargoMax: CARGO_MAX_DEFAULT,
-      tripCount: 0,
-      totalDistance: 0,
-      skillPoints: 0,
-    };
+    const pd = JSON.parse(localStorage.getItem("pyp_player") || "null") || fresh();
+    if (!pd.economyVersion || pd.economyVersion < 2) {
+      // One-time beta rebalance: preserve all progress, clear punitive legacy
+      // debt, and give exactly two departures of breathing room.
+      pd.money = Math.max((pd.money || 0) + 500, DEPLOYMENT_COST * 2);
+      pd.economyVersion = 2;
+      localStorage.setItem("pyp_player", JSON.stringify(pd));
+    }
+    return pd;
   } catch(e) {
-    return { money: 0, cargo: [], cargoMax: CARGO_MAX_DEFAULT, tripCount: 0, totalDistance: 0, skillPoints: 0 };
+    return fresh();
   }
 }
 
@@ -6651,7 +6830,10 @@ function renderHaulGrid() {
     const div = document.createElement("div");
     if (item.appraised) {
       div.className = "haul-item rarity-" + item.rarity;
-      div.innerHTML = `<span class="item-emoji">${item.emoji}</span><span class="item-name">${item.name}</span>`;
+      const visual = item.asset
+        ? `<img class="item-art" src="${item.asset}" alt="">`
+        : `<span class="item-emoji">${item.emoji}</span>`;
+      div.innerHTML = `${visual}<span class="item-name">${item.name}</span><div class="item-effect">${item.effect || "持ち帰って利用"}</div>`;
     } else {
       div.className = "haul-item";
       div.innerHTML = `<span class="item-emoji" style="filter:grayscale(1) brightness(0.6)">📦</span><span class="item-name">未鑑定</span>`;

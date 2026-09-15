@@ -185,22 +185,22 @@
 
   .junction-view {
     flex: 1; display: flex; align-items: center; justify-content: center;
-    min-height: 0; position: relative; padding: 16px 24px 20px;
+    min-height: 0; position: relative; padding: 72px 24px 78px;
     overflow: hidden;
   }
   .dial-wrap {
     position: relative;
-    width: min(70vh, 720px); height: min(70vh, 720px);
+    width: min(88vw, 980px); height: min(72vh, 680px);
     max-width: 100%; max-height: 100%;
     --dial-scale: 1; --dial-ox: 0px; --dial-oy: 0px;
     transform: scale(var(--dial-scale)) translate(var(--dial-ox), var(--dial-oy));
     transition: transform 0.4s ease-out;
   }
   .dial-wrap::before {
-    content: ""; position: absolute; inset: 1.5%; border-radius: 50%; pointer-events: none;
-    background: radial-gradient(circle, rgba(8,19,29,.18) 0 44%, rgba(11,26,36,.7) 72%, rgba(7,12,20,.9) 100%);
+    content: ""; position: absolute; inset: 0; border-radius: 26px; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 56%, rgba(8,35,45,.12) 0 30%, rgba(8,17,27,.7) 78%, rgba(5,10,17,.94) 100%);
     border: 1px solid rgba(103,232,249,.12);
-    box-shadow: 0 0 60px rgba(0,200,232,.08), inset 0 0 48px rgba(0,0,0,.45);
+    box-shadow: 0 28px 80px rgba(0,0,0,.4), 0 0 60px rgba(0,200,232,.06), inset 0 0 48px rgba(0,0,0,.35);
   }
   .junction-svg {
     width: 100%; height: 100%; overflow: visible;
@@ -303,7 +303,7 @@
   }
   #autoMap {
     position: fixed; bottom: 16px; right: 16px;
-    width: 160px; height: 160px;
+    width: 160px; height: 160px; min-width: 190px; min-height: 190px;
     background: rgba(10,14,23,0.85);
     border: 1px solid rgba(103,232,249,0.24);
     border-radius: 14px; z-index: 80;
@@ -535,12 +535,12 @@
   .bg-map-clip {
     position: absolute; inset: 0; z-index: 0;
     pointer-events: none; overflow: hidden;
-    border-radius: 50%;
+    border-radius: 26px;
   }
   #bgMap {
     position: absolute;
-    width: 150%; height: 150%;
-    top: -25%; left: -25%;
+    width: 180%; height: 180%;
+    top: -40%; left: -40%;
     opacity: 0.15;
     filter: saturate(0.3) brightness(0.6);
     transition: transform 0.8s linear, top 0.15s linear;
@@ -689,6 +689,9 @@
     .trace-distance { font-size: 16px; }
     .header { padding: 8px 10px; }
     #areaHud { display: none !important; }
+    .junction-view { padding: 80px 8px 86px; }
+    .dial-wrap { width: 96vw; height: 68vh; }
+    #autoMap { min-width: 150px; min-height: 150px; }
   }
 
   .container-approach {
@@ -1835,7 +1838,7 @@ function applyBgMapScope() {
   const clip = document.getElementById("bgMapClip");
   if (!clip) return;
   if (settings.bgMapScope === "dial") {
-    clip.style.borderRadius = "50%";
+    clip.style.borderRadius = "26px";
   } else {
     clip.style.borderRadius = "0";
   }
@@ -1870,8 +1873,10 @@ function getCarY() {
 function syncBgMapPosition() {
   const el = document.getElementById("bgMap");
   if (!el) return;
-  const offsetPct = getCarY() / 400 * 100;
-  el.style.top = `calc(-25% + ${offsetPct}%)`;
+  // The exploration field is rectangular and already pans with live position;
+  // shifting the rotated tile layer with the old circular car animation could
+  // expose empty corners.
+  el.style.top = "-40%";
 }
 
 function initBgMap(lat, lon, heading) {
@@ -3970,37 +3975,18 @@ function drawJunction(decision) {
     </filter>
   </defs>`;
 
-  html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#202A3B" stroke-width="2"/>`;
-  html += `<circle id="distArc" cx="0" cy="0" r="185" fill="none"
-    stroke="#2563AA" stroke-width="5" stroke-linecap="round"
-    transform="rotate(-90)" style="transition:stroke 0.3s,stroke-dasharray 0.15s"/>`;
-  html += `<circle id="rouletteArc" cx="0" cy="0" r="192" fill="none"
-    stroke="#34D399" stroke-width="4" stroke-linecap="round"
-    stroke-dasharray="14 10" stroke-dashoffset="0" opacity="0"/>`;
-  html += `<circle id="rouletteGlowRing" cx="0" cy="0" r="0" fill="none"
-    stroke="#34D399" stroke-width="2" opacity="0"/>`;
-  html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#151C29" stroke-width="1"/>`;
-
-  if (settings.dialTicks) {
-    html += `<g id="dialRing" transform="rotate(${dialFixedAngle})">`;
-    for (let deg = -180; deg < 180; deg += NOTCH_DEG) {
-      const major = deg % 30 === 0;
-      const medium = !major && deg % 15 === 0;
-      const r1 = 181;
-      const r2 = major ? 166 : medium ? 171 : 176;
-      const rad = deg * Math.PI / 180;
-      html += `<line x1="${Math.sin(rad)*r1}" y1="${-Math.cos(rad)*r1}"
-        x2="${Math.sin(rad)*r2}" y2="${-Math.cos(rad)*r2}"
-        stroke="${major ? '#8290A5' : medium ? '#536076' : '#30394B'}"
-        stroke-width="${major ? 2.2 : medium ? 1.5 : 1}" stroke-linecap="round"/>`;
-    }
-    html += `<line x1="0" y1="-155" x2="0" y2="-192"
-      stroke="#FF4040" stroke-width="4" stroke-linecap="round"/>`;
-    html += `<line x1="0" y1="-155" x2="0" y2="-192"
-      stroke="#FF6050" stroke-width="7" stroke-linecap="round" opacity=".4"/>`;
-    html += `<circle cx="0" cy="-192" r="4" fill="#FF4040"/>`;
-    html += `</g>`;
-  }
+  // Exploration field: a quiet map plane, not an instrument dial. The road
+  // choices and their signals carry the visual hierarchy.
+  html += `<rect x="-196" y="-196" width="392" height="392" rx="20"
+    fill="rgba(5,13,21,.28)" stroke="rgba(103,232,249,.14)" stroke-width="1"/>`;
+  html += `<g opacity=".22" style="pointer-events:none">
+    <path d="M-190 -120 H190 M-190 -40 H190 M-190 40 H190 M-190 120 H190" stroke="#355365" stroke-width=".6" stroke-dasharray="2 7"/>
+    <path d="M-120 -190 V190 M-40 -190 V190 M40 -190 V190 M120 -190 V190" stroke="#355365" stroke-width=".6" stroke-dasharray="2 7"/>
+    <circle cx="0" cy="0" r="72" fill="none" stroke="#4D7A8C" stroke-width=".7"/>
+    <circle cx="0" cy="0" r="142" fill="none" stroke="#4D7A8C" stroke-width=".7"/>
+  </g>`;
+  html += `<path d="M-188 -174 H-128" stroke="#67E8F9" stroke-width="2" opacity=".5"/>
+    <text x="-188" y="-181" fill="#648795" font-size="7" letter-spacing="2">DECISION FIELD</text>`;
 
   const carY = getCarY();
 

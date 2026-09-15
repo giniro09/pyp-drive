@@ -8,12 +8,12 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
-    --bg-0: #090B12;
-    --bg-1: #0D111B;
-    --surface: #141B2A;
-    --surface-raised: #192235;
-    --text-primary: #F2F6FA;
-    --text-secondary: #A6B1C2;
+    --bg-0: #20211E;
+    --bg-1: #242520;
+    --surface: #292B25;
+    --surface-raised: #32342C;
+    --text-primary: #EEE9D8;
+    --text-secondary: #BDB9A9;
     --text-muted: #657186;
     --route: #00C8E8;
     --route-bright: #67E8F9;
@@ -27,7 +27,7 @@
   html, body { height: 100%; overflow: hidden; }
   body {
     font-family: -apple-system, "Hiragino Sans", "Meiryo", sans-serif;
-    background: radial-gradient(circle at 50% 48%, #111725 0%, var(--bg-0) 58%);
+    background: var(--bg-0);
     color: var(--text-primary);
     display: flex;
     flex-direction: column;
@@ -74,12 +74,10 @@
   #driveScreen { display: none; flex-direction: column; height: 100vh; }
   #driveScreen {
     position: relative; isolation: isolate;
-    background:
-      radial-gradient(circle at 50% 48%, rgba(18,68,82,0.2) 0%, transparent 38%),
-      linear-gradient(145deg, #071017 0%, #080B13 52%, #0D111A 100%);
+    background: var(--bg-0);
   }
   #driveScreen::before {
-    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    content: none; position: fixed; inset: 0; z-index: -1; pointer-events: none;
     background-image:
       linear-gradient(rgba(103,232,249,.035) 1px, transparent 1px),
       linear-gradient(90deg, rgba(103,232,249,.035) 1px, transparent 1px);
@@ -90,11 +88,12 @@
     position: fixed; top: 18px; left: 22px; z-index: 91; pointer-events: none;
   }
   .wayfaring-brand .brand-name {
-    font-size: 14px; line-height: 1; font-weight: 850; letter-spacing: .32em;
-    color: #DDFBFF; text-shadow: 0 0 18px rgba(103,232,249,.36);
+    font-family: Georgia, serif; font-style: italic; text-transform: lowercase;
+    font-size: 30px; line-height: 1; font-weight: 700; letter-spacing: -.04em;
+    color: var(--text-primary); text-shadow: none;
   }
   .wayfaring-brand .brand-mode {
-    margin-top: 7px; font-size: 9px; letter-spacing: .22em; color: #638697;
+    margin-top: 7px; font-size: 11px; letter-spacing: .08em; color: var(--text-secondary);
   }
   #activeTraceHud {
     display: none; position: fixed; top: 82px; left: 22px; z-index: 92;
@@ -197,10 +196,7 @@
     transition: transform 0.4s ease-out;
   }
   .dial-wrap::before {
-    content: ""; position: absolute; inset: 1.5%; border-radius: 50%; pointer-events: none;
-    background: radial-gradient(circle, rgba(8,19,29,.18) 0 44%, rgba(11,26,36,.7) 72%, rgba(7,12,20,.9) 100%);
-    border: 1px solid rgba(103,232,249,.12);
-    box-shadow: 0 0 60px rgba(0,200,232,.08), inset 0 0 48px rgba(0,0,0,.45);
+    content: none;
   }
   .junction-svg {
     width: 100%; height: 100%; overflow: visible;
@@ -823,6 +819,11 @@
     <div style="margin-bottom:8px;font-size:12px;color:var(--text-muted);">Trip #<span id="tripNum">0</span> &nbsp; 総走行 <span id="tripTotalDist">0</span> km &nbsp; エリア <span id="tripAreaCount">0</span> &nbsp; SP <span id="tripSP">0</span></div>
     <div id="tripQuestPreview" style="margin-bottom:12px;text-align:left;"></div>
     <button class="trip-depart-btn" onclick="departTrip()">出発</button>
+    <dialog id="departureConfirm" style="margin:auto;max-width:340px;padding:24px;background:var(--surface);color:var(--text-primary);border:1px solid var(--text-muted);border-radius:12px">
+      <p id="departureConfirmText" style="margin-bottom:20px"></p>
+      <button onclick="document.getElementById('departureConfirm').close()" style="padding:12px">戻る</button>
+      <button onclick="document.getElementById('departureConfirm').close();departTrip(true)" style="padding:12px">借りて出発</button>
+    </dialog>
   </div>
 </div>
 
@@ -3149,7 +3150,7 @@ function resolveAntiOverlap(branches) {
 function resolveTextOverlaps(svg) {
   if (!svg) return;
   const MIN_GAP = 4;
-  const texts = Array.from(svg.querySelectorAll("text"));
+  const texts = Array.from(svg.querySelectorAll("text")).filter(t => !t.closest('.branch-reward'));
   if (texts.length < 2) return;
 
   // Group texts by branch — texts within the same branch stack vertically by design
@@ -4010,7 +4011,7 @@ function drawJunction(decision) {
     </filter>
   </defs>`;
 
-  html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#202A3B" stroke-width="2"/>`;
+  html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#727567" stroke-width="2"/>`;
   html += `<circle id="distArc" cx="0" cy="0" r="185" fill="none"
     stroke="#2563AA" stroke-width="5" stroke-linecap="round"
     transform="rotate(-90)" style="transition:stroke 0.3s,stroke-dasharray 0.15s"/>`;
@@ -4019,7 +4020,7 @@ function drawJunction(decision) {
     stroke-dasharray="14 10" stroke-dashoffset="0" opacity="0"/>`;
   html += `<circle id="rouletteGlowRing" cx="0" cy="0" r="0" fill="none"
     stroke="#34D399" stroke-width="2" opacity="0"/>`;
-  html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#151C29" stroke-width="1"/>`;
+  html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#35372F" stroke-width="1"/>`;
 
   if (settings.dialTicks) {
     html += `<g id="dialRing" transform="rotate(${dialFixedAngle})">`;
@@ -4031,7 +4032,7 @@ function drawJunction(decision) {
       const rad = deg * Math.PI / 180;
       html += `<line x1="${Math.sin(rad)*r1}" y1="${-Math.cos(rad)*r1}"
         x2="${Math.sin(rad)*r2}" y2="${-Math.cos(rad)*r2}"
-        stroke="${major ? '#8290A5' : medium ? '#536076' : '#30394B'}"
+        stroke="${major ? '#BDB9A9' : medium ? '#828576' : '#505346'}"
         stroke-width="${major ? 2.2 : medium ? 1.5 : 1}" stroke-linecap="round"/>`;
     }
     html += `<line x1="0" y1="-155" x2="0" y2="-192"
@@ -4087,6 +4088,33 @@ function drawJunction(decision) {
     return { text: "反応なし", color: "#4B5563", size: 11 };
   }
 
+
+  function drawBranchReward(b, gLine) {
+    const deg = b.displayAngleDeg ?? b.angleDeg;
+    const rad = deg * Math.PI / 180;
+    const x = Math.sin(rad) * 244, y = -Math.cos(rad) * 222;
+    const trace = activeLeadTracking && b.id === getLeadContinuationBranchId(decision);
+    const lead = trace ? activeLeadTracking : (b.lead && b.lead.status === "available" && !capturedLeadKeys.has(b.lead.id) ? b.lead : null);
+    const type = lead && lead.type;
+    const art = type === "supply" || type === "parts" ? `assets/loot/${type}.png` : null;
+    const distance = lead ? Math.max(0, Math.round(trace ? lead.targetDistanceM - (lead.matchedDistanceM || 0) : lead.targetDistanceM)) : null;
+    const escape = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const label = lead ? (type === "supply" ? "物資の気配" : type === "parts" ? "部品の気配" : "未知の気配") : (gLine?.text || "");
+    const value = lead ? `${distance}m` : label;
+    const multiplier = branchMults[b.id];
+    const detail = lead ? `${trace ? "追跡中" : "気配"}${multiplier === undefined ? "" : " · ×" + multiplier.toFixed(1)}` : "";
+    return `<g class="branch-reward" data-branch="${b.id}" role="button" tabindex="0"
+      aria-label="${escape((LABEL_JA[b.label] || b.label) + ' ' + label + ' ' + (lead ? value : ''))}"
+      transform="translate(${x},${y})" style="cursor:pointer">
+      <title>${escape(label)}</title>
+      <rect x="-49" y="-69" width="98" height="126" fill="transparent"/>
+      ${art ? `<image href="${art}" x="-45" y="-73" width="90" height="90" style="pointer-events:none"/>` : ""}
+      <text id="label_${b.id}" x="0" y="${art ? 28 : 0}" text-anchor="middle" fill="${b.selected ? '#efb38c' : '#eee9d8'}" font-size="19" font-weight="600">${escape(value)}</text>
+      ${detail ? `<text x="0" y="${art ? 47 : 21}" text-anchor="middle" fill="#bdb9a9" font-size="12">${escape(detail)}</text>` : ""}
+      <line x1="-33" y1="${art ? 57 : 30}" x2="33" y2="${art ? 57 : 30}" stroke="#efb38c" opacity="${b.selected ? 1 : 0}"/>
+    </g>`;
+  }
+
   if (settings.minimalUI) {
     // ===== Minimal / bezel mode =====
     for (const b of resolvedBranches) {
@@ -4099,7 +4127,7 @@ function drawJunction(decision) {
       const dx = Math.sin(roadRad) * dotR, dy = -Math.cos(roadRad) * dotR;
       if (sel) {
         bezelHtml += `<circle cx="${dx}" cy="${dy}" r="14" fill="rgba(0,200,232,0.15)" style="pointer-events:none"/>`;
-        bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="10" fill="#00C8E8" style="cursor:pointer;filter:drop-shadow(0 0 10px rgba(0,200,232,0.9))"/>`;
+        bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="10" fill="#EFB38C" style="cursor:pointer;filter:drop-shadow(0 0 10px rgba(0,200,232,0.9))"/>`;
         bezelHtml += `<circle cx="${dx}" cy="${dy}" r="5" fill="#FFF" style="pointer-events:none"/>`;
       } else if (pre) {
         bezelHtml += `<circle id="road_${b.id}" cx="${dx}" cy="${dy}" r="9" fill="#55D9EC" style="cursor:pointer;filter:drop-shadow(0 0 6px rgba(85,217,236,0.5))"/>`;
@@ -4111,43 +4139,12 @@ function drawJunction(decision) {
         bezelHtml += `<circle cx="${dx}" cy="${dy}" r="3" fill="#5B9AB5" opacity="0.6" style="pointer-events:none"/>`;
       }
 
-      const dimmed = rouletteUsedThisJunction && !sel;
-      const lFill = dimmed ? "#444" : sel ? "#F4FCFF" : pre ? "#BCEFF5" : "#D7DEE8";
-      const rnFill = dimmed ? "#333" : sel ? "#8FE9F5" : pre ? "#7FB7C2" : "#8390A3";
-      const labelD = settings.labelDist;
-      const lblDeg = b.displayAngleDeg != null ? b.displayAngleDeg : b.angleDeg;
-      const lx = Math.sin(lblRad) * labelD, ly = -Math.cos(lblRad) * labelD;
-      const anchor = Math.abs(lblDeg) < 30 ? "middle" : lblDeg > 0 ? "start" : "end";
-      const tx = Math.abs(lblDeg) < 30 ? 0 : lblDeg > 0 ? 10 : -10;
-      const label = LABEL_JA[b.label] || b.label;
-      const road = b.roadName || b.roadRef || "";
-      const slideOx = Math.sin(lblRad) * 15;
-      const slideOy = -Math.cos(lblRad) * 15;
-
-      labelsHtml += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-4}" text-anchor="${anchor}"
-        fill="${lFill}" font-size="${sel ? 20 : 16}" font-weight="${sel ? 800 : 600}"
-        style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out,transform 0.3s ease-out"
-        >${label}</text>`;
-      let yOff = 14;
-      if (road) {
-        labelsHtml += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
-          fill="${rnFill}" font-size="12"
-          style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.05s,transform 0.3s ease-out 0.05s"
-          >${road}</text>`;
-        yOff += 16;
-      }
-      const gLine = getGameLine(b);
-      if (gLine) {
-        labelsHtml += `<text x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
-          fill="${gLine.color}" font-size="${gLine.size}" font-weight="700"
-          style="pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-          class="branch-label-anim">${gLine.text}</text>`;
-      }
+      labelsHtml += drawBranchReward(b, getGameLine(b));
     }
   } else {
     // ===== Classic road-line mode =====
-    casingHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171E2B" stroke-width="16" stroke-linecap="round"/>`;
-    surfaceHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#465166" stroke-width="10" stroke-linecap="round"/>`;
+    casingHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#30322B" stroke-width="16" stroke-linecap="round"/>`;
+    surfaceHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#727567" stroke-width="10" stroke-linecap="round"/>`;
 
     for (const b of resolvedBranches) {
       const roadRad = b.angleDeg * Math.PI / 180;
@@ -4163,7 +4160,7 @@ function drawJunction(decision) {
       const gLine = getGameLine(b);
 
       if (sel || pre) {
-        const rStroke = sel ? "#00C8E8" : "#55D9EC";
+        const rStroke = sel ? "#EFB38C" : "#55D9EC";
         const rWidth = sel ? 14 : 11;
         const rOpacity = sel ? 1 : .82;
         const rStyle = sel ? "cursor:pointer;filter:drop-shadow(0 0 6px rgba(0,200,232,0.5))" : "cursor:pointer";
@@ -4172,9 +4169,9 @@ function drawJunction(decision) {
           style="${rStyle}"/>`;
       } else {
         casingHtml += `<line id="casing_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-          stroke="#171E2B" stroke-width="14" stroke-linecap="round"/>`;
+          stroke="#30322B" stroke-width="14" stroke-linecap="round"/>`;
         surfaceHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-          stroke="#465166" stroke-width="9" stroke-linecap="round" opacity=".82"
+          stroke="#727567" stroke-width="9" stroke-linecap="round" opacity=".82"
           style="cursor:pointer"/>`;
       }
 
@@ -4190,34 +4187,7 @@ function drawJunction(decision) {
           fill="${gLine.color}" style="pointer-events:none;filter:drop-shadow(0 0 6px ${gLine.color})"/>`;
       }
 
-      const labelD=settings.labelDist;
-      const lx=Math.sin(lblRad)*labelD, ly=-Math.cos(lblRad)*labelD;
-      const anchor=Math.abs(lblDeg)<30?"middle":lblDeg>0?"start":"end";
-      const tx=Math.abs(lblDeg)<30?0:lblDeg>0?18:-18;
-      const label=LABEL_JA[b.label]||b.label;
-      const road=b.roadName||b.roadRef||"";
-
-      const slideOx = Math.sin(lblRad) * 15;
-      const slideOy = -Math.cos(lblRad) * 15;
-      labelsHtml += `<text id="label_${b.id}" x="${lx+tx}" y="${ly-6}" text-anchor="${anchor}"
-        fill="${lFill}" font-size="20" font-weight="800"
-        style="cursor:pointer;user-select:none;text-shadow:0 0 8px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out,transform 0.3s ease-out"
-        >${label}</text>`;
-
-      let yOff = 14;
-      if(road){
-        labelsHtml += `<text id="roadname_${b.id}" x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
-          fill="${rnFill}" font-size="13"
-          style="cursor:pointer;user-select:none;text-shadow:0 0 6px rgba(0,0,0,0.8);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.05s,transform 0.3s ease-out 0.05s"
-          >${road}</text>`;
-        yOff += 18;
-      }
-      if (gLine) {
-        labelsHtml += `<text x="${lx+tx}" y="${ly+yOff}" text-anchor="${anchor}"
-          fill="${gLine.color}" font-size="${gLine.size}" font-weight="700"
-          style="pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,0.9);opacity:0;transform:translate(${slideOx}px,${slideOy}px);transition:opacity 0.3s ease-out 0.1s,transform 0.3s ease-out 0.1s"
-          class="branch-label-anim">${gLine.text}</text>`;
-      }
+      labelsHtml += drawBranchReward(b, gLine);
     }
   }
 
@@ -4225,8 +4195,8 @@ function drawJunction(decision) {
   html += surfaceHtml;
   html += `<g id="egoCar" style="transform:translate(0px,${carY}px)">
     <ellipse id="egoShadow" cx="0" cy="4" rx="9" ry="5" fill="rgba(0,0,0,0.25)" filter="url(#shadowBlur)"/>
-    <polygon id="egoBody" points="0,-14 10,10 -10,10" fill="#00C8E8" opacity=".9"
-      stroke="#67E8F9" stroke-width="1.5" stroke-linejoin="round"
+    <polygon id="egoBody" points="0,-14 10,10 -10,10" fill="#EFB38C" opacity=".9"
+      stroke="#EEE9D8" stroke-width="1.5" stroke-linejoin="round"
       style="transform-origin:0 0"/>
   </g>`;
   html += selectedHtml;
@@ -4242,7 +4212,15 @@ function drawJunction(decision) {
     </g>`;
   }
 
+  svg.setAttribute("viewBox", "-305 -310 610 610");
   svg.innerHTML = html;
+  for (const reward of svg.querySelectorAll(".branch-reward")) {
+    const select = () => chooseBranch(reward.dataset.branch);
+    reward.addEventListener("click", select);
+    reward.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); }
+    });
+  }
 
   // Trigger label slide-in animation after DOM paint
   requestAnimationFrame(() => {
@@ -6523,11 +6501,13 @@ function showTripStart() {
   }
 }
 
-function departTrip() {
+function departTrip(allowDebt = false) {
   loadBaseData();
   const cost = getEffectiveDeploymentCost();
-  if (playerData.money < cost) {
-    if (!confirm(`所持金 ${playerData.money}G で出撃コスト ${cost}G に足りません。借金して出発しますか？`)) return;
+  if (playerData.money < cost && !allowDebt) {
+    document.getElementById("departureConfirmText").textContent = `所持金 ${playerData.money}G ／ 出撃コスト ${cost}G。ゲーム内で不足分を借りて出発しますか？`;
+    document.getElementById("departureConfirm").showModal();
+    return;
   }
   playerData.money -= cost;
   savePlayerData(playerData);

@@ -1,5 +1,11 @@
 # Overnight checkpoint
 
+## Approved public visual integration
+- User explicitly requested applying the item-led circular UI, not another separate proposal. Integrated supply/parts PNGs into actual branch Lead and active-trace rendering in both display modes. Distances come from live Lead data; collected Leads hide their art. Illustrations represent category hints, not guaranteed individual rewards.
+- Removed redundant direction/road-name text stacks from the dial; accessible direction labels remain. Preserved road selection, dial and roulette. Warm charcoal/cream palette and quieter branding now apply to the game.
+- Replaced blocking native departure debt confirmation with an in-page dialog (same explicit consent and game cost), enabling browser demo testing without clearing saves.
+- Local browser: PIN, departure, offline demo, actual supply art with distance and mapping road count verified. Five regression scripts pass, including new branch-art states. No real-driving claim.
+
 ## Completed
 - Demo position now follows every coordinate in the road geometry, not the straight endpoint chord.
 - Map matching projects onto every road segment; heading scoring uses the local segment direction.

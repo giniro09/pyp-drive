@@ -2132,11 +2132,7 @@ function demoTick() {
 
   const curEdge = graph.edges.get(demoEdgeId);
   if (!curEdge) return;
-  const [lon1,lat1] = curEdge.geometry[0];
-  const [lon2,lat2] = curEdge.geometry[curEdge.geometry.length - 1];
-  const lat = lat1 + demoFraction * (lat2 - lat1);
-  const lon = lon1 + demoFraction * (lon2 - lon1);
-  const heading = curEdge.startBearingDeg + demoFraction * (curEdge.endBearingDeg - curEdge.startBearingDeg);
+  const {lat, lon, heading} = positionAlongEdge(curEdge, demoFraction);
 
   lastSpeedMps = demoSpeedMps;
   const kph = Math.round(demoSpeedMps * 3.6);
@@ -2862,14 +2858,42 @@ function getNearbyEdgeIds(lat, lon, radiusM) {
 //  Matcher
 // ============================================================
 function perpendicularDistance(lat,lon,edge){
-  const [lon1,lat1]=edge.geometry[0];
-  const [lon2,lat2]=edge.geometry[edge.geometry.length-1];
-  const A=haversineM(lat1,lon1,lat,lon), B=haversineM(lat2,lon2,lat,lon), C=edge.lengthM;
-  if(C<0.1) return {distM:A,fraction:0};
-  let fraction=(A*A-B*B+C*C)/(2*C*C);
-  fraction=Math.max(0,Math.min(1,fraction));
-  const pLat=lat1+fraction*(lat2-lat1), pLon=lon1+fraction*(lon2-lon1);
-  return {distM:haversineM(lat,lon,pLat,pLon),fraction};
+  const g=edge.geometry;
+  let total=0, travelled=0, best=null;
+  for(let i=1;i<g.length;i++) total+=haversineM(g[i-1][1],g[i-1][0],g[i][1],g[i][0]);
+  for(let i=1;i<g.length;i++){
+    const [x1,y1]=g[i-1], [x2,y2]=g[i];
+    const cos=Math.cos(lat*DEG2RAD);
+    const dx=(x2-x1)*cos, dy=y2-y1;
+    const denom=dx*dx+dy*dy;
+    const t=denom ? Math.max(0,Math.min(1,((lon-x1)*cos*dx+(lat-y1)*dy)/denom)) : 0;
+    const pLat=y1+t*dy, pLon=x1+t*(x2-x1);
+    const length=haversineM(y1,x1,y2,x2);
+    const distM=haversineM(lat,lon,pLat,pLon);
+    if(!best||distM<best.distM) best={distM,fraction:total?(travelled+t*length)/total:0,lat:pLat,lon:pLon,heading:bearingDeg(y1,x1,y2,x2)};
+    travelled+=length;
+  }
+  return best || {distM:haversineM(lat,lon,g[0][1],g[0][0]),fraction:0,lat:g[0][1],lon:g[0][0],heading:edge.startBearingDeg||0};
+}
+
+// Fractions represent distance along the complete road, not its endpoint chord.
+function positionAlongEdge(edge,fraction){
+  const g=edge.geometry, lengths=[];
+  let total=0;
+  for(let i=1;i<g.length;i++){
+    const length=haversineM(g[i-1][1],g[i-1][0],g[i][1],g[i][0]);
+    lengths.push(length); total+=length;
+  }
+  let remaining=Math.max(0,Math.min(1,fraction))*total;
+  for(let i=1;i<g.length;i++){
+    const length=lengths[i-1];
+    if(remaining<=length||i===g.length-1){
+      const t=length?remaining/length:0, [x1,y1]=g[i-1], [x2,y2]=g[i];
+      return {lat:y1+t*(y2-y1),lon:x1+t*(x2-x1),heading:bearingDeg(y1,x1,y2,x2)};
+    }
+    remaining-=length;
+  }
+  return {lat:g[0][1],lon:g[0][0],heading:edge.startBearingDeg||0};
 }
 
 function matchPosition(graph,lat,lon,heading,speedMps,previousEdgeId){
@@ -2879,12 +2903,12 @@ function matchPosition(graph,lat,lon,heading,speedMps,previousEdgeId){
   for(const eid of nearbyIds){
     const edge = graph.edges.get(eid);
     if (!edge) continue;
-    const {distM,fraction}=perpendicularDistance(lat,lon,edge);
+    const {distM,fraction,heading:edgeHeading}=perpendicularDistance(lat,lon,edge);
     if(distM>searchR) continue;
     const distTerm=distM/searchR;
     let headingTerm=0;
     if(heading!=null){
-      const eb=edge.startBearingDeg+fraction*(edge.endBearingDeg-edge.startBearingDeg);
+      const eb=edgeHeading;
       headingTerm=Math.min(Math.abs(normalize180(heading-eb))/90,1);
     }
     let contTerm=0.5;

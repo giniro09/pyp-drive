@@ -5797,7 +5797,7 @@ function updateActiveTraceHud() {
   const lt = activeLeadTracking;
   if (!lt || (lt.status !== "tracking" && lt.status !== "pending_departure")) {
     hud.classList.remove("visible");
-    if (currentDecision && document.querySelector('[data-trace-distance]')) drawJunction(currentDecision);
+    if (currentDecision) drawJunction(currentDecision);
     return;
   }
   const presentation = getLeadPresentation(lt);

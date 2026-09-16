@@ -26,5 +26,9 @@ assert.match(html, /consumeModuleRecipe\(module\)/);
 assert.match(html, /Cargo容量 \+2/);
 assert.match(html, /applyVehicleRiskReduction/);
 assert.match(html, /id="tripLoadoutGrid"/);
+assert.match(html, /makeLeadKey\(decisionNodeId, physicalEdgeKey\)/);
+assert.match(html, /startsWith\("lead:v2:"\)/);
+assert.match(html, /Math\.floor\(tripCount \/ 3\)/);
+assert.match(html, /BUILD 2026\.09\.16-2/);
 
 console.log('PASS: encounter assets, differentiated leads, purpose reveal, modules, collection progress, and economy rebalance');

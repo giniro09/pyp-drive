@@ -99,6 +99,7 @@
     margin-top: 5px; font-size: 9px; font-weight: 800; letter-spacing: .12em;
     color: var(--module-color, #6F7470);
   }
+  .wayfaring-brand .brand-build { margin-top: 4px; font-size: 8px; letter-spacing: .14em; color: #FF654D; }
   #activeTraceHud {
     display: none; position: fixed; top: 82px; left: 22px; z-index: 92;
     width: min(290px, calc(100vw - 44px)); padding: 13px 15px 12px;
@@ -744,6 +745,7 @@
     text-align: center; max-width: 400px; width: 92%; margin: auto;
   }
   .trip-card h2 { font-size: 20px; margin-bottom: 4px; letter-spacing: 0.04em; }
+  .trip-build { margin: -1px 0 8px; font-size: 9px; letter-spacing: .18em; color: #FF654D; font-weight: 800; }
   .trip-wallet {
     font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;
   }
@@ -892,6 +894,7 @@
 <div id="tripStartScreen">
   <div class="trip-card">
     <h2>EXPEDITION</h2>
+    <div class="trip-build">BUILD 2026.09.16-2 / ENCOUNTERS LIVE</div>
     <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;font-style:italic;">未知の道と反応を追い、探索成果を持ち帰る。</div>
     <div class="trip-wallet">所持金 <span class="money-val" id="tripMoney">0</span> G</div>
     <div class="trip-mode-list">
@@ -970,6 +973,7 @@
     <div class="brand-name">WAYFARING</div>
     <div class="brand-mode" id="brandContext">EXPEDITION / LIVE FIELD</div>
     <div class="brand-module" id="brandModule">NO MODULE</div>
+    <div class="brand-build">BUILD 2026.09.16-2</div>
   </div>
   <div id="activeTraceHud">
     <div class="trace-kicker">ACTIVE TRACE</div>
@@ -5492,10 +5496,25 @@ let capturedLeadKeys = new Set();
 let activeLeadTracking = null;
 let discoveryCollection = { sets: {}, total: 0 };
 
+function getLeadCycle() {
+  const tripCount = (typeof playerData !== "undefined" && playerData) ? (playerData.tripCount || 0) : 0;
+  return Math.floor(tripCount / 3);
+}
+
+function makeLeadKey(decisionNodeId, physicalEdgeKey) {
+  return `lead:v2:${getLeadCycle()}:${decisionNodeId}:${physicalEdgeKey}`;
+}
+
 function loadLeadData() {
   try {
     const raw = localStorage.getItem("pyp_leads");
-    if (raw) capturedLeadKeys = new Set(JSON.parse(raw));
+    if (raw) {
+      const stored = JSON.parse(raw);
+      // Legacy leads were permanent and made a familiar test area completely
+      // empty. Ignore those keys without touching mapping, cargo, or money.
+      capturedLeadKeys = new Set(stored.filter(key => String(key).startsWith("lead:v2:")));
+      saveLeadData();
+    }
   } catch(e) {}
 }
 function saveLeadData() {
@@ -5547,7 +5566,7 @@ function generateLeadForBranch(edgeId, decisionNodeId) {
   const edge = graph.edges.get(edgeId);
   if (!edge) return null;
   const pKey = getPhysicalEdgeKey(edge);
-  const leadKey = `lead:${decisionNodeId}:${pKey}`;
+  const leadKey = makeLeadKey(decisionNodeId, pKey);
   if (capturedLeadKeys.has(leadKey)) return null;
 
   const seed = simpleHash(leadKey);
@@ -5615,7 +5634,7 @@ function ensureDecisionLeads(decision) {
       const edge = graph ? graph.edges.get(eid) : null;
       if (!edge) return false;
       const pKey = getPhysicalEdgeKey(edge);
-      const leadKey = `lead:${decision.nodeId}:${pKey}`;
+      const leadKey = makeLeadKey(decision.nodeId, pKey);
       if (capturedLeadKeys.has(leadKey)) return false;
       const seed = simpleHash(leadKey + ":forced");
       const rng = seededRandom(seed);

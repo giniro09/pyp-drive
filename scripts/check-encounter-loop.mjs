@@ -29,7 +29,7 @@ assert.match(html, /id="tripLoadoutGrid"/);
 assert.match(html, /makeLeadKey\(decisionNodeId, physicalEdgeKey\)/);
 assert.match(html, /startsWith\("lead:v2:"\)/);
 assert.match(html, /Math\.floor\(tripCount \/ 3\)/);
-assert.match(html, /BUILD 2026\.09\.16-5/);
+assert.match(html, /BUILD 2026\.09\.16-6/);
 assert.match(html, /if \(settings\.demoMode\) \{[\s\S]*capturedLeadKeys\.clear\(\);[\s\S]*saveLeadData\(\);/);
 assert.match(html, /departTripWithMode\(true\)/);
 assert.match(html, /currentTrip && currentTrip\.areaRevealShown/);

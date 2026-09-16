@@ -74,15 +74,15 @@
   #driveScreen { display: none; flex-direction: column; height: 100vh; }
   #driveScreen {
     position: relative; isolation: isolate;
-    background: var(--bg-0);
+    background:
+      linear-gradient(180deg, rgba(19,21,19,.12) 0%, rgba(17,19,17,.26) 56%, rgba(11,12,11,.74) 100%),
+      url("assets/road-world-v2.png") center center / cover no-repeat;
   }
   #driveScreen::before {
-    content: none; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-    background-image:
-      linear-gradient(rgba(103,232,249,.035) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(103,232,249,.035) 1px, transparent 1px);
-    background-size: 48px 48px;
-    mask-image: radial-gradient(circle at 50% 48%, black 0%, transparent 72%);
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      linear-gradient(90deg, rgba(12,13,12,.5), transparent 24%, transparent 76%, rgba(12,13,12,.5)),
+      linear-gradient(180deg, rgba(13,14,13,.34), transparent 22%, transparent 72%, rgba(8,9,8,.68));
   }
   .wayfaring-brand {
     position: fixed; top: 18px; left: 22px; z-index: 91; pointer-events: none;
@@ -90,10 +90,10 @@
   .wayfaring-brand .brand-name {
     font-family: Georgia, serif; font-style: italic; text-transform: lowercase;
     font-size: 30px; line-height: 1; font-weight: 700; letter-spacing: -.04em;
-    color: var(--text-primary); text-shadow: none;
+    color: #FFF9E9; text-shadow: 0 2px 16px rgba(0,0,0,.48);
   }
   .wayfaring-brand .brand-mode {
-    margin-top: 7px; font-size: 11px; letter-spacing: .08em; color: var(--text-secondary);
+    margin-top: 7px; font-size: 11px; letter-spacing: .08em; color: #E3DDCA;
   }
   .wayfaring-brand .brand-module {
     margin-top: 5px; font-size: 9px; font-weight: 800; letter-spacing: .12em;
@@ -103,9 +103,10 @@
   #activeTraceHud {
     display: none; position: fixed; top: 82px; left: 22px; z-index: 92;
     width: min(290px, calc(100vw - 44px)); padding: 13px 15px 12px;
-    border: 1px solid rgba(103,232,249,.3); border-radius: 14px;
-    background: linear-gradient(115deg, rgba(10,27,35,.94), rgba(12,17,28,.82));
-    box-shadow: 0 16px 44px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.06);
+    border: 1px solid rgba(255,248,224,.32); border-radius: 18px;
+    background: linear-gradient(115deg, rgba(38,39,34,.9), rgba(21,23,21,.78));
+    box-shadow: 0 18px 46px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.16);
+    backdrop-filter: blur(12px) saturate(.8);
     pointer-events: none; overflow: hidden;
   }
   #activeTraceHud.visible { display: block; animation: traceHudIn .32s ease-out; }
@@ -235,7 +236,11 @@
     transition: transform 0.4s ease-out;
   }
   .dial-wrap::before {
-    content: none;
+    content: ""; position:absolute; inset:4%; border-radius:50%; z-index:0;
+    background:radial-gradient(circle at 50% 38%, rgba(255,250,232,.18), rgba(30,32,28,.48) 68%, rgba(14,15,14,.72));
+    border:2px solid rgba(255,246,217,.36);
+    box-shadow:0 28px 90px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.24);
+    backdrop-filter:blur(7px) saturate(.55);
   }
   .junction-svg {
     width: 100%; height: 100%; overflow: visible;
@@ -269,16 +274,17 @@
     transition: top 0.3s ease-out;
   }
   #junctionHud .hud-distance {
-    font-size: 36px; font-weight: 900; line-height: 1;
+    font-family: Impact, "Arial Black", sans-serif; font-style: italic;
+    font-size: 52px; font-weight: 900; line-height: .9;
     font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
-    color: var(--route-bright);
-    text-shadow: 0 0 14px rgba(0,200,232,0.14);
+    color: #FFF7E2;
+    text-shadow: 0 3px 18px rgba(0,0,0,.52);
     transition: color 0.3s;
   }
-  #junctionHud .hud-distance.mid { color: var(--near); text-shadow: none; }
-  #junctionHud .hud-distance.near { color: #EF4444; text-shadow: 0 0 10px rgba(239,68,68,0.3); }
-  #junctionHud .hud-unit { font-size: 18px; color: #89AFC0; margin-left: 2px; }
-  #junctionHud .hud-speed { font-size: 14px; color: var(--text-secondary); margin-top: 2px; }
+  #junctionHud .hud-distance.mid { color: #F6D547; text-shadow: 0 3px 18px rgba(0,0,0,.5); }
+  #junctionHud .hud-distance.near { color: #FF654D; text-shadow: 0 3px 18px rgba(0,0,0,.5); }
+  #junctionHud .hud-unit { font-size: 18px; color: #EEE5CE; margin-left: 5px; }
+  #junctionHud .hud-speed { font-size: 14px; color: #EEE5CE; margin-top: 5px; text-shadow:0 2px 8px rgba(0,0,0,.7); }
 
   /* ===== Cruise distance counter ===== */
   #cruiseCounter {
@@ -339,12 +345,12 @@
   #autoMap {
     position: fixed; bottom: 16px; right: 16px;
     width: 160px; height: 160px;
-    background: rgba(10,14,23,0.85);
-    border: 1px solid rgba(103,232,249,0.24);
-    border-radius: 14px; z-index: 80;
+    background: rgba(29,30,27,.78);
+    border: 1px solid rgba(255,247,220,.28);
+    border-radius: 18px; z-index: 80;
     pointer-events: none;
-    box-shadow: 0 14px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,.04);
-    backdrop-filter: blur(10px);
+    box-shadow: 0 16px 44px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.14);
+    backdrop-filter: blur(12px) saturate(.6);
   }
   #autoMapSvg {
     width: 100%; height: 100%;
@@ -500,7 +506,7 @@
   #rouletteMult.show { display: block; animation: multPop 0.4s ease-out; }
 
   .footer {
-    padding: 8px 24px; background: #111827; border-top: 1px solid #252F42;
+    padding: 8px 24px; background: rgba(20,21,19,.86); border-top: 1px solid rgba(255,246,220,.18);
     display: flex; justify-content: space-between;
     font-size: 12px; color: var(--text-muted); flex-shrink: 0;
   }
@@ -701,8 +707,8 @@
 
   #trayCounter {
     position: fixed; bottom: 46px; left: 22px; right: auto;
-    background: rgba(10,20,29,0.9); border: 1px solid rgba(103,232,249,0.25);
-    border-radius: 12px; padding: 8px 14px; z-index: 82;
+    background: rgba(32,33,29,.88); border: 1px solid rgba(255,245,216,.28);
+    border-radius: 16px; padding: 8px 14px; z-index: 82;
     display: none; align-items: center; gap: 8px;
     font-size: 14px; color: var(--text-secondary);
     transition: transform 0.3s ease-out;
@@ -899,13 +905,13 @@
 <div id="tripStartScreen">
   <div class="trip-card">
     <h2>EXPEDITION</h2>
-    <div class="trip-build">BUILD 2026.09.16-5 / CARDS VISIBLE</div>
+    <div class="trip-build">BUILD 2026.09.16-6 / ART PASS</div>
     <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;font-style:italic;">未知の道と反応を追い、探索成果を持ち帰る。</div>
     <div class="trip-wallet">所持金 <span class="money-val" id="tripMoney">0</span> G</div>
     <div class="trip-mode-list">
       <div class="trip-mode-btn selected" data-mode="expedition">
         <div class="mode-name">Expedition</div>
-        <div class="mode-desc">探索に出発。Stake / Roulette / BUST / Loot がフル有効</div>
+        <div class="mode-desc">道を選んでポイントを確定し、反応を追って持ち帰る</div>
       </div>
       <div class="trip-mode-btn" data-mode="atob" style="opacity:0.4;pointer-events:none;">
         <div class="mode-name">A to B</div>
@@ -981,7 +987,7 @@
     <div class="brand-name">WAYFARING</div>
     <div class="brand-mode" id="brandContext">EXPEDITION / LIVE FIELD</div>
     <div class="brand-module" id="brandModule">NO MODULE</div>
-    <div class="brand-build">BUILD 2026.09.16-5</div>
+    <div class="brand-build">BUILD 2026.09.16-6 / ART PASS</div>
   </div>
   <div id="activeTraceHud">
     <div class="trace-kicker">ACTIVE TRACE</div>
@@ -1049,7 +1055,7 @@
     <div id="autoMapStats"></div>
   </div>
   <div id="stakeToast"></div>
-  <div id="bustToast">BUST</div>
+  <div id="bustToast">ポイント消失</div>
   <div id="bustJudge">
     <div class="judge-result" id="judgeResult"></div>
   </div>
@@ -1552,12 +1558,18 @@ let settings = {
   mapSize: 160,
   mapRight: 16,
   mapBottom: 16,
+  interfaceVersion: 6,
 };
 
 function loadSettings() {
   try {
     const s = JSON.parse(localStorage.getItem("jnav_settings") || "{}");
     Object.assign(settings, s);
+    if (!s.interfaceVersion || s.interfaceVersion < 6) {
+      settings.bgMapOpacity = 0;
+      settings.interfaceVersion = 6;
+      saveSettings();
+    }
   } catch(e) {}
   applySettingsToUI();
 }
@@ -2478,6 +2490,7 @@ const AREA_EXPLORE_THRESHOLD_M = 2000;
 let areaIndex = null;
 let currentAreaId = null;
 let areaData = {};
+const recentAreaNoticeBySignature = new Map();
 
 function loadAreaData() {
   try {
@@ -2646,10 +2659,14 @@ function checkAreaTransition(lat, lon) {
 }
 
 function showAreaDiscovery(area) {
+  const signature = `${area.name}|${area.primaryBiome}`;
+  const now = Date.now();
   if (currentTrip && currentTrip.areaRevealShown) {
     showAreaEntry(area);
     return;
   }
+  if (now - (recentAreaNoticeBySignature.get(signature) || 0) < 120000) return;
+  recentAreaNoticeBySignature.set(signature, now);
   if (currentTrip) currentTrip.areaRevealShown = true;
   const biome = BIOME_TYPES[area.primaryBiome] || BIOME_TYPES.rural;
   const overlay = document.createElement("div");
@@ -2675,6 +2692,10 @@ function showAreaDiscovery(area) {
 }
 
 function showAreaEntry(area) {
+  const signature = `${area.name}|${area.primaryBiome}`;
+  const now = Date.now();
+  if (now - (recentAreaNoticeBySignature.get(signature) || 0) < 8000) return;
+  recentAreaNoticeBySignature.set(signature, now);
   const biome = BIOME_TYPES[area.primaryBiome] || BIOME_TYPES.rural;
   const ad = areaData[area.id];
   const stage = ad ? ad.stage : "DISCOVERED";
@@ -4167,16 +4188,16 @@ function drawJunction(decision) {
     </filter>
   </defs>`;
 
-  html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#727567" stroke-width="2"/>`;
+  html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#FFF1CF" stroke-width="2" opacity=".66"/>`;
   html += `<circle id="distArc" cx="0" cy="0" r="185" fill="none"
-    stroke="#2563AA" stroke-width="5" stroke-linecap="round"
+    stroke="#FF654D" stroke-width="7" stroke-linecap="round"
     transform="rotate(-90)" style="transition:stroke 0.3s,stroke-dasharray 0.15s"/>`;
   html += `<circle id="rouletteArc" cx="0" cy="0" r="192" fill="none"
-    stroke="#34D399" stroke-width="4" stroke-linecap="round"
+    stroke="#F6D547" stroke-width="5" stroke-linecap="round"
     stroke-dasharray="14 10" stroke-dashoffset="0" opacity="0"/>`;
   html += `<circle id="rouletteGlowRing" cx="0" cy="0" r="0" fill="none"
-    stroke="#34D399" stroke-width="2" opacity="0"/>`;
-  html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#35372F" stroke-width="1"/>`;
+    stroke="#F6D547" stroke-width="2" opacity="0"/>`;
+  html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#E7DDBE" stroke-width="1" opacity=".34"/>`;
 
   if (settings.dialTicks) {
     html += `<g id="dialRing" transform="rotate(${dialFixedAngle})">`;
@@ -4188,7 +4209,7 @@ function drawJunction(decision) {
       const rad = deg * Math.PI / 180;
       html += `<line x1="${Math.sin(rad)*r1}" y1="${-Math.cos(rad)*r1}"
         x2="${Math.sin(rad)*r2}" y2="${-Math.cos(rad)*r2}"
-        stroke="${major ? '#BDB9A9' : medium ? '#828576' : '#505346'}"
+        stroke="${major ? '#FFF1CF' : medium ? '#D7CCAD' : '#958E7B'}"
         stroke-width="${major ? 2.2 : medium ? 1.5 : 1}" stroke-linecap="round"/>`;
     }
     html += `<line x1="0" y1="-155" x2="0" y2="-192"
@@ -4257,7 +4278,7 @@ function drawJunction(decision) {
     const multiplier = branchMults[b.id];
     const defaultBranch = b.id === defaultBrId;
     const riskText = defaultBranch
-      ? `BUST ${Math.round(bustProb * 100)}%`
+      ? `△${Math.round(bustProb * 100)}%`
       : (multiplier === undefined ? "" : `×${multiplier.toFixed(1)}`);
     if (!lead) {
       const quiet = gLine?.text || riskText || "";
@@ -4265,7 +4286,7 @@ function drawJunction(decision) {
       return `<g class="branch-reward branch-reward-quiet" data-branch="${b.id}" role="button" tabindex="0"
         aria-label="${escape((LABEL_JA[b.label] || b.label) + ' ' + quiet)}"
         transform="translate(${x},${y})" style="cursor:pointer">
-        <rect x="-42" y="-18" width="84" height="36" rx="18" fill="#15191D" stroke="#55584F" opacity=".94"/>
+        <rect x="-42" y="-18" width="84" height="36" rx="18" fill="#2A2A25" stroke="#F1E6C8" opacity=".9"/>
         <text id="label_${b.id}" x="0" y="5" text-anchor="middle" fill="${b.selected ? '#F4F0E6' : '#8D918A'}" font-size="13" font-weight="750">${escape(quiet)}</text>
       </g>`;
     }
@@ -4274,10 +4295,10 @@ function drawJunction(decision) {
     const item = generateLeadItem(lead);
     const setPieces = item.setKey ? (discoveryCollection.sets[item.setKey] || []) : [];
     const purpose = lead.type === "supply"
-      ? `+${item.credits || 80}G · ${item.name}`
+      ? `+${item.credits || 80}G`
       : lead.type === "unknown"
         ? `${item.setKey === "blue-ring" ? "青環" : "赤矢"} SET ${Math.min(3, setPieces.length + 1)}/3`
-        : item.effect;
+        : "装備素材";
     const artWidth = lead.type === "supply" ? 126 : lead.type === "parts" ? 122 : 98;
     const artHeight = lead.type === "supply" ? 84 : lead.type === "parts" ? 96 : 98;
     const artX = -artWidth / 2;
@@ -4288,14 +4309,14 @@ function drawJunction(decision) {
       aria-label="${escape((LABEL_JA[b.label] || b.label) + ' ' + type.name + ' ' + purpose + ' ' + distance + 'm') }"
       transform="translate(${x},${y})" style="cursor:pointer">
       <title>${escape(type.name + ' — ' + purpose)}</title>
-      <rect x="-66" y="-92" width="132" height="157" rx="7" fill="${selected ? '#171B1E' : '#121619'}" stroke="${accent}" stroke-width="${selected ? 2 : 1}" opacity="${selected ? .98 : .91}"/>
-      <path d="M -66 -92 H -20 L -10 -82 H 66" fill="none" stroke="${accent}" stroke-width="4"/>
-      <text x="-55" y="-72" fill="${accent}" font-size="9" font-weight="900" letter-spacing="1.5">${escape(type.label)}</text>
+      <rect x="-72" y="-98" width="144" height="170" rx="13" fill="${selected ? '#33332D' : '#252622'}" stroke="${accent}" stroke-width="${selected ? 3 : 1.5}" opacity="${selected ? .96 : .9}"/>
+      <path d="M -72 -98 H -22 L -11 -87 H 72" fill="none" stroke="${accent}" stroke-width="5"/>
+      <text x="-60" y="-77" fill="${accent}" font-size="10" font-weight="900" letter-spacing="1.2">${escape(type.label)}</text>
       <image href="${type.asset}" x="${artX}" y="${artY}" width="${artWidth}" height="${artHeight}" preserveAspectRatio="xMidYMid meet" style="pointer-events:none;filter:drop-shadow(0 9px 8px rgba(0,0,0,.5))"/>
       <rect x="-58" y="5" width="116" height="1" fill="${accent}" opacity=".45"/>
-      <text id="label_${b.id}" ${trace ? 'data-trace-distance="true"' : ''} x="-55" y="27" text-anchor="start" fill="#F4F0E6" font-size="18" font-weight="900">${distance}m</text>
-      <text x="55" y="26" text-anchor="end" fill="${defaultBranch ? '#FF654D' : '#AEB0A8'}" font-size="11" font-weight="800">${escape(riskText)}</text>
-      <text x="0" y="49" text-anchor="middle" fill="#D3CEC2" font-size="10.5" font-weight="650">${escape(purpose)}</text>
+      <text id="label_${b.id}" ${trace ? 'data-trace-distance="true"' : ''} x="-60" y="30" text-anchor="start" fill="#FFF7E4" font-size="22" font-weight="900">${distance}m</text>
+      <text x="60" y="29" text-anchor="end" fill="${defaultBranch ? '#FF654D' : '#F4E9CD'}" font-size="14" font-weight="900">${escape(riskText)}</text>
+      <text x="0" y="56" text-anchor="middle" fill="#F1E7CF" font-size="14" font-weight="850">${escape(purpose)}</text>
       <rect x="-58" y="58" width="${selected ? 116 : 0}" height="3" rx="1.5" fill="${accent}" style="transition:width .2s"/>
     </g>`;
   }
@@ -4328,8 +4349,8 @@ function drawJunction(decision) {
     }
   } else {
     // ===== Classic road-line mode =====
-    casingHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#30322B" stroke-width="16" stroke-linecap="round"/>`;
-    surfaceHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#727567" stroke-width="10" stroke-linecap="round"/>`;
+    casingHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#171815" stroke-width="18" stroke-linecap="round"/>`;
+    surfaceHtml += `<line x1="0" y1="185" x2="0" y2="12" stroke="#D8CCAD" stroke-width="11" stroke-linecap="round" opacity=".78"/>`;
 
     for (const b of resolvedBranches) {
       const roadRad = b.angleDeg * Math.PI / 180;
@@ -4354,9 +4375,9 @@ function drawJunction(decision) {
           style="${rStyle}"/>`;
       } else {
         casingHtml += `<line id="casing_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-          stroke="#30322B" stroke-width="14" stroke-linecap="round"/>`;
+          stroke="#171815" stroke-width="16" stroke-linecap="round"/>`;
         surfaceHtml += `<line id="road_${b.id}" x1="0" y1="0" x2="${ex}" y2="${ey}"
-          stroke="#727567" stroke-width="9" stroke-linecap="round" opacity=".82"
+          stroke="#D8CCAD" stroke-width="10" stroke-linecap="round" opacity=".72"
           style="cursor:pointer"/>`;
       }
 
@@ -5072,29 +5093,13 @@ function showRewardToast(amount, wasRoulette, streakMult, rouletteMult) {
 }
 
 function showBustJudge(prob, isBust) {
-  const judge = document.getElementById("bustJudge");
-  const resultEl = document.getElementById("judgeResult");
-  const wrap = document.getElementById("dialWrap");
-  if (wrap) {
-    const rect = wrap.getBoundingClientRect();
-    judge.style.top = (rect.top + rect.height / 2) + "px";
-    judge.style.left = (rect.left + rect.width / 2) + "px";
+  if (!isBust) {
+    updateRiskDisplay();
+    return;
   }
-  resultEl.textContent = "";
-  resultEl.className = "judge-result";
-  judge.classList.add("show");
-  setTimeout(() => {
-    if (isBust) {
-      resultEl.textContent = "BUST";
-      resultEl.className = "judge-result busted";
-      setTimeout(() => { judge.classList.remove("show"); triggerBust(); }, 800);
-    } else {
-      resultEl.textContent = "SAFE";
-      resultEl.className = "judge-result safe";
-      updateRiskDisplay();
-      setTimeout(() => { judge.classList.remove("show"); }, 800);
-    }
-  }, 300);
+  const judge = document.getElementById("bustJudge");
+  if (judge) judge.classList.remove("show");
+  triggerBust();
 }
 
 function triggerBust() {

@@ -114,10 +114,10 @@
     content: ""; position: absolute; inset: 0 auto 0 0; width: 3px;
     background: var(--trace-color, #67E8F9); box-shadow: 0 0 16px var(--trace-color, #67E8F9);
   }
-  .trace-kicker { font-size: 9px; letter-spacing: .22em; color: #6F9EAC; font-weight: 750; }
+  .trace-kicker { font-size: 9px; letter-spacing: .16em; color: #D7CCAD; font-weight: 800; }
   .trace-main { display: flex; align-items: baseline; gap: 8px; margin-top: 5px; }
   .trace-name { flex: 1; font-size: 15px; font-weight: 800; color: #F1FCFF; }
-  .trace-distance { font-size: 19px; font-weight: 850; color: var(--trace-color, #67E8F9); font-variant-numeric: tabular-nums; }
+  .trace-distance { display:none; }
   .trace-distance small { margin-left: 2px; font-size: 10px; letter-spacing: .1em; }
   .trace-progress { height: 3px; margin-top: 10px; overflow: hidden; border-radius: 3px; background: rgba(255,255,255,.08); }
   #traceProgressFill { width: 0%; height: 100%; border-radius: inherit; background: var(--trace-color, #67E8F9); box-shadow: 0 0 10px var(--trace-color, #67E8F9); transition: width .35s linear; }
@@ -229,18 +229,14 @@
   }
   .dial-wrap {
     position: relative;
-    width: min(70vh, 720px); height: min(70vh, 720px);
+    width: min(72vh, 760px); height: min(72vh, 760px);
     max-width: 100%; max-height: 100%;
     --dial-scale: 1; --dial-ox: 0px; --dial-oy: 0px;
     transform: scale(var(--dial-scale)) translate(var(--dial-ox), var(--dial-oy));
     transition: transform 0.4s ease-out;
   }
   .dial-wrap::before {
-    content: ""; position:absolute; inset:4%; border-radius:50%; z-index:0;
-    background:radial-gradient(circle at 50% 38%, rgba(255,250,232,.18), rgba(30,32,28,.48) 68%, rgba(14,15,14,.72));
-    border:2px solid rgba(255,246,217,.36);
-    box-shadow:0 28px 90px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.24);
-    backdrop-filter:blur(7px) saturate(.55);
+    content: none;
   }
   .junction-svg {
     width: 100%; height: 100%; overflow: visible;
@@ -274,9 +270,9 @@
     transition: top 0.3s ease-out;
   }
   #junctionHud .hud-distance {
-    font-family: Impact, "Arial Black", sans-serif; font-style: italic;
-    font-size: 52px; font-weight: 900; line-height: .9;
-    font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+    font-family: -apple-system, "Hiragino Sans", "Meiryo", sans-serif;
+    font-size: 44px; font-weight: 900; line-height: .95;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.05em;
     color: #FFF7E2;
     text-shadow: 0 3px 18px rgba(0,0,0,.52);
     transition: color 0.3s;
@@ -293,11 +289,16 @@
     text-align: center; pointer-events: none; z-index: 85;
     transition: top 0.3s ease-out;
   }
+  #cruiseCounter::before {
+    content: "未確定ポイント"; display:block; margin-bottom:4px;
+    color:#F1E7CF; font-size:11px; font-weight:800; letter-spacing:.12em;
+    text-shadow:0 2px 8px rgba(0,0,0,.75);
+  }
   .cruise-value {
-    font-size: 34px; font-weight: 900; line-height: 1;
+    font-size: 36px; font-weight: 900; line-height: 1;
     font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
-    color: rgba(137,175,192,0.6);
-    text-shadow: none;
+    color: #FFF7E2;
+    text-shadow: 0 2px 14px rgba(0,0,0,.7);
     transition: font-size 0.4s ease-out, color 0.4s, text-shadow 0.4s;
   }
   .cruise-value.tier1 {
@@ -339,7 +340,7 @@
   .cruise-value.tier2.pulse { animation: cruisePulse 0.35s ease-out, epicShift 3s ease-in-out infinite; }
   .cruise-value.tier3.pulse { animation: cruisePulse 0.35s ease-out, legendShimmer 2s linear infinite; }
   .cruise-unit {
-    font-size: 20px; font-weight: 600; color: rgba(137,175,192,0.6);
+    font-size: 16px; font-weight: 800; color: #E8DFC9;
     margin-left: 4px; transition: color 0.4s;
   }
   #autoMap {
@@ -905,7 +906,7 @@
 <div id="tripStartScreen">
   <div class="trip-card">
     <h2>EXPEDITION</h2>
-    <div class="trip-build">BUILD 2026.09.16-6 / ART PASS</div>
+    <div class="trip-build">BUILD 2026.09.16-7 / CHOICE PASS</div>
     <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;font-style:italic;">未知の道と反応を追い、探索成果を持ち帰る。</div>
     <div class="trip-wallet">所持金 <span class="money-val" id="tripMoney">0</span> G</div>
     <div class="trip-mode-list">
@@ -930,19 +931,19 @@
       <div class="loadout-grid" id="tripLoadoutGrid"></div>
     </div>
     <div class="encounter-board">
-      <div class="encounter-board-title">TODAY'S ROAD ENCOUNTERS</div>
+      <div class="encounter-board-title">今回見つかるもの</div>
       <div class="encounter-strip">
         <div class="encounter-preview" style="--preview-color:#2DD4D7">
           <img src="assets/loot/mobile-depot.png" alt="">
-          <div class="encounter-preview-copy"><div class="encounter-preview-name">MOBILE DEPOT</div><div class="encounter-preview-purpose">確実に稼ぐ</div></div>
+          <div class="encounter-preview-copy"><div class="encounter-preview-name">現金</div><div class="encounter-preview-purpose">帰還後に使える</div></div>
         </div>
         <div class="encounter-preview" style="--preview-color:#F6D547">
           <img src="assets/loot/signal-runner.png" alt="">
-          <div class="encounter-preview-copy"><div class="encounter-preview-name">SIGNAL RUNNER</div><div class="encounter-preview-purpose">装備を作る</div></div>
+          <div class="encounter-preview-copy"><div class="encounter-preview-name">装備パーツ</div><div class="encounter-preview-purpose">装備を作る</div></div>
         </div>
         <div class="encounter-preview" style="--preview-color:#FF654D">
           <img src="assets/loot/road-relic.png" alt="">
-          <div class="encounter-preview-copy"><div class="encounter-preview-name">ROAD RELIC</div><div class="encounter-preview-purpose">セットを揃える</div></div>
+          <div class="encounter-preview-copy"><div class="encounter-preview-name">レリック</div><div class="encounter-preview-purpose">3つ揃える</div></div>
         </div>
       </div>
     </div>
@@ -987,10 +988,10 @@
     <div class="brand-name">WAYFARING</div>
     <div class="brand-mode" id="brandContext">EXPEDITION / LIVE FIELD</div>
     <div class="brand-module" id="brandModule">NO MODULE</div>
-    <div class="brand-build">BUILD 2026.09.16-6 / ART PASS</div>
+    <div class="brand-build">BUILD 2026.09.16-7 / CHOICE PASS</div>
   </div>
   <div id="activeTraceHud">
-    <div class="trace-kicker">ACTIVE TRACE</div>
+    <div class="trace-kicker">追跡中</div>
     <div class="trace-main">
       <span class="trace-name" id="traceName">反応を追跡中</span>
       <span class="trace-distance"><span id="traceDistance">0</span><small>M</small></span>
@@ -1558,16 +1559,16 @@ let settings = {
   mapSize: 160,
   mapRight: 16,
   mapBottom: 16,
-  interfaceVersion: 6,
+  interfaceVersion: 7,
 };
 
 function loadSettings() {
   try {
     const s = JSON.parse(localStorage.getItem("jnav_settings") || "{}");
     Object.assign(settings, s);
-    if (!s.interfaceVersion || s.interfaceVersion < 6) {
+    if (!s.interfaceVersion || s.interfaceVersion < 7) {
       settings.bgMapOpacity = 0;
-      settings.interfaceVersion = 6;
+      settings.interfaceVersion = 7;
       saveSettings();
     }
   } catch(e) {}
@@ -1950,10 +1951,12 @@ function onBgMapOpacityChange() {
 
 function applyBgMapOpacity() {
   const el = document.getElementById("bgMap");
+  const clip = document.getElementById("bgMapClip");
   if (!el) return;
   el.style.opacity = settings.bgMapOpacity / 100;
+  if (clip) clip.style.display = settings.bgMapOpacity === 0 ? "none" : "block";
   if (settings.bgMapOpacity === 0 && bgLeafletMap) {
-    bgLeafletMap.remove(); bgLeafletMap = null;    const clip = document.getElementById("bgMapClip");
+    bgLeafletMap.remove(); bgLeafletMap = null;
     if (clip) clip.style.display = "none";
   }
 }
@@ -4022,9 +4025,7 @@ function interpolationLoop(now) {
     if (arc) {
       const maxM = carMaxDistM || 800;
       const pct = Math.max(0, Math.min(1, 1 - displayDistanceM / maxM));
-      const circ = 2 * Math.PI * 185;
-      const len = pct * circ;
-      arc.setAttribute("stroke-dasharray", `${len} ${circ}`);
+      arc.setAttribute("stroke-dasharray", `${pct * 100} 100`);
       let color;
       if (displayDistanceM < 100) color = "#EF4444";
       else if (displayDistanceM < 300) color = "#F59E0B";
@@ -4051,15 +4052,14 @@ function interpolationLoop(now) {
       rArc.setAttribute("opacity", String(pulse));
       rArc.setAttribute("stroke", "#34D399");
       rArc.setAttribute("stroke-width", "5");
-      rArc.setAttribute("stroke-dasharray", "16 8");
+      rArc.setAttribute("stroke-dasharray", "8 5");
       rArc.setAttribute("stroke-dashoffset", String(-offset));
       rArc.setAttribute("transform", "rotate(-90)");
       rArc.style.filter = `drop-shadow(0 0 18px rgba(52,211,153,${0.7 + 0.3 * pulse})) drop-shadow(0 0 6px rgba(52,211,153,0.9))`;
       if (rGlow) {
-        rGlow.setAttribute("r", "192");
         rGlow.setAttribute("stroke", "#34D399");
         rGlow.setAttribute("stroke-width", "14");
-        rGlow.setAttribute("stroke-dasharray", "16 8");
+        rGlow.setAttribute("stroke-dasharray", "8 5");
         rGlow.setAttribute("stroke-dashoffset", String(-offset));
         rGlow.setAttribute("transform", "rotate(-90)");
         rGlow.setAttribute("opacity", String(0.25 + 0.2 * pulse));
@@ -4188,37 +4188,20 @@ function drawJunction(decision) {
     </filter>
   </defs>`;
 
-  html += `<circle cx="0" cy="0" r="185" fill="none" stroke="#FFF1CF" stroke-width="2" opacity=".66"/>`;
-  html += `<circle id="distArc" cx="0" cy="0" r="185" fill="none"
-    stroke="#FF654D" stroke-width="7" stroke-linecap="round"
-    transform="rotate(-90)" style="transition:stroke 0.3s,stroke-dasharray 0.15s"/>`;
-  html += `<circle id="rouletteArc" cx="0" cy="0" r="192" fill="none"
+  // An open approach arc keeps the countdown legible without putting the
+  // road scene behind a giant instrument dial.
+  html += `<path id="distArc" d="M -176 70 A 190 190 0 0 1 176 70" pathLength="100" fill="none"
+    stroke="none" stroke-width="0" opacity="0" stroke-linecap="round"
+    style="transition:stroke 0.3s,stroke-dasharray 0.15s"/>`;
+  html += `<path id="rouletteArc" d="M -184 76 A 198 198 0 0 1 184 76" pathLength="100" fill="none"
     stroke="#F6D547" stroke-width="5" stroke-linecap="round"
-    stroke-dasharray="14 10" stroke-dashoffset="0" opacity="0"/>`;
-  html += `<circle id="rouletteGlowRing" cx="0" cy="0" r="0" fill="none"
-    stroke="#F6D547" stroke-width="2" opacity="0"/>`;
-  html += `<circle cx="0" cy="0" r="174" fill="none" stroke="#E7DDBE" stroke-width="1" opacity=".34"/>`;
+    stroke-dasharray="8 5" stroke-dashoffset="0" opacity="0"/>`;
+  html += `<path id="rouletteGlowRing" d="M -184 76 A 198 198 0 0 1 184 76" pathLength="100" fill="none"
+    stroke="#F6D547" stroke-width="12" opacity="0"/>`;
 
-  if (settings.dialTicks) {
-    html += `<g id="dialRing" transform="rotate(${dialFixedAngle})">`;
-    for (let deg = -180; deg < 180; deg += NOTCH_DEG) {
-      const major = deg % 30 === 0;
-      const medium = !major && deg % 15 === 0;
-      const r1 = 181;
-      const r2 = major ? 166 : medium ? 171 : 176;
-      const rad = deg * Math.PI / 180;
-      html += `<line x1="${Math.sin(rad)*r1}" y1="${-Math.cos(rad)*r1}"
-        x2="${Math.sin(rad)*r2}" y2="${-Math.cos(rad)*r2}"
-        stroke="${major ? '#FFF1CF' : medium ? '#D7CCAD' : '#958E7B'}"
-        stroke-width="${major ? 2.2 : medium ? 1.5 : 1}" stroke-linecap="round"/>`;
-    }
-    html += `<line x1="0" y1="-155" x2="0" y2="-192"
-      stroke="#FF4040" stroke-width="4" stroke-linecap="round"/>`;
-    html += `<line x1="0" y1="-155" x2="0" y2="-192"
-      stroke="#FF6050" stroke-width="7" stroke-linecap="round" opacity=".4"/>`;
-    html += `<circle cx="0" cy="-192" r="4" fill="#FF4040"/>`;
-    html += `</g>`;
-  }
+  html += `<g id="dialRing" transform="rotate(${dialFixedAngle})">
+    <path d="M -8 -181 L 0 -193 L 8 -181" fill="none" stroke="#FFF3D4" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>`;
 
   const carY = getCarY();
 
@@ -4241,12 +4224,10 @@ function drawJunction(decision) {
     if (rouletteAnimId) return null;
     const traceBranchId = getLeadContinuationBranchId(decision);
     if (activeLeadTracking && b.id === traceBranchId) {
-      return { text: "追跡ルート", color: getLeadPresentation(activeLeadTracking).color, size: 13, kind: "trace" };
+      return { text: "追跡中", color: getLeadPresentation(activeLeadTracking).color, size: 13, kind: "trace" };
     }
     if (b.lead && b.lead.status === "available" && !capturedLeadKeys.has(b.lead.id)) {
-      const leadType = LEAD_TYPES.find(type => type.type === b.lead.type);
-      const shortLabel = leadType ? leadType.name : "未知反応";
-      return { text: `${shortLabel} ${b.lead.targetDistanceM}m`, color: b.lead.color, size: 13, kind: "lead" };
+      return { text: "探索反応", color: b.lead.color, size: 13, kind: "lead" };
     }
     if (rouletteUsedThisJunction) {
       if (b.id === defaultBrId) return null;
@@ -4256,12 +4237,11 @@ function drawJunction(decision) {
       return { text: "×" + bm.toFixed(1), color: isWinner ? "#34D399" : "#6B7280", size: isWinner ? 16 : 13 };
     }
     if (b.id === defaultBrId) {
-      const pct = Math.round(bustProb * 100);
-      return { text: "⚠ " + pct + "%", color: pct >= 50 ? "#EF4444" : "#F59E0B", size: 14 };
+      return { text: "", color: "#F1E7CF", size: 13 };
     }
     const bm = branchMults[b.id];
     if (bm !== undefined) {
-      return { text: "×" + bm.toFixed(1), color: bm >= 1.5 ? "#F59E0B" : bm >= 1.0 ? "#34D399" : "#9CA3AF", size: 14 };
+      return { text: "", color: "#F1E7CF", size: 13 };
     }
     return { text: "反応なし", color: "#4B5563", size: 11 };
   }
@@ -4273,51 +4253,50 @@ function drawJunction(decision) {
     const x = Math.sin(rad) * 242, y = -Math.cos(rad) * 224;
     const trace = activeLeadTracking && b.id === getLeadContinuationBranchId(decision);
     const lead = trace ? activeLeadTracking : (b.lead && b.lead.status === "available" && !capturedLeadKeys.has(b.lead.id) ? b.lead : null);
-    const distance = lead ? Math.max(0, Math.round(trace ? lead.targetDistanceM - (lead.matchedDistanceM || 0) : lead.targetDistanceM)) : null;
     const escape = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     const multiplier = branchMults[b.id];
-    const defaultBranch = b.id === defaultBrId;
-    const riskText = defaultBranch
-      ? `△${Math.round(bustProb * 100)}%`
-      : (multiplier === undefined ? "" : `×${multiplier.toFixed(1)}`);
+    const streakMultipliers = [1.0, 1.5, 2.0, 3.0, 4.0, 5.0];
+    const streakMult = streakMultipliers[Math.min(consecutiveStraights, streakMultipliers.length - 1)];
+    const commitPts = Math.floor(cruiseDistanceM * streakMult * (multiplier || 1));
+    const direction = LABEL_JA[b.label] || b.label;
+    const directionMark = /left/.test(b.label) ? `← ${direction}` : /right/.test(b.label) ? `${direction} →` : `↑ ${direction}`;
     if (!lead) {
-      const quiet = gLine?.text || riskText || "";
-      if (!quiet) return "";
       return `<g class="branch-reward branch-reward-quiet" data-branch="${b.id}" role="button" tabindex="0"
-        aria-label="${escape((LABEL_JA[b.label] || b.label) + ' ' + quiet)}"
+        aria-label="${escape(direction + 'を選んで' + commitPts + 'ポイント確定')}"
         transform="translate(${x},${y})" style="cursor:pointer">
-        <rect x="-42" y="-18" width="84" height="36" rx="18" fill="#2A2A25" stroke="#F1E6C8" opacity=".9"/>
-        <text id="label_${b.id}" x="0" y="5" text-anchor="middle" fill="${b.selected ? '#F4F0E6' : '#8D918A'}" font-size="13" font-weight="750">${escape(quiet)}</text>
+        <rect x="-78" y="-42" width="156" height="84" rx="17" fill="${b.selected ? '#35352E' : '#252622'}" stroke="${b.selected ? '#F6D547' : '#EFE3C5'}" stroke-width="${b.selected ? 3 : 1.5}" opacity=".94"/>
+        <text x="0" y="-15" text-anchor="middle" fill="#F5EBD3" font-size="14" font-weight="850">${escape(directionMark)}</text>
+        <text x="0" y="9" text-anchor="middle" fill="#BDB39D" font-size="10" font-weight="750">いま確定</text>
+        <text id="label_${b.id}" data-commit-branch="${b.id}" x="0" y="31" text-anchor="middle" fill="#FFF7E4" font-size="20" font-weight="900">+${commitPts} pt</text>
       </g>`;
     }
 
     const type = LEAD_TYPES.find(entry => entry.type === lead.type) || LEAD_TYPES[2];
     const item = generateLeadItem(lead);
     const setPieces = item.setKey ? (discoveryCollection.sets[item.setKey] || []) : [];
-    const purpose = lead.type === "supply"
+    const reward = lead.type === "supply"
       ? `+${item.credits || 80}G`
       : lead.type === "unknown"
-        ? `${item.setKey === "blue-ring" ? "青環" : "赤矢"} SET ${Math.min(3, setPieces.length + 1)}/3`
-        : "装備素材";
-    const artWidth = lead.type === "supply" ? 126 : lead.type === "parts" ? 122 : 98;
-    const artHeight = lead.type === "supply" ? 84 : lead.type === "parts" ? 96 : 98;
-    const artX = -artWidth / 2;
-    const artY = lead.type === "supply" ? -79 : -88;
+        ? `レリック ${Math.min(3, setPieces.length + 1)}/3`
+        : "装備パーツ ×1";
+    const artWidth = lead.type === "supply" ? 80 : 72;
+    const artHeight = lead.type === "supply" ? 58 : 66;
+    const artX = -76;
+    const artY = -30;
     const accent = type.color;
     const selected = b.selected || b.preview;
     return `<g class="branch-reward" data-branch="${b.id}" role="button" tabindex="0"
-      aria-label="${escape((LABEL_JA[b.label] || b.label) + ' ' + type.name + ' ' + purpose + ' ' + distance + 'm') }"
+      aria-label="${escape(direction + 'を選んで' + commitPts + 'ポイント確定、その先で' + reward)}"
       transform="translate(${x},${y})" style="cursor:pointer">
-      <title>${escape(type.name + ' — ' + purpose)}</title>
-      <rect x="-72" y="-98" width="144" height="170" rx="13" fill="${selected ? '#33332D' : '#252622'}" stroke="${accent}" stroke-width="${selected ? 3 : 1.5}" opacity="${selected ? .96 : .9}"/>
-      <path d="M -72 -98 H -22 L -11 -87 H 72" fill="none" stroke="${accent}" stroke-width="5"/>
-      <text x="-60" y="-77" fill="${accent}" font-size="10" font-weight="900" letter-spacing="1.2">${escape(type.label)}</text>
+      <title>${escape(direction + ' — ' + reward)}</title>
+      <rect x="-88" y="-58" width="176" height="116" rx="18" fill="${selected ? '#35352E' : '#252622'}" stroke="${accent}" stroke-width="${selected ? 3 : 1.5}" opacity="${selected ? .97 : .93}"/>
+      <text x="0" y="-37" text-anchor="middle" fill="#F5EBD3" font-size="14" font-weight="850">${escape(directionMark)}</text>
       <image href="${type.asset}" x="${artX}" y="${artY}" width="${artWidth}" height="${artHeight}" preserveAspectRatio="xMidYMid meet" style="pointer-events:none;filter:drop-shadow(0 9px 8px rgba(0,0,0,.5))"/>
-      <rect x="-58" y="5" width="116" height="1" fill="${accent}" opacity=".45"/>
-      <text id="label_${b.id}" ${trace ? 'data-trace-distance="true"' : ''} x="-60" y="30" text-anchor="start" fill="#FFF7E4" font-size="22" font-weight="900">${distance}m</text>
-      <text x="60" y="29" text-anchor="end" fill="${defaultBranch ? '#FF654D' : '#F4E9CD'}" font-size="14" font-weight="900">${escape(riskText)}</text>
-      <text x="0" y="56" text-anchor="middle" fill="#F1E7CF" font-size="14" font-weight="850">${escape(purpose)}</text>
-      <rect x="-58" y="58" width="${selected ? 116 : 0}" height="3" rx="1.5" fill="${accent}" style="transition:width .2s"/>
+      <text x="-5" y="-8" text-anchor="start" fill="#BDB39D" font-size="9.5" font-weight="750">いま確定</text>
+      <text id="label_${b.id}" data-commit-branch="${b.id}" x="-5" y="15" text-anchor="start" fill="#FFF7E4" font-size="19" font-weight="900">+${commitPts} pt</text>
+      <text x="-76" y="38" text-anchor="start" fill="#BDB39D" font-size="9.5" font-weight="750">その先</text>
+      <text x="76" y="39" text-anchor="end" fill="${accent}" font-size="15" font-weight="900">${escape(trace ? '追跡中' : reward)}</text>
+      <rect x="-74" y="49" width="${selected ? 148 : 0}" height="4" rx="2" fill="${accent}" style="transition:width .2s"/>
     </g>`;
   }
 
@@ -4399,6 +4378,14 @@ function drawJunction(decision) {
 
   html += casingHtml;
   html += surfaceHtml;
+  if (cruiseActive) {
+    const noChoiceRisk = Math.round(bustProb * 100);
+    const pending = Math.floor(cruiseDistanceM);
+    html += `<g transform="translate(0,128)" style="pointer-events:none">
+      <rect x="-118" y="-18" width="236" height="36" rx="18" fill="rgba(22,22,19,.88)" stroke="rgba(255,101,77,.55)"/>
+      <text id="noChoiceRisk" x="0" y="5" text-anchor="middle" fill="#F5EBD3" font-size="12" font-weight="800">選ばない：${noChoiceRisk}%で ${pending}pt 消失</text>
+    </g>`;
+  }
   html += `<g id="egoCar" style="transform:translate(0px,${carY}px)">
     <ellipse id="egoShadow" cx="0" cy="4" rx="9" ry="5" fill="rgba(0,0,0,0.25)" filter="url(#shadowBlur)"/>
     <polygon id="egoBody" points="0,-14 10,10 -10,10" fill="#EFB38C" opacity=".9"
@@ -4684,7 +4671,7 @@ function updateCruiseDisplay() {
   const totalEl = document.getElementById("cruiseTotal");
   const dm = Math.floor(cruiseDistanceM);
   el.textContent = dm.toLocaleString();
-  unitEl.textContent = "m";
+  unitEl.textContent = "pt";
   const tier = dm >= 500 ? 3 : dm >= 300 ? 2 : dm >= 100 ? 1 : 0;
   el.classList.remove("tier1","tier2","tier3");
   if (tier >= 1) el.classList.add("tier" + tier);
@@ -4704,12 +4691,13 @@ function updateCruiseDisplay() {
     const streakMultipliers = [1.0, 1.5, 2.0, 3.0, 4.0, 5.0];
     const sMult = streakMultipliers[Math.min(consecutiveStraights, streakMultipliers.length - 1)];
     if (consecutiveStraights > 0) {
-      streakEl.textContent = "STREAK ×" + sMult.toFixed(1);
+      streakEl.textContent = "保留ボーナス +" + Math.round((sMult - 1) * 100) + "%";
       streakEl.classList.add("visible");
     } else {
       streakEl.classList.remove("visible");
     }
   }
+  updateBranchCommitLabels();
 }
 
 function convertStake() {
@@ -4720,7 +4708,7 @@ function convertStake() {
   const tierGlows = ["none", "0 0 16px rgba(52,211,153,0.3)", "0 0 20px rgba(192,132,252,0.4)", "0 0 24px rgba(245,158,11,0.5)"];
   playStakeConvert();
   const toast = document.getElementById("stakeToast");
-  toast.textContent = "+" + currentStake + " m";
+  toast.textContent = "+" + currentStake + " pt";
   toast.style.color = tierColors[tier];
   toast.style.textShadow = tierGlows[tier];
   toast.classList.remove("show");
@@ -5029,6 +5017,19 @@ function rerollBranchMults(branches) {
 
 function getNextBustProb() {
   return applyVehicleRiskReduction(BUST_CHANCES[Math.min(consecutiveStraights, BUST_CHANCES.length - 1)]);
+}
+
+function updateBranchCommitLabels() {
+  if (!currentDecision) return;
+  const streakMultipliers = [1.0, 1.5, 2.0, 3.0, 4.0, 5.0];
+  const streakMult = streakMultipliers[Math.min(consecutiveStraights, streakMultipliers.length - 1)];
+  for (const label of document.querySelectorAll("[data-commit-branch]")) {
+    const branchId = label.getAttribute("data-commit-branch");
+    const pts = Math.floor(cruiseDistanceM * streakMult * (branchMults[branchId] || 1));
+    label.textContent = `+${pts} pt`;
+  }
+  const risk = document.getElementById("noChoiceRisk");
+  if (risk) risk.textContent = `選ばない：${Math.round(getNextBustProb() * 100)}%で ${Math.floor(cruiseDistanceM)}pt 消失`;
 }
 
 function updateRiskDisplay() {
@@ -5782,8 +5783,12 @@ function startLeadTracking(lead) {
 
 function getLeadPresentation(lead) {
   const type = lead && LEAD_TYPES.find(entry => entry.type === lead.type);
-  if (!type) return { name: "反応を追跡中", color: "#67E8F9", asset: "assets/loot/road-relic.png" };
-  return { name: `${type.name}を追跡中`, color: type.color, asset: type.asset, promise: type.promise };
+  if (!type) return { name: "探索反応を追跡中", color: "#67E8F9", asset: "assets/loot/road-relic.png" };
+  const item = generateLeadItem(lead);
+  const reward = lead.type === "supply"
+    ? `${item.credits || 80}Gを追跡中`
+    : lead.type === "parts" ? "装備パーツを追跡中" : "レリックを追跡中";
+  return { name: reward, color: type.color, asset: type.asset, promise: type.promise };
 }
 
 function updateActiveTraceHud() {
@@ -5798,11 +5803,9 @@ function updateActiveTraceHud() {
   const presentation = getLeadPresentation(lt);
   const target = Math.max(1, lt.targetDistanceM || 1);
   const travelled = Math.max(0, lt.matchedDistanceM || 0);
-  const remaining = Math.max(0, Math.ceil(target - travelled));
   hud.style.setProperty("--trace-color", presentation.color);
   document.getElementById("traceName").textContent = presentation.name;
-  document.getElementById("traceDistance").textContent = remaining;
-  for (const label of document.querySelectorAll('[data-trace-distance]')) label.textContent = `${remaining}m`;
+  document.getElementById("traceDistance").textContent = "";
   document.getElementById("traceProgressFill").style.width = `${Math.min(100, travelled / target * 100)}%`;
   hud.classList.add("visible");
 }
@@ -5937,10 +5940,11 @@ function showLeadCaptureToast(item, lead, collection, creditReward) {
     ? `${collection.completed ? "SET COMPLETE" : `SET ${collection.count}/${collection.target}`}`
     : "TRIP HAUL";
   const effect = item.effect || item.promise || "帰還後に利用可能";
+  const category = lead.type === "supply" ? "現金を回収" : lead.type === "parts" ? "装備パーツを発見" : "レリックを発見";
   el.innerHTML = `
     <img class="discovery-art" src="${item.asset}" alt="">
     <div class="discovery-copy">
-      <div class="discovery-kicker">${item.encounterName} · ${rarityLabel}</div>
+      <div class="discovery-kicker">${category} · ${rarityLabel}</div>
       <div class="discovery-name">${item.name}</div>
       <div class="discovery-effect">${effect}</div>
       <div class="discovery-meta">+${creditReward}G · ${setMeta} · トレイ ${explorationTray.length}</div>
@@ -5963,7 +5967,7 @@ function showLeadMissToast() {
     padding:10px 24px;text-align:center;pointer-events:none;
     animation:areaSlideIn 0.3s ease-out;
   `;
-  el.innerHTML = `<div style="font-size:13px;letter-spacing:2px;color:#6B7280;font-weight:700;">SIGNAL LOST</div>`;
+  el.innerHTML = `<div style="font-size:13px;color:#BDB9A9;font-weight:800;">追跡を終了</div>`;
   document.body.appendChild(el);
   setTimeout(() => { el.style.transition = "opacity 0.4s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 400); }, 1500);
 }

@@ -771,6 +771,11 @@
     letter-spacing: 0.04em; transition: background 0.2s;
   }
   .trip-depart-btn:hover { background: var(--route-bright); }
+  .trip-depart-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .trip-depart-btn { padding: 13px 12px; }
+  .trip-depart-btn.demo { background: #F6D547; color: #1C1D1A; }
+  .trip-depart-btn.live { background: transparent; color: #D8D4C8; border: 1px solid rgba(255,255,255,.18); }
+  .trip-depart-btn small { display: block; margin-top: 3px; font-size: 9px; font-weight: 600; opacity: .72; letter-spacing: 0; }
   .loadout-panel {
     margin: 14px 0; text-align: left; padding: 13px;
     background: rgba(8,12,15,.44); border: 1px solid rgba(255,255,255,.08);
@@ -894,7 +899,7 @@
 <div id="tripStartScreen">
   <div class="trip-card">
     <h2>EXPEDITION</h2>
-    <div class="trip-build">BUILD 2026.09.16-2 / ENCOUNTERS LIVE</div>
+    <div class="trip-build">BUILD 2026.09.16-4 / DEMO RESET</div>
     <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;font-style:italic;">未知の道と反応を追い、探索成果を持ち帰る。</div>
     <div class="trip-wallet">所持金 <span class="money-val" id="tripMoney">0</span> G</div>
     <div class="trip-mode-list">
@@ -935,7 +940,10 @@
         </div>
       </div>
     </div>
-    <button class="trip-depart-btn" onclick="departTrip()">出発</button>
+    <div class="trip-depart-actions">
+      <button class="trip-depart-btn demo" onclick="departTripWithMode(true)">試走デモ<small>自動走行・カードを必ず表示</small></button>
+      <button class="trip-depart-btn live" onclick="departTripWithMode(false)">実車で出発<small>GPSで現在地から開始</small></button>
+    </div>
     <dialog id="departureConfirm" style="margin:auto;max-width:340px;padding:24px;background:var(--surface);color:var(--text-primary);border:1px solid var(--text-muted);border-radius:12px">
       <p id="departureConfirmText" style="margin-bottom:20px"></p>
       <button onclick="document.getElementById('departureConfirm').close()" style="padding:12px">戻る</button>
@@ -973,7 +981,7 @@
     <div class="brand-name">WAYFARING</div>
     <div class="brand-mode" id="brandContext">EXPEDITION / LIVE FIELD</div>
     <div class="brand-module" id="brandModule">NO MODULE</div>
-    <div class="brand-build">BUILD 2026.09.16-2</div>
+    <div class="brand-build">BUILD 2026.09.16-4</div>
   </div>
   <div id="activeTraceHud">
     <div class="trace-kicker">ACTIVE TRACE</div>
@@ -3597,6 +3605,12 @@ async function startApp() {
     loadSkillData();
     loadBaseData();
     loadLeadData();
+    if (settings.demoMode) {
+      // A demo is a repeatable product test, not persistent progression.
+      // Never let an earlier demo session silently empty the next one.
+      capturedLeadKeys.clear();
+      saveLeadData();
+    }
     loadDiscoveryCollection();
     prog.textContent = `${skillGraph.nodes.length} スキルノード`;
     await new Promise(r => setTimeout(r, 200));
@@ -6873,6 +6887,12 @@ function showTripStart() {
   } else {
     if (qPreview) qPreview.innerHTML = "";
   }
+}
+
+function departTripWithMode(demoMode) {
+  settings.demoMode = !!demoMode;
+  saveSettings();
+  departTrip();
 }
 
 function departTrip(allowDebt = false) {

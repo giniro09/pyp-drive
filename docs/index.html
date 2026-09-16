@@ -899,7 +899,7 @@
 <div id="tripStartScreen">
   <div class="trip-card">
     <h2>EXPEDITION</h2>
-    <div class="trip-build">BUILD 2026.09.16-4 / DEMO RESET</div>
+    <div class="trip-build">BUILD 2026.09.16-5 / CARDS VISIBLE</div>
     <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;font-style:italic;">未知の道と反応を追い、探索成果を持ち帰る。</div>
     <div class="trip-wallet">所持金 <span class="money-val" id="tripMoney">0</span> G</div>
     <div class="trip-mode-list">
@@ -981,7 +981,7 @@
     <div class="brand-name">WAYFARING</div>
     <div class="brand-mode" id="brandContext">EXPEDITION / LIVE FIELD</div>
     <div class="brand-module" id="brandModule">NO MODULE</div>
-    <div class="brand-build">BUILD 2026.09.16-4</div>
+    <div class="brand-build">BUILD 2026.09.16-5</div>
   </div>
   <div id="activeTraceHud">
     <div class="trace-kicker">ACTIVE TRACE</div>
@@ -2646,13 +2646,18 @@ function checkAreaTransition(lat, lon) {
 }
 
 function showAreaDiscovery(area) {
+  if (currentTrip && currentTrip.areaRevealShown) {
+    showAreaEntry(area);
+    return;
+  }
+  if (currentTrip) currentTrip.areaRevealShown = true;
   const biome = BIOME_TYPES[area.primaryBiome] || BIOME_TYPES.rural;
   const overlay = document.createElement("div");
   overlay.style.cssText = `
     position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     background:rgba(0,0,0,0.85);animation:areaFadeIn 0.3s ease-out;
-    pointer-events:auto;
+    pointer-events:none;
   `;
   overlay.innerHTML = `
     <div style="font-size:14px;color:${biome.color};letter-spacing:4px;margin-bottom:12px;opacity:0.8;">NEW AREA</div>
@@ -2666,7 +2671,7 @@ function showAreaDiscovery(area) {
     overlay.style.transition = "opacity 0.5s";
     overlay.style.opacity = "0";
     setTimeout(() => overlay.remove(), 500);
-  }, 2500);
+  }, 1600);
 }
 
 function showAreaEntry(area) {
@@ -6922,6 +6927,7 @@ function departTrip(allowDebt = false) {
     skillsDiscovered: 0,
     encounterCount: 0,
     encountersWon: 0,
+    areaRevealShown: false,
   };
   totalSessionScore = 0;
   explorationTray = [];
